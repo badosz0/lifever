@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lifever
+      POSTGRES_USER: lifever
+      POSTGRES_PASSWORD: lifever
+    ports:
+      - "5432:5432"
+    volumes:
+      - lifever_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifever -d lifever"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  lifever_postgres:
+

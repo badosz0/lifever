@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../apps/api/src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String          @id
+  name           String
+  email          String          @unique
+  emailVerified  Boolean         @default(false)
+  image          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  sessions       Session[]
+  accounts       Account[]
+  lists          ReminderList[]
+  reminders      Reminder[]
+  calendarEvents     CalendarEvent[]
+  calendarCategories CalendarCategory[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model ReminderList {
+  id        String     @id @default(cuid())
+  name      String
+  color     String     @default("blue")
+  icon      String     @default("list")
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminders Reminder[]
+
+  @@index([userId, position])
+  @@map("reminder_list")
+}
+
+model Reminder {
+  id          String        @id @default(cuid())
+  title       String
+  notes       String?
+  dueAt       DateTime?
+  completedAt DateTime?
+  important   Boolean       @default(false)
+  repeatRule  String?
+  position    Float         @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId      String?
+  list        ReminderList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+
+  @@index([userId, completedAt])
+  @@index([userId, dueAt])
+  @@index([listId, position])
+  @@map("reminder")
+}
+
+model CalendarEvent {
+  id         String           @id @default(cuid())
+  title      String
+  startAt    DateTime
+  endAt      DateTime
+  location   String           @default("")
+  notes      String           @default("")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   CalendarCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, startAt])
+  @@index([categoryId])
+  @@map("calendar_event")
+}
+
+model CalendarCategory {
+  id        String          @id @default(cuid())
+  name      String
+  color     String
+  position  Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events    CalendarEvent[]
+
+  @@index([userId, position])
+  @@map("calendar_category")
+}

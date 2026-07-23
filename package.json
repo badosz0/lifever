@@ -1,0 +1,29 @@
+{
+  "name": "lifever",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@8.13.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @lifever/api --filter @lifever/web dev",
+    "dev:web": "pnpm --filter @lifever/web dev",
+    "dev:api": "pnpm --filter @lifever/api dev",
+    "desktop:dev": "pnpm --filter @lifever/desktop tauri dev",
+    "desktop:app": "node scripts/desktop-app.mjs",
+    "desktop:build": "pnpm --filter @lifever/desktop tauri build",
+    "build": "pnpm db:generate && pnpm --filter @lifever/api build && pnpm --filter @lifever/web build",
+    "check": "pnpm db:generate && pnpm -r check",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3",
+    "prisma": "^7.9.0",
+    "typescript": "^5.9.3"
+  }
+}
