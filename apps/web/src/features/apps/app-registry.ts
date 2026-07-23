@@ -1,4 +1,4 @@
-import { CalendarDays, Columns3, ListTodo } from "lucide-react";
+import { CalendarDays, Columns3, Flag, ListTodo } from "lucide-react";
 
 import { CalendarDetailsDialog } from "@/features/calendar/components/calendar-details-dialog";
 import { CalendarInspector } from "@/features/calendar/components/calendar-inspector";
@@ -9,6 +9,9 @@ import { RemindersView } from "@/features/reminders/reminders-view";
 import { KanbanDetailsDialog } from "@/features/kanban/components/kanban-details-dialog";
 import { KanbanInspector } from "@/features/kanban/components/kanban-inspector";
 import { KanbanView } from "@/features/kanban/kanban-view";
+import { Formula1DetailsDialog } from "@/features/formula1/components/formula1-details-dialog";
+import { Formula1Inspector } from "@/features/formula1/components/formula1-inspector";
+import { Formula1View } from "@/features/formula1/formula1-view";
 
 import type { AppId, LifeverAppDefinition } from "./model/types";
 
@@ -38,6 +41,15 @@ export const lifeverApps: LifeverAppDefinition[] = [
     View: KanbanView,
     Inspector: KanbanInspector,
     DetailsDialog: KanbanDetailsDialog,
+    detailsPanel: { defaultWidth: 360, minWidth: 320, maxWidth: 500 },
+  },
+  {
+    id: "formula1",
+    label: "Formula 1",
+    icon: Flag,
+    View: Formula1View,
+    Inspector: Formula1Inspector,
+    DetailsDialog: Formula1DetailsDialog,
     detailsPanel: { defaultWidth: 360, minWidth: 320, maxWidth: 500 },
   },
 ];

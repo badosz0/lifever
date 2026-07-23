@@ -19,7 +19,13 @@ const AppsContext = createContext<AppsContextValue | null>(null);
 const readActiveApp = (): AppId => {
   try {
     const stored = localStorage.getItem("lifever-active-app");
-    if (stored === "calendar" || stored === "kanban") return stored;
+    if (
+      stored === "calendar" ||
+      stored === "kanban" ||
+      stored === "formula1"
+    ) {
+      return stored;
+    }
     return "reminders";
   } catch {
     return "reminders";
