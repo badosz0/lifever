@@ -50,11 +50,7 @@ export function Formula1RaceCard({
             <span className="text-[10px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
               Round {race.round}
             </span>
-            {raceState === "race-week" ? (
-              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase">
-                Race week
-              </span>
-            ) : raceState === "completed" ? (
+            {raceState === "completed" ? (
               <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
                 <Check className="size-3" />
                 Complete

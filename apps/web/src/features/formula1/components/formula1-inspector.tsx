@@ -158,9 +158,7 @@ export function Formula1Inspector({ className }: Formula1InspectorProps) {
             <p className="text-[9px] font-bold tracking-[0.08em] text-red-600 uppercase">
               {state === "completed"
                 ? "Completed"
-                : state === "race-week"
-                  ? "Race week"
-                  : `${item.season} season`}
+                : `${item.season} season`}
             </p>
             <h3 className="mt-1 text-[19px] leading-5 font-semibold tracking-[-0.03em]">
               {item.name}

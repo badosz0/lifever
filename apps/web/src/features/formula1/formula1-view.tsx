@@ -22,7 +22,6 @@ import {
   getNextSession,
   getRaceState,
   getSpotlightRace,
-  raceStartDate,
 } from "@/features/formula1/lib/formula1-dates";
 import { useFormula1 } from "@/features/formula1/model/formula1-provider";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
@@ -90,6 +89,8 @@ export function Formula1View({
   const nextSession = spotlightRace
     ? getNextSession(spotlightRace, now)
     : null;
+  const nextSessionStartsAt =
+    nextSession?.startsAt ?? spotlightRace?.startsAt ?? null;
   const upcomingRaces =
     snapshot?.races.filter((race) => getRaceState(race, now) !== "completed") ??
     [];
@@ -97,9 +98,6 @@ export function Formula1View({
     snapshot?.races
       .filter((race) => getRaceState(race, now) === "completed")
       .reverse() ?? [];
-  const progress = snapshot?.races.length
-    ? (completedRaces.length / snapshot.races.length) * 100
-    : 0;
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -199,19 +197,6 @@ export function Formula1View({
                       <div className="flex flex-col items-start gap-5 sm:flex-row sm:gap-6">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-red-600"
-                              aria-hidden="true"
-                            />
-                            <span className="text-[10px] font-bold tracking-[0.08em] text-foreground/75 uppercase">
-                              {getRaceState(spotlightRace, now) === "race-week"
-                                ? "Race week"
-                                : "Next race"}
-                            </span>
-                            <span
-                              className="h-2.5 w-px bg-border"
-                              aria-hidden="true"
-                            />
                             <span className="text-[10px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
                               Round {spotlightRace.round}
                             </span>
@@ -233,50 +218,39 @@ export function Formula1View({
                           </div>
                         </div>
 
-                        <div className="shrink-0 text-left sm:text-right">
-                          <p className="text-[9px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-                            {nextSession?.label ?? "Race starts"}
+                        <div className="w-full shrink-0 rounded-2xl bg-muted px-4 py-3.5 text-left sm:w-auto sm:min-w-[210px] sm:text-right">
+                          <p className="text-[9px] font-bold tracking-[0.08em] text-red-600 uppercase">
+                            Your local time
                           </p>
-                          <p className="mt-1 text-[22px] leading-none font-bold tracking-[-0.04em] sm:text-[28px]">
-                            <Formula1Countdown
-                              target={
-                                nextSession?.startsAt
-                                  ? new Date(nextSession.startsAt)
-                                  : raceStartDate(spotlightRace)
-                              }
-                            />
-                          </p>
-                          <p className="mt-2 text-[10px] text-muted-foreground">
-                            {nextSession?.startsAt
-                              ? `${formatUserDate(
-                                  nextSession.startsAt,
+                          <p className="mt-1.5 text-[12px] font-medium text-foreground/80">
+                            {nextSessionStartsAt
+                              ? formatUserDate(
+                                  nextSessionStartsAt,
                                   dateFormat,
                                   {
                                     includeYear: false,
                                     length: "long",
+                                    weekday: "short",
                                   },
-                                )} · ${formatUserTime(
-                                  nextSession.startsAt,
+                                )
+                              : "Date to be confirmed"}
+                          </p>
+                          <p className="mt-0.5 text-[26px] leading-none font-bold tracking-[-0.035em] tabular-nums">
+                            {nextSessionStartsAt
+                              ? formatUserTime(
+                                  nextSessionStartsAt,
                                   timeFormat,
-                                )}`
-                              : "Time to be confirmed"}
+                                )
+                              : "TBC"}
                           </p>
-                          <p className="mt-0.5 text-[9px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
-                            Your local time
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-5">
-                        <div className="mb-1.5 flex justify-between text-[9px] font-medium text-muted-foreground">
-                          <span>{completedRaces.length} completed</span>
-                          <span>{snapshot.races.length} races</span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-[#e10600] transition-[width] duration-500"
-                            style={{ width: `${progress}%` }}
-                          />
+                          {nextSessionStartsAt ? (
+                            <p className="mt-2 text-[10px] text-muted-foreground">
+                              {nextSession?.label ?? "Race starts"} ·{" "}
+                              <Formula1Countdown
+                                target={new Date(nextSessionStartsAt)}
+                              />
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </button>
@@ -412,7 +386,7 @@ function StandingsHeading({
 function Formula1LoadingState() {
   return (
     <div className="animate-pulse">
-      <div className="h-52 rounded-[22px] border border-border bg-card" />
+      <div className="h-44 rounded-[22px] border border-border bg-card" />
       <div className="mt-7 h-4 w-24 rounded bg-muted" />
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (
