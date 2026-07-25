@@ -3,13 +3,12 @@ import {
   Menu,
   PanelLeft,
   Plus,
-  Search,
   Settings2,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { SearchField } from "@/components/ui/search-field";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { NoteListItem } from "@/features/notes/components/note-list-item";
 import { NotesNavigation } from "@/features/notes/components/notes-navigation";
@@ -42,7 +41,8 @@ export function NotesView({
   } = useNotes();
   const [search, setSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
   const openNewNote = useCallback(() => {
     if (isReady) addNote();
   }, [addNote, isReady]);
@@ -66,7 +66,11 @@ export function NotesView({
 
       if (commandPressed && event.key.toLowerCase() === "f") {
         event.preventDefault();
-        searchRef.current?.focus();
+        const searchInput = [
+          desktopSearchRef.current,
+          mobileSearchRef.current,
+        ].find((input) => input?.offsetParent !== null);
+        searchInput?.focus();
       }
     };
 
@@ -117,7 +121,7 @@ export function NotesView({
     visibleNotes.length === 1 ? "1 note" : `${visibleNotes.length} notes`;
 
   return (
-    <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <main className="notes-search-layout relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <header className="scroll-edge relative z-10 shrink-0 bg-background/88 px-4 pt-3 pb-4 backdrop-blur-xl sm:px-7 sm:pt-5">
         <div className="flex min-h-9 items-center gap-2">
           <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
@@ -142,6 +146,13 @@ export function NotesView({
           </Button>
           <NotesNavigation />
           <div className="flex-1" />
+          <SearchField
+            ref={desktopSearchRef}
+            value={search}
+            onValueChange={setSearch}
+            label="Search notes"
+            className="notes-toolbar-search w-[230px] shrink-0"
+          />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -165,54 +176,31 @@ export function NotesView({
           </ShortcutTooltip>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 px-1 sm:mt-8 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {activeCategory ? (
-                <span
-                  className="size-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: activeCategory.color }}
-                  aria-hidden="true"
-                />
-              ) : null}
-              <h1 className="truncate text-[30px] leading-[1.08] font-bold tracking-[-0.03em] sm:text-[34px]">
-                {title}
-              </h1>
-            </div>
-            <p className="mt-1.5 text-[13px] text-muted-foreground">
-              {search ? `${noteCountLabel} matching “${search}”` : noteCountLabel}
-            </p>
+        <div className="mt-6 min-w-0 px-1 sm:mt-8">
+          <div className="flex items-center gap-2">
+            {activeCategory ? (
+              <span
+                className="size-3 shrink-0 rounded-full"
+                style={{ backgroundColor: activeCategory.color }}
+                aria-hidden="true"
+              />
+            ) : null}
+            <h1 className="truncate text-[30px] leading-[1.08] font-bold tracking-[-0.03em] sm:text-[34px]">
+              {title}
+            </h1>
           </div>
-
-          <div className="flex h-8 w-full items-center gap-2 rounded-lg bg-muted/75 px-2.5 ring-1 ring-border/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/25 sm:w-[220px]">
-            <Search className="size-3.5 shrink-0 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search notes"
-              className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground"
-              aria-label="Search notes"
-            />
-            {search ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  searchRef.current?.focus();
-                }}
-                className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Clear search"
-              >
-                <X className="size-3" />
-              </button>
-            ) : (
-              <span className="text-[9px] font-medium text-muted-foreground/70">
-                ⌘F
-              </span>
-            )}
-          </div>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            {search ? `${noteCountLabel} matching “${search}”` : noteCountLabel}
+          </p>
         </div>
+
+        <SearchField
+          ref={mobileSearchRef}
+          value={search}
+          onValueChange={setSearch}
+          label="Search notes"
+          className="notes-body-search mt-3"
+        />
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 sm:px-6">

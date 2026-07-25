@@ -3,15 +3,14 @@ import {
   Menu,
   PanelLeft,
   Plus,
-  Search,
   SlidersHorizontal,
-  X,
 } from "lucide-react";
 import {
   type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -25,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SearchField } from "@/components/ui/search-field";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { KanbanBoard } from "@/features/kanban/components/kanban-board";
 import { KanbanProjectPicker } from "@/features/kanban/components/kanban-project-picker";
@@ -66,6 +66,8 @@ export function KanbanView({
   const [newCardColumnId, setNewCardColumnId] = useState<string | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
 
   const project = projects.find((item) => item.id === activeProjectId);
   const projectColumns = useMemo(
@@ -147,10 +149,20 @@ export function KanbanView({
       const isTyping = target?.matches(
         "input, textarea, select, [contenteditable='true']",
       );
+      const commandPressed = event.metaKey || event.ctrlKey;
+      if (commandPressed && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        const searchInput = [
+          desktopSearchRef.current,
+          mobileSearchRef.current,
+        ].find((input) => input?.offsetParent !== null);
+        searchInput?.focus();
+        return;
+      }
       if (
         event.key.toLowerCase() === "n" &&
         !event.altKey &&
-        ((event.metaKey || event.ctrlKey) || !isTyping)
+        (commandPressed || !isTyping)
       ) {
         event.preventDefault();
         openCardComposer();
@@ -204,26 +216,13 @@ export function KanbanView({
 
           <div className="flex-1" />
 
-          <div className="relative hidden w-[min(230px,24vw)] md:block">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search cards"
-              className="h-8 w-full rounded-lg border border-input bg-background pr-8 pl-8 text-[12px] outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/20"
-              aria-label="Search cards"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Clear search"
-              >
-                <X className="size-3" />
-              </button>
-            ) : null}
-          </div>
+          <SearchField
+            ref={desktopSearchRef}
+            value={query}
+            onValueChange={setQuery}
+            label="Search cards"
+            className="hidden w-[min(230px,24vw)] md:block"
+          />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -316,26 +315,13 @@ export function KanbanView({
           </div>
         </div>
 
-        <div className="relative mt-3 md:hidden">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search cards"
-            className="h-8 w-full rounded-lg border border-input bg-background pr-8 pl-8 text-[12px] outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            aria-label="Search cards"
-          />
-          {query ? (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground"
-              aria-label="Clear search"
-            >
-              <X className="size-3" />
-            </button>
-          ) : null}
-        </div>
+        <SearchField
+          ref={mobileSearchRef}
+          value={query}
+          onValueChange={setQuery}
+          label="Search cards"
+          className="mt-3 md:hidden"
+        />
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain pt-2">

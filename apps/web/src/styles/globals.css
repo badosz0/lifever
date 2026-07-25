@@ -386,6 +386,24 @@ button,
   border-right: 0;
 }
 
+.notes-search-layout {
+  container-type: inline-size;
+}
+
+.notes-toolbar-search {
+  display: none;
+}
+
+@container (min-width: 700px) {
+  .notes-toolbar-search {
+    display: block;
+  }
+
+  .notes-body-search {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .tauri-titlebar,
   .scroll-edge,
