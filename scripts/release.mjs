@@ -27,6 +27,7 @@ import {
 } from "./lib/release-config.mjs";
 
 const desktopRoot = path.join(projectRoot, "apps/desktop/src-tauri");
+const desktopIdentifier = "app.lifever.desktop";
 const universalTarget = path.join(
   desktopRoot,
   "target/universal-apple-darwin/release",
@@ -212,6 +213,11 @@ async function getVersion() {
       `Lifever versions do not match:\n${[...versions]
         .map(([file, version]) => `  ${file}: ${version ?? "missing"}`)
         .join("\n")}\nRun pnpm release:version <version> first.`,
+    );
+  }
+  if (tauriConfig.identifier !== desktopIdentifier) {
+    throw new Error(
+      `The desktop identifier must remain ${desktopIdentifier} so macOS upgrades preserve the WebKit data store and signed-in sessions.`,
     );
   }
 

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import { clearDesktopAuthToken } from "@/lib/auth-token";
 
 export function AccountMenu() {
   const { data: session, isPending } = authClient.useSession();
@@ -32,6 +33,7 @@ export function AccountMenu() {
 
   const signOut = async () => {
     await authClient.signOut();
+    clearDesktopAuthToken();
     toast.success("Signed out");
   };
 
