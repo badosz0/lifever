@@ -30,6 +30,7 @@ const makeEvent = (
     categoryId: categoryIdForLegacyColor(legacyColor),
     location,
     notes,
+    alertsEnabled: true,
     createdAt: subDays(start, 1).toISOString(),
   };
 };

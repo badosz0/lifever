@@ -14,12 +14,19 @@ export type CalendarEvent = {
   categoryId: string;
   location: string;
   notes: string;
+  alertsEnabled: boolean;
   createdAt: string;
 };
 
 export type NewCalendarEvent = Pick<
   CalendarEvent,
-  "title" | "startAt" | "endAt" | "categoryId" | "location" | "notes"
+  | "title"
+  | "startAt"
+  | "endAt"
+  | "categoryId"
+  | "location"
+  | "notes"
+  | "alertsEnabled"
 >;
 
 export type CalendarEventPreview = {

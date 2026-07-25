@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
+import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
 import {
   dateKey,
   getEventRangeFromInputs,
@@ -58,6 +59,7 @@ export function NewCalendarEventDialog({
   );
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
   const titleId = useId();
   const startDateId = useId();
   const startId = useId();
@@ -108,6 +110,7 @@ export function NewCalendarEventDialog({
       categoryId,
       location: location.trim(),
       notes: notes.trim(),
+      alertsEnabled,
     });
     onOpenChange(false);
     toast.success("Event added", { description: event.title });
@@ -253,6 +256,12 @@ export function NewCalendarEventDialog({
               ariaLabel="New event category"
             />
           </div>
+
+          <CalendarEventAlertToggle
+            checked={alertsEnabled}
+            onCheckedChange={setAlertsEnabled}
+            className="mt-4"
+          />
 
           <div className="mt-4">
             <label htmlFor={locationId} className="mb-1.5 block text-xs font-medium text-muted-foreground">

@@ -56,7 +56,13 @@ const REMOTE_WRITE_DELAY = 400;
 type CalendarEventPatch = Partial<
   Pick<
     CalendarEvent,
-    "title" | "startAt" | "endAt" | "categoryId" | "location" | "notes"
+    | "title"
+    | "startAt"
+    | "endAt"
+    | "categoryId"
+    | "location"
+    | "notes"
+    | "alertsEnabled"
   >
 >;
 
@@ -65,23 +71,31 @@ type PendingEventUpdate = {
   timeout: number;
 };
 
-type StoredCalendarEvent = Omit<CalendarEvent, "categoryId"> & {
+type StoredCalendarEvent = Omit<
+  CalendarEvent,
+  "categoryId" | "alertsEnabled"
+> & {
   categoryId?: string;
+  alertsEnabled?: boolean;
   color?: unknown;
 };
+
+function normalizeCalendarEvent(event: StoredCalendarEvent): CalendarEvent {
+  const { color, ...currentEvent } = event;
+  return {
+    ...currentEvent,
+    categoryId: event.categoryId || categoryIdForLegacyColor(color),
+    alertsEnabled: event.alertsEnabled !== false,
+  };
+}
 
 function readStoredEvents(): CalendarEvent[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return (JSON.parse(stored) as StoredCalendarEvent[]).map((event) => {
-        const { color, ...currentEvent } = event;
-        return {
-          ...currentEvent,
-          categoryId:
-            event.categoryId || categoryIdForLegacyColor(color),
-        } as CalendarEvent;
-      });
+      return (JSON.parse(stored) as StoredCalendarEvent[]).map(
+        normalizeCalendarEvent,
+      );
     }
   } catch {
     // A local storage issue should not prevent Calendar from opening.
@@ -162,7 +176,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         ) {
           return;
         }
-        setEvents(remoteEvents);
+        setEvents(remoteEvents.map(normalizeCalendarEvent));
         setCategories(remoteCategories);
         if (!preserveSelection) setSelectedEventId(null);
         setHydratedMode(requestedMode);
@@ -373,6 +387,9 @@ export function CalendarProvider({ children }: PropsWithChildren) {
             : {}),
           ...(patch.location !== undefined ? { location: patch.location } : {}),
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+          ...(patch.alertsEnabled !== undefined
+            ? { alertsEnabled: patch.alertsEnabled }
+            : {}),
         };
         if (Object.keys(allowedPatch).length > 0) {
           const textOnly = Object.keys(allowedPatch).every(
@@ -426,6 +443,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         categoryId: event.categoryId,
         location: event.location,
         notes: event.notes,
+        alertsEnabled: event.alertsEnabled,
       };
       const deletion = pendingDeletes.current.get(event.id);
       if (deletion) {
@@ -448,6 +466,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         categoryId: source.categoryId,
         location: source.location,
         notes: source.notes,
+        alertsEnabled: source.alertsEnabled,
       };
       return addEvent(duplicate);
     },

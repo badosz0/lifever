@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
+import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
 import {
   addMinutes,
   combineDateAndTime,
@@ -285,6 +286,14 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
             }
           />
         </div>
+
+        <CalendarEventAlertToggle
+          checked={calendarEvent.alertsEnabled}
+          onCheckedChange={(alertsEnabled) =>
+            updateEvent(calendarEvent.id, { alertsEnabled })
+          }
+          className="mt-4"
+        />
 
         <div className="mt-4 space-y-3">
           <div>

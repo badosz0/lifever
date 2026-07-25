@@ -8,6 +8,7 @@ const calendarEventFields = {
   categoryId: z.string().min(1).max(100),
   location: z.string().max(240),
   notes: z.string().max(10_000),
+  alertsEnabled: z.boolean().default(true),
 };
 
 const hasValidRange = (value: { startAt: string; endAt: string }) =>
@@ -28,6 +29,7 @@ export const updateCalendarEventSchema = z
     categoryId: calendarEventFields.categoryId.optional(),
     location: calendarEventFields.location.optional(),
     notes: calendarEventFields.notes.optional(),
+    alertsEnabled: calendarEventFields.alertsEnabled.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required.",

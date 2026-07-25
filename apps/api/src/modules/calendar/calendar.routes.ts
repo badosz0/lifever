@@ -21,6 +21,7 @@ export const createCalendarRoutes = ({
     categoryId: true,
     location: true,
     notes: true,
+    alertsEnabled: true,
     createdAt: true,
   } as const;
 
