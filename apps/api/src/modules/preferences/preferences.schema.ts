@@ -12,6 +12,7 @@ export const updatePreferencesSchema = z
         "year-month-day",
       ])
       .optional(),
+    calendarClickToCreate: z.boolean().optional(),
     favoriteDriverId: z.string().max(100).nullable().optional(),
     favoriteConstructorId: z.string().max(100).nullable().optional(),
   })

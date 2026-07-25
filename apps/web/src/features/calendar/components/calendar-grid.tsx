@@ -49,6 +49,8 @@ type CalendarGridProps = {
   events: CalendarEvent[];
   newEventPreview: CalendarEventPreview | null;
   selectedEventId: string | null;
+  clickToCreateEnabled: boolean;
+  onClearSelection: () => void;
   onSelectEvent: (id: string) => void;
   onMoveEvent: (id: string, startAt: string, endAt: string) => void;
   onCreateAt: (start: Date, end: Date) => void;
@@ -80,6 +82,8 @@ export function CalendarGrid({
   events,
   newEventPreview,
   selectedEventId,
+  clickToCreateEnabled,
+  onClearSelection,
   onSelectEvent,
   onMoveEvent,
   onCreateAt,
@@ -143,6 +147,7 @@ export function CalendarGrid({
     day: Date,
   ) => {
     if (
+      selectedEventId ||
       pointerEvent.target !== pointerEvent.currentTarget ||
       pointerEvent.button !== 0 ||
       pointerEvent.pointerType === "touch"
@@ -166,7 +171,7 @@ export function CalendarGrid({
     };
 
     draftSelectionRef.current = selection;
-    setDraftSelection(selection);
+    setDraftSelection(clickToCreateEnabled ? selection : null);
     pointerEvent.currentTarget.setPointerCapture(pointerEvent.pointerId);
   };
 
@@ -191,7 +196,9 @@ export function CalendarGrid({
     };
 
     draftSelectionRef.current = nextSelection;
-    setDraftSelection(nextSelection);
+    setDraftSelection(
+      clickToCreateEnabled || nextSelection.dragging ? nextSelection : null,
+    );
     if (nextSelection.dragging) pointerEvent.preventDefault();
   };
 
@@ -244,8 +251,13 @@ export function CalendarGrid({
     clickEvent: MouseEvent<HTMLDivElement>,
     day: Date,
   ) => {
-    if (Date.now() < suppressClickUntilRef.current) return;
     if (clickEvent.target !== clickEvent.currentTarget) return;
+    if (Date.now() < suppressClickUntilRef.current) return;
+    if (selectedEventId) {
+      onClearSelection();
+      return;
+    }
+    if (!clickToCreateEnabled) return;
 
     const rect = clickEvent.currentTarget.getBoundingClientRect();
     const anchorMinute = minuteAtCalendarPosition(

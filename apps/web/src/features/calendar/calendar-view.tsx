@@ -70,7 +70,7 @@ export function CalendarView({
     setSelectedEventId,
     updateEvent,
   } = useCalendar();
-  const { dateFormat } = useUserPreferences();
+  const { calendarClickToCreate, dateFormat } = useUserPreferences();
   const [viewMode, setViewMode] = useState<CalendarViewMode>(readViewMode);
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay(new Date()));
   const defaultRange = getDefaultEventRange();
@@ -115,7 +115,7 @@ export function CalendarView({
 
   const openComposer = useCallback(
     (start?: Date, end?: Date) => {
-      if (!isReady) return;
+      if (!isReady || selectedEventId) return;
       let nextRange;
       if (start && end) {
         nextRange = { start, end };
@@ -136,7 +136,7 @@ export function CalendarView({
       setSelectedEventId(null);
       setComposerOpen(true);
     },
-    [categories, isReady, selectedDate, setSelectedEventId],
+    [categories, isReady, selectedDate, selectedEventId, setSelectedEventId],
   );
 
   useEffect(() => {
@@ -271,7 +271,7 @@ export function CalendarView({
             disabled={!isReady}
           />
           <ShortcutTooltip label="New Event" shortcut={["⌘", "N"]}>
-            <Button size="icon-sm" className="size-8 rounded-full" onClick={() => openComposer()} disabled={!isReady} aria-label="New event">
+            <Button size="icon-sm" className="size-8 rounded-full" onClick={() => openComposer()} disabled={!isReady || Boolean(selectedEventId)} aria-label="New event">
               <CalendarPlus className="size-3.5" strokeWidth={2.4} />
             </Button>
           </ShortcutTooltip>
@@ -310,6 +310,7 @@ export function CalendarView({
           events={events}
           newEventPreview={composerOpen ? eventPreview : null}
           selectedEventId={selectedEventId}
+          onClearSelection={() => setSelectedEventId(null)}
           onSelectEvent={setSelectedEventId}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })
@@ -323,6 +324,8 @@ export function CalendarView({
           events={events}
           newEventPreview={composerOpen ? eventPreview : null}
           selectedEventId={selectedEventId}
+          clickToCreateEnabled={calendarClickToCreate}
+          onClearSelection={() => setSelectedEventId(null)}
           onSelectEvent={setSelectedEventId}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })

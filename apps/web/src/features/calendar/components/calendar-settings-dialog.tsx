@@ -1,4 +1,4 @@
-import { Plus, Tags, Trash2 } from "lucide-react";
+import { MousePointerClick, Plus, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -14,11 +14,61 @@ import { CategoryColorPicker } from "@/features/calendar/components/category-col
 import { calendarColorPresets } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type { CalendarCategory } from "@/features/calendar/model/types";
+import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
+import { cn } from "@/lib/cn";
 
 type CalendarSettingsDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
+
+type PreferenceSwitchProps = {
+  checked: boolean;
+  description: string;
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+};
+
+function PreferenceSwitch({
+  checked,
+  description,
+  label,
+  onCheckedChange,
+}: PreferenceSwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onCheckedChange(!checked)}
+      className="flex min-h-16 w-full items-center gap-3 px-3 text-left outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+        <MousePointerClick className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-semibold">{label}</span>
+        <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+          {description}
+        </span>
+      </span>
+      <span
+        className={cn(
+          "relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-150",
+          checked ? "bg-primary" : "bg-muted-foreground/25",
+        )}
+        aria-hidden="true"
+      >
+        <span
+          className={cn(
+            "absolute top-[3px] left-[3px] size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-[cubic-bezier(.23,1,.32,1)] motion-reduce:transition-none",
+            checked && "translate-x-4",
+          )}
+        />
+      </span>
+    </button>
+  );
+}
 
 type CategoryRowProps = {
   category: CalendarCategory;
@@ -104,6 +154,8 @@ export function CalendarSettingsDialog({
     removeCategory,
     updateCategory,
   } = useCalendar();
+  const { calendarClickToCreate, setCalendarClickToCreate } =
+    useUserPreferences();
   const [newCategoryId, setNewCategoryId] = useState<string | null>(null);
   const previousOpen = useRef(open);
 
@@ -131,16 +183,31 @@ export function CalendarSettingsDialog({
       <DialogContent className="max-w-[520px] overflow-visible bg-popover p-0">
         <div className="border-b border-border/65 px-5 pt-5 pb-4">
           <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Tags className="size-[18px]" />
+            <Settings2 className="size-[18px]" />
           </div>
-          <DialogTitle>Calendar categories</DialogTitle>
+          <DialogTitle>Calendar settings</DialogTitle>
           <DialogDescription className="mt-1">
-            Organize events with names and colors that fit your calendar.
+            Choose how you create and organize calendar events.
           </DialogDescription>
         </div>
 
         <div className="max-h-[min(62vh,520px)] overflow-y-auto bg-muted/20 px-5 py-4">
-          <div className="space-y-2">
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-background">
+            <PreferenceSwitch
+              checked={calendarClickToCreate}
+              onCheckedChange={setCalendarClickToCreate}
+              label="Create events by clicking"
+              description="Click an empty slot in week or day view to open a new event"
+            />
+          </div>
+
+          <div className="mt-5">
+            <h3 className="text-[13px] font-semibold">Categories</h3>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Give each category a name and color.
+            </p>
+          </div>
+          <div className="mt-2 space-y-2">
             {categories.map((category) => (
               <CategoryRow
                 key={category.id}
