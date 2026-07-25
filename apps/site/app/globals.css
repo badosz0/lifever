@@ -385,7 +385,6 @@ img {
 }
 
 .section-heading h2,
-.principles-heading h2,
 .install-copy h2,
 .source-section h2,
 .faq-heading h2,
@@ -398,7 +397,6 @@ img {
 }
 
 .section-heading > p:last-child,
-.principles-heading > p:last-child,
 .install-copy > p,
 .source-section > p,
 .final-cta > p {
@@ -411,6 +409,7 @@ img {
 
 .product-section {
   padding-top: clamp(112px, 14vw, 170px);
+  padding-bottom: 0;
 }
 
 .product-showcase {
@@ -544,96 +543,6 @@ img {
   box-shadow:
     0 1px 2px rgb(0 0 0 / 4%),
     0 20px 54px rgb(0 0 0 / 9%);
-}
-
-.principles {
-  width: min(calc(100% - 32px), 1400px);
-  margin-inline: auto;
-  border: 1px solid rgb(151 113 0 / 10%);
-  border-radius: 36px;
-  background: var(--surface-warm);
-}
-
-.principles-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1fr);
-  gap: clamp(72px, 10vw, 126px);
-  padding-block: clamp(104px, 12vw, 144px);
-}
-
-.principles-heading {
-  max-width: 510px;
-}
-
-.principles-heading .eyebrow {
-  color: #80630a;
-}
-
-.principles-heading > p:last-child {
-  max-width: 470px;
-}
-
-.principle-list {
-  border-top: 1px solid rgb(84 64 7 / 18%);
-}
-
-.principle {
-  display: grid;
-  grid-template-columns: 34px 42px 1fr;
-  gap: 16px;
-  align-items: start;
-  border-bottom: 1px solid rgb(84 64 7 / 18%);
-  padding-block: 27px;
-}
-
-.principle-number {
-  padding-top: 12px;
-  color: #917313;
-  font-size: 9px;
-  font-weight: 680;
-  letter-spacing: 0.09em;
-}
-
-.principle-icon {
-  display: flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgb(84 64 7 / 16%);
-  border-radius: 11px;
-  background: rgb(255 255 255 / 62%);
-  color: #755800;
-}
-
-.principle h3 {
-  margin: 2px 0 7px;
-  font-size: 17px;
-  font-weight: 680;
-  letter-spacing: -0.025em;
-}
-
-.principle p {
-  max-width: 430px;
-  margin: 0;
-  color: #69604a;
-  font-size: 13px;
-  line-height: 1.62;
-}
-
-.privacy-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 19px 0 0;
-  color: #7a6e52;
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.privacy-line svg {
-  margin-top: 1px;
-  flex: 0 0 auto;
 }
 
 .install-section {
@@ -948,18 +857,12 @@ details[open] .summary-plus::after {
   }
 
   .install-section,
-  .faq-section,
-  .principles-inner {
+  .faq-section {
     grid-template-columns: 1fr;
   }
 
-  .principles-inner {
-    gap: 56px;
-  }
-
   .install-copy,
-  .faq-heading,
-  .principles-heading {
+  .faq-heading {
     max-width: 650px;
   }
 
@@ -1074,7 +977,6 @@ details[open] .summary-plus::after {
   }
 
   .section-heading h2,
-  .principles-heading h2,
   .install-copy h2,
   .source-section h2,
   .faq-heading h2,
@@ -1083,7 +985,6 @@ details[open] .summary-plus::after {
   }
 
   .section-heading > p:last-child,
-  .principles-heading > p:last-child,
   .install-copy > p {
     font-size: 15px;
   }
@@ -1147,26 +1048,6 @@ details[open] .summary-plus::after {
     width: 145%;
     max-width: none;
     transform: translateX(-12.5%);
-  }
-
-  .principles {
-    width: calc(100% - 16px);
-    border-radius: 25px;
-  }
-
-  .principles-inner {
-    gap: 43px;
-  }
-
-  .principle {
-    grid-template-columns: 27px 38px 1fr;
-    gap: 12px;
-    padding-block: 23px;
-  }
-
-  .principle-icon {
-    width: 36px;
-    height: 36px;
   }
 
   .install-command pre {

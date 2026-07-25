@@ -5,9 +5,6 @@ import {
   Download,
   Github,
   Laptop,
-  LockKeyhole,
-  ServerCog,
-  WifiOff,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -16,30 +13,6 @@ import { ProductShowcase } from "@/components/product-showcase";
 
 const githubUrl = "https://github.com/badosz0/lifever";
 const releaseUrl = `${githubUrl}/releases/latest`;
-
-const principles = [
-  {
-    number: "01",
-    title: "Start without setup",
-    description:
-      "Open Lifever and it is already useful. A local profile and thoughtful demo data are ready before an account exists.",
-    Icon: WifiOff,
-  },
-  {
-    number: "02",
-    title: "Sync on your terms",
-    description:
-      "Sign in only when you want the same reminders, events, notes, and projects waiting on another device.",
-    Icon: Cloud,
-  },
-  {
-    number: "03",
-    title: "Own the whole system",
-    description:
-      "Use the hosted backend or run the full stack yourself with Cloudflare D1 or PostgreSQL. Nothing important is hidden.",
-    Icon: ServerCog,
-  },
-];
 
 const rhythms = [
   { verb: "Remember", app: "Reminders" },
@@ -96,7 +69,6 @@ export default function Home() {
           <Brand />
           <nav className="main-nav" aria-label="Primary navigation">
             <a href="#product">Product</a>
-            <a href="#principles">Philosophy</a>
             <a href="#install">Install</a>
             <a href="#faq">FAQ</a>
           </nav>
@@ -177,41 +149,6 @@ export default function Home() {
             </p>
           </div>
           <ProductShowcase />
-        </section>
-
-        <section className="principles" id="principles">
-          <div className="section principles-inner">
-            <div className="principles-heading">
-              <p className="eyebrow">A calmer default</p>
-              <h2>Useful before an account even exists.</h2>
-              <p>
-                Most productivity software asks you to build a system before it
-                gives anything back. Lifever starts ready, stays understandable,
-                and grows only when you ask it to.
-              </p>
-            </div>
-            <div>
-              <div className="principle-list">
-                {principles.map(({ number, title, description, Icon }) => (
-                  <article className="principle" key={title}>
-                    <span className="principle-number">{number}</span>
-                    <div className="principle-icon">
-                      <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3>{title}</h3>
-                      <p>{description}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              <p className="privacy-line">
-                <LockKeyhole size={15} aria-hidden="true" />
-                Authenticated data stays behind your session and is never mixed
-                with the local profile.
-              </p>
-            </div>
-          </div>
         </section>
 
         <section className="section install-section" id="install">
