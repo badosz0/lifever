@@ -15,7 +15,7 @@ import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 
 export function AccountMenu() {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const name = session?.user.name ?? "Local profile";
   const initial = name.charAt(0).toUpperCase();
@@ -34,6 +34,10 @@ export function AccountMenu() {
     await authClient.signOut();
     toast.success("Signed out");
   };
+
+  if (isPending) {
+    return <div className="h-9" aria-hidden="true" />;
+  }
 
   return (
     <>
