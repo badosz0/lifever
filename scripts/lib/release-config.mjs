@@ -25,6 +25,11 @@ export const renderHomebrewCask = ({ sha256, version }) => `cask "lifever" do
 
   app "Lifever.app"
 
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Lifever.app"]
+  end
+
   zap trash: [
     "~/Library/Application Support/app.lifever.desktop",
     "~/Library/Caches/app.lifever.desktop",

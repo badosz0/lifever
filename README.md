@@ -169,9 +169,11 @@ Use `--api-url https://api.example.com` to change the endpoint for any desktop
 command, or `--install-dir ~/Applications` to override the install location.
 The release configuration embeds local, deterministic frontend assets and
 grants no filesystem, shell, or process permissions. Distribution to other Macs
-uses a universal DMG for Apple silicon and Intel. Public builds fall back to an
-ad-hoc signature when a Developer ID identity is unavailable; a fully trusted
-release needs a Developer ID signing identity and notarization credentials.
+uses a universal DMG for Apple silicon and Intel. Local builds use an ad-hoc
+signature. Public releases require a Developer ID
+signing identity and notarization credentials unless `--allow-ad-hoc` is
+explicitly provided. The trusted Homebrew cask clears quarantine for the
+initial ad-hoc release after installation.
 
 ## Releasing
 

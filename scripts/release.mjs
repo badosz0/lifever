@@ -48,6 +48,7 @@ Build, validate, deploy, and publish the current Lifever version.
 Options:
   --api-url <url>     Public API origin embedded in the desktop app
   --notes <path>      Markdown release notes to use instead of generated notes
+  --allow-ad-hoc      Publish without Developer ID signing (not recommended)
   --skip-deploy       Skip D1 migrations and Worker deployment (recovery only)
   --dry-run           Build and validate without publishing or deploying
   --yes               Skip the interactive production confirmation
@@ -62,6 +63,7 @@ Before releasing:
 function parseArguments(argv) {
   const args = argv.filter((argument) => argument !== "--");
   const options = {
+    allowAdHoc: false,
     apiUrl: undefined,
     dryRun: false,
     notesPath: undefined,
@@ -71,7 +73,9 @@ function parseArguments(argv) {
 
   while (args.length > 0) {
     const argument = args.shift();
-    if (argument === "--api-url") {
+    if (argument === "--allow-ad-hoc") {
+      options.allowAdHoc = true;
+    } else if (argument === "--api-url") {
       options.apiUrl = args.shift();
       if (!options.apiUrl) throw new Error("--api-url requires a value.");
     } else if (argument === "--notes") {
@@ -91,6 +95,29 @@ function parseArguments(argv) {
   }
 
   return options;
+}
+
+function getSigningStatus() {
+  const hasSigningIdentity = Boolean(
+    process.env.APPLE_SIGNING_IDENTITY &&
+      process.env.APPLE_SIGNING_IDENTITY !== "-",
+  );
+  const hasApiKeyCredentials = [
+    "APPLE_API_ISSUER",
+    "APPLE_API_KEY",
+    "APPLE_API_KEY_PATH",
+  ].every((name) => Boolean(process.env[name]));
+  const hasAppleIdCredentials = [
+    "APPLE_ID",
+    "APPLE_PASSWORD",
+    "APPLE_TEAM_ID",
+  ].every((name) => Boolean(process.env[name]));
+
+  return {
+    trusted:
+      hasSigningIdentity &&
+      (hasApiKeyCredentials || hasAppleIdCredentials),
+  };
 }
 
 function run(
@@ -248,11 +275,22 @@ async function assertRepositoryReady(version) {
   return { head: head.stdout, tag, tagExists: existingTag.code === 0 };
 }
 
-async function confirmRelease({ apiUrl, dryRun, skipDeploy, version, yes }) {
+async function confirmRelease({
+  allowAdHoc,
+  apiUrl,
+  dryRun,
+  signingStatus,
+  skipDeploy,
+  version,
+  yes,
+}) {
   console.log(`\nLifever ${version}`);
   console.log(`API: ${apiUrl}`);
   console.log(`Release repository: ${releaseRepository}`);
   console.log(`Homebrew tap: ${homebrewTapUrl}`);
+  console.log(
+    `macOS signing: ${signingStatus.trusted ? "Developer ID + notarization" : "ad-hoc"}`,
+  );
   if (dryRun) {
     console.log("Mode: dry run (no deployment, tag, release, or tap update)");
     return;
@@ -260,6 +298,11 @@ async function confirmRelease({ apiUrl, dryRun, skipDeploy, version, yes }) {
   console.log(
     `Deployment: ${skipDeploy ? "skipped" : "D1 migrations + Cloudflare Worker"}`,
   );
+  if (!signingStatus.trusted && allowAdHoc) {
+    console.warn(
+      "Publishing an ad-hoc build because --allow-ad-hoc was explicitly provided.",
+    );
+  }
 
   if (yes) return;
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -277,7 +320,7 @@ async function confirmRelease({ apiUrl, dryRun, skipDeploy, version, yes }) {
   }
 }
 
-async function buildUniversalDmg({ apiUrl, version }) {
+async function buildUniversalDmg({ apiUrl, signingStatus, version }) {
   await run("pnpm", ["check"]);
   await run("rustup", [
     "target",
@@ -346,7 +389,7 @@ async function buildUniversalDmg({ apiUrl, version }) {
   console.log(`Universal architectures: ${architectures.stdout}`);
   console.log(`Release asset: ${assetPath}`);
   console.log(`SHA-256: ${sha256}`);
-  if (!process.env.APPLE_SIGNING_IDENTITY) {
+  if (!signingStatus.trusted) {
     console.warn(
       "This release is ad-hoc signed. Set APPLE_SIGNING_IDENTITY and Apple notarization credentials for a trusted public build.",
     );
@@ -355,7 +398,7 @@ async function buildUniversalDmg({ apiUrl, version }) {
   return { assetPath, sha256 };
 }
 
-async function createReleaseNotes({ notesPath, version }) {
+async function createReleaseNotes({ notesPath, signingStatus, version }) {
   if (notesPath) {
     return readFile(path.resolve(projectRoot, notesPath), "utf8");
   }
@@ -374,7 +417,7 @@ async function createReleaseNotes({ notesPath, version }) {
     { capture: true },
   );
   const changes = log.stdout || "- Initial public macOS release";
-  const signingNote = process.env.APPLE_SIGNING_IDENTITY
+  const signingNote = signingStatus.trusted
     ? ""
     : "\n> This build is ad-hoc signed. macOS may ask you to allow Lifever in System Settings → Privacy & Security on first launch.\n";
 
@@ -500,6 +543,7 @@ async function main() {
 
   const version = await getVersion();
   const repository = await assertRepositoryReady(version);
+  const signingStatus = getSigningStatus();
   const { apiUrl } = await ensureDesktopConfig({
     interactive: false,
     requestedApiUrl: options.apiUrl,
@@ -507,8 +551,26 @@ async function main() {
   if (!options.dryRun && !apiUrl.startsWith("https://")) {
     throw new Error("Public releases must use an HTTPS API URL.");
   }
-  await confirmRelease({ ...options, apiUrl, version });
-  const artifact = await buildUniversalDmg({ apiUrl, version });
+  if (
+    !options.dryRun &&
+    !options.allowAdHoc &&
+    !signingStatus.trusted
+  ) {
+    throw new Error(
+      "Public releases require APPLE_SIGNING_IDENTITY plus either APPLE_API_ISSUER/APPLE_API_KEY/APPLE_API_KEY_PATH or APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID. Use --allow-ad-hoc only for an intentional unnotarized release.",
+    );
+  }
+  await confirmRelease({
+    ...options,
+    apiUrl,
+    signingStatus,
+    version,
+  });
+  const artifact = await buildUniversalDmg({
+    apiUrl,
+    signingStatus,
+    version,
+  });
   if (options.dryRun) {
     console.log("\nDry run complete. Nothing was deployed or published.");
     return;
@@ -519,6 +581,7 @@ async function main() {
   }
   const notes = await createReleaseNotes({
     notesPath: options.notesPath,
+    signingStatus,
     version,
   });
   await ensureSourceTag({ ...repository, version });
