@@ -43,6 +43,7 @@ type CalendarMonthGridProps = {
   month: Date;
   newEventPreview: CalendarEventPreview | null;
   selectedEventId: string | null;
+  onClearSelection: () => void;
   onCreateAt: (start: Date, end: Date) => void;
   onMoveEvent: (id: string, startAt: string, endAt: string) => void;
   onSelectDay: (day: Date) => void;
@@ -66,6 +67,7 @@ export function CalendarMonthGrid({
   month,
   newEventPreview,
   selectedEventId,
+  onClearSelection,
   onCreateAt,
   onMoveEvent,
   onSelectDay,
@@ -136,6 +138,10 @@ export function CalendarMonthGrid({
 
   const createOnDay = (clickEvent: MouseEvent<HTMLDivElement>, day: Date) => {
     if ((clickEvent.target as HTMLElement).closest("button")) return;
+    if (selectedEventId) {
+      onClearSelection();
+      return;
+    }
     const start = setCalendarTime(day, 9);
     onCreateAt(start, addMinutes(start, 60));
   };

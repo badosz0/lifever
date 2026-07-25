@@ -8,6 +8,7 @@ const preferencesSelect = {
   theme: true,
   timeFormat: true,
   dateFormat: true,
+  calendarClickToCreate: true,
   favoriteDriverId: true,
   favoriteConstructorId: true,
 } as const;
