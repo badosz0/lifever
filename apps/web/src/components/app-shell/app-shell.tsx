@@ -11,8 +11,16 @@ import {
 } from "@/components/ui/dialog";
 import { lifeverAppsById } from "@/features/apps/app-registry";
 import { useApps } from "@/features/apps/model/apps-provider";
+import type { AppId } from "@/features/apps/model/types";
+import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import { usePersistentPanelWidth } from "@/hooks/use-persistent-panel-width";
 import { cn } from "@/lib/cn";
+import { isTauri } from "@/lib/runtime";
+
+type OpenAppRequest = {
+  app: AppId;
+  eventId?: string;
+};
 
 const APPS_PANEL = {
   defaultWidth: 216,
@@ -21,7 +29,8 @@ const APPS_PANEL = {
 };
 
 export function AppShell() {
-  const { activeApp } = useApps();
+  const { activeApp, setActiveApp } = useApps();
+  const { setSelectedEventId } = useCalendar();
   const app = lifeverAppsById[activeApp];
   const ActiveView = app.View;
   const ActiveInspector = app.Inspector;
@@ -43,6 +52,34 @@ export function AppShell() {
   useEffect(() => {
     localStorage.setItem("lifever-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+
+    let disposed = false;
+    let stopListening: (() => void) | undefined;
+    void import("@tauri-apps/api/event")
+      .then(({ listen }) =>
+        listen<OpenAppRequest>("lifever:open-app", (event) => {
+          const request = event.payload;
+          if (request.app in lifeverAppsById) {
+            setActiveApp(request.app);
+            if (request.app === "calendar" && request.eventId) {
+              setSelectedEventId(request.eventId);
+            }
+          }
+        }),
+      )
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else stopListening = unlisten;
+      });
+
+    return () => {
+      disposed = true;
+      stopListening?.();
+    };
+  }, [setActiveApp, setSelectedEventId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
