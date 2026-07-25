@@ -37,7 +37,7 @@ import {
 
 export const HOUR_START = 0;
 export const HOUR_END = 24;
-export const MIN_HOUR_HEIGHT = 24;
+export const DEFAULT_HOUR_HEIGHT = 24;
 export const SNAP_MINUTES = 15;
 
 export type CalendarDateInput = Date | string;

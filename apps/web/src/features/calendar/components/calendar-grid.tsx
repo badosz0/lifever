@@ -1,6 +1,8 @@
 import {
   type MouseEvent,
   type PointerEvent,
+  useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -12,6 +14,7 @@ import { CalendarEventBlock } from "@/features/calendar/components/calendar-even
 import { CalendarEventDraft } from "@/features/calendar/components/calendar-event-draft";
 import {
   dateKey,
+  DEFAULT_HOUR_HEIGHT,
   durationInMinutes,
   formatDayOfMonth,
   formatFullDay,
@@ -21,9 +24,9 @@ import {
   HOUR_END,
   HOUR_START,
   isSameLocalDay,
-  MIN_HOUR_HEIGHT,
   minutesIntoDay,
   setMinutesIntoDay,
+  SNAP_MINUTES,
 } from "@/features/calendar/lib/dates";
 import {
   getCalendarEventSegment,
@@ -63,9 +66,32 @@ const hours = Array.from(
 );
 const DAY_HEADER_HEIGHT = 54;
 const HOUR_COUNT = HOUR_END - HOUR_START;
+const DEFAULT_VISIBLE_START_HOUR = 8;
+const DEFAULT_VISIBLE_END_HOUR = 19;
+const DEFAULT_VISIBLE_HOUR_COUNT =
+  DEFAULT_VISIBLE_END_HOUR - DEFAULT_VISIBLE_START_HOUR;
+const CALENDAR_ZOOM_STORAGE_KEY = "lifever-calendar-time-grid-zoom";
 const LAYOUT_SAFETY_PX = 2;
+const MAX_DEFAULT_EVENT_DURATION_MINUTES = 120;
+const MAX_HOUR_HEIGHT = 240;
+const MIN_RENDERED_HOUR_HEIGHT = 1;
+const SCALE_EPSILON = 0.001;
+const WHEEL_LINE_HEIGHT_PX = 16;
+const ZOOM_SENSITIVITY = 0.004;
 const DRAG_THRESHOLD_PX = 4;
 const TRAILING_CLICK_GUARD_MS = 250;
+
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+const readStoredZoomScale = () => {
+  try {
+    const scale = Number(localStorage.getItem(CALENDAR_ZOOM_STORAGE_KEY));
+    return Number.isFinite(scale) && scale >= 1 ? scale : null;
+  } catch {
+    return null;
+  }
+};
 
 type DraftSelection = {
   anchorMinute: number;
@@ -75,6 +101,12 @@ type DraftSelection = {
   focusMinute: number;
   pointerId: number;
   startClientY: number;
+};
+
+type PendingZoom = {
+  focalHour: number;
+  hourHeight: number;
+  viewportY: number;
 };
 
 export function CalendarGrid({
@@ -94,10 +126,26 @@ export function CalendarGrid({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const draftSelectionRef = useRef<DraftSelection | null>(null);
   const suppressClickUntilRef = useRef(0);
-  const [hourHeight, setHourHeight] = useState(MIN_HOUR_HEIGHT);
+  const initializedZoomRef = useRef(false);
+  const minimumHourHeightRef = useRef(DEFAULT_HOUR_HEIGHT);
+  const renderedHourHeightRef = useRef(DEFAULT_HOUR_HEIGHT);
+  const targetHourHeightRef = useRef(DEFAULT_HOUR_HEIGHT);
+  const pendingZoomRef = useRef<PendingZoom | null>(null);
+  const [storedZoomScale] = useState(readStoredZoomScale);
+  const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
   const [draftSelection, setDraftSelection] =
     useState<DraftSelection | null>(null);
   const totalHeight = HOUR_COUNT * hourHeight;
+  const defaultEventDurationMinutes = clamp(
+    Math.round(
+      (MAX_DEFAULT_EVENT_DURATION_MINUTES *
+        minimumHourHeightRef.current) /
+        hourHeight /
+        SNAP_MINUTES,
+    ) * SNAP_MINUTES,
+    SNAP_MINUTES,
+    MAX_DEFAULT_EVENT_DURATION_MINUTES,
+  );
   const now = useCurrentTime();
   const eventSegmentsByDay = useMemo(() => {
     const map = new Map<
@@ -121,26 +169,168 @@ export function CalendarGrid({
     return map;
   }, [days, events]);
 
+  const setZoomedHourHeight = useCallback(
+    (nextHourHeight: number, viewportY: number) => {
+      const scrollArea = scrollAreaRef.current;
+      if (
+        !scrollArea ||
+        Math.abs(targetHourHeightRef.current - nextHourHeight) < SCALE_EPSILON
+      ) {
+        return;
+      }
+
+      const anchoredViewportY = clamp(
+        viewportY,
+        DAY_HEADER_HEIGHT,
+        scrollArea.clientHeight,
+      );
+      const focalHour = clamp(
+        (scrollArea.scrollTop + anchoredViewportY - DAY_HEADER_HEIGHT) /
+          renderedHourHeightRef.current,
+        0,
+        HOUR_COUNT,
+      );
+
+      pendingZoomRef.current = {
+        focalHour,
+        hourHeight: nextHourHeight,
+        viewportY: anchoredViewportY,
+      };
+      targetHourHeightRef.current = nextHourHeight;
+      setHourHeight(nextHourHeight);
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    renderedHourHeightRef.current = hourHeight;
+    const scrollArea = scrollAreaRef.current;
+    const pendingZoom = pendingZoomRef.current;
+    if (
+      !scrollArea ||
+      !pendingZoom ||
+      Math.abs(pendingZoom.hourHeight - hourHeight) >= SCALE_EPSILON
+    ) {
+      return;
+    }
+
+    const nextScrollTop =
+      pendingZoom.focalHour * hourHeight +
+      DAY_HEADER_HEIGHT -
+      pendingZoom.viewportY;
+    scrollArea.scrollTop = clamp(
+      nextScrollTop,
+      0,
+      Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight),
+    );
+    pendingZoomRef.current = null;
+  }, [hourHeight]);
+
   useLayoutEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (!scrollArea) return;
 
-    const updateScale = () => {
-      const nextHeight = Math.max(
-        MIN_HOUR_HEIGHT,
+    const updateMinimumScale = () => {
+      const previousMinimum = minimumHourHeightRef.current;
+      const nextMinimum = Math.max(
+        MIN_RENDERED_HOUR_HEIGHT,
         (scrollArea.clientHeight - DAY_HEADER_HEIGHT - LAYOUT_SAFETY_PX) /
           HOUR_COUNT,
       );
-      setHourHeight((current) =>
-        Math.abs(current - nextHeight) < 0.1 ? current : nextHeight,
+      const maximum = Math.max(nextMinimum, MAX_HOUR_HEIGHT);
+
+      if (!initializedZoomRef.current) {
+        initializedZoomRef.current = true;
+        minimumHourHeightRef.current = nextMinimum;
+        const initialScale =
+          storedZoomScale ?? HOUR_COUNT / DEFAULT_VISIBLE_HOUR_COUNT;
+        const initialHourHeight = clamp(
+          nextMinimum * initialScale,
+          nextMinimum,
+          maximum,
+        );
+        const initialFocalHour = DEFAULT_VISIBLE_START_HOUR - HOUR_START;
+
+        targetHourHeightRef.current = initialHourHeight;
+        if (
+          Math.abs(renderedHourHeightRef.current - initialHourHeight) <
+          SCALE_EPSILON
+        ) {
+          scrollArea.scrollTop = initialFocalHour * initialHourHeight;
+        } else {
+          pendingZoomRef.current = {
+            focalHour: initialFocalHour,
+            hourHeight: initialHourHeight,
+            viewportY: DAY_HEADER_HEIGHT,
+          };
+          setHourHeight(initialHourHeight);
+        }
+        return;
+      }
+
+      const currentScale =
+        targetHourHeightRef.current / previousMinimum;
+      const nextTarget = clamp(
+        nextMinimum * currentScale,
+        nextMinimum,
+        maximum,
       );
+
+      minimumHourHeightRef.current = nextMinimum;
+      setZoomedHourHeight(nextTarget, scrollArea.clientHeight / 2);
     };
 
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
+    updateMinimumScale();
+    const observer = new ResizeObserver(updateMinimumScale);
     observer.observe(scrollArea);
     return () => observer.disconnect();
-  }, []);
+  }, [setZoomedHourHeight, storedZoomScale]);
+
+  useEffect(() => {
+    if (
+      !initializedZoomRef.current ||
+      Math.abs(targetHourHeightRef.current - hourHeight) >= SCALE_EPSILON
+    ) {
+      return;
+    }
+
+    try {
+      const zoomScale = hourHeight / minimumHourHeightRef.current;
+      localStorage.setItem(CALENDAR_ZOOM_STORAGE_KEY, String(zoomScale));
+    } catch {
+      // Keep zoom available for the current calendar session.
+    }
+  }, [hourHeight]);
+
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+
+      const deltaPixels =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * WHEEL_LINE_HEIGHT_PX
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? event.deltaY * scrollArea.clientHeight
+            : event.deltaY;
+      const minimum = minimumHourHeightRef.current;
+      const maximum = Math.max(minimum, MAX_HOUR_HEIGHT);
+      const nextHourHeight = clamp(
+        targetHourHeightRef.current *
+          Math.exp(-deltaPixels * ZOOM_SENSITIVITY),
+        minimum,
+        maximum,
+      );
+      const rect = scrollArea.getBoundingClientRect();
+      setZoomedHourHeight(nextHourHeight, event.clientY - rect.top);
+    };
+
+    scrollArea.addEventListener("wheel", handleWheel, { passive: false });
+    return () => scrollArea.removeEventListener("wheel", handleWheel);
+  }, [setZoomedHourHeight]);
 
   const beginDraftSelection = (
     pointerEvent: PointerEvent<HTMLDivElement>,
@@ -159,6 +349,7 @@ export function CalendarGrid({
     const anchorMinute = minuteAtCalendarPosition(
       pointerEvent.clientY - rect.top,
       hourHeight,
+      { rounding: "floor" },
     );
     const selection: DraftSelection = {
       anchorMinute,
@@ -191,7 +382,7 @@ export function CalendarGrid({
       focusMinute: minuteAtCalendarPosition(
         pointerEvent.clientY - rect.top,
         hourHeight,
-        true,
+        { includeDayEnd: true },
       ),
     };
 
@@ -227,7 +418,7 @@ export function CalendarGrid({
       focusMinute: minuteAtCalendarPosition(
         pointerEvent.clientY - rect.top,
         hourHeight,
-        true,
+        { includeDayEnd: true },
       ),
     };
 
@@ -263,8 +454,14 @@ export function CalendarGrid({
     const anchorMinute = minuteAtCalendarPosition(
       clickEvent.clientY - rect.top,
       hourHeight,
+      { rounding: "floor" },
     );
-    const range = getCalendarDraftRange(anchorMinute, anchorMinute, false);
+    const range = getCalendarDraftRange(
+      anchorMinute,
+      anchorMinute,
+      false,
+      defaultEventDurationMinutes,
+    );
     onCreateAt(
       setMinutesIntoDay(day, range.startMinute),
       setMinutesIntoDay(day, range.endMinute),
@@ -276,7 +473,7 @@ export function CalendarGrid({
   return (
     <div
       ref={scrollAreaRef}
-      className="calendar-scroll min-h-0 flex-1 overflow-auto overscroll-contain bg-background"
+      className="calendar-scroll min-h-0 flex-1 overflow-auto overscroll-none bg-background"
     >
       <div
         className="sticky top-0 z-30 grid min-w-max border-b border-border/70 bg-background/91 backdrop-blur-xl"
@@ -348,6 +545,7 @@ export function CalendarGrid({
                 activeDraft.anchorMinute,
                 activeDraft.focusMinute,
                 activeDraft.dragging,
+                defaultEventDurationMinutes,
               )
             : null;
           const composerSegment = newEventPreview
