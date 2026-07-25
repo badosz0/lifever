@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @lifever/api --filter @lifever/web dev",
     "dev:web": "pnpm --filter @lifever/web dev",
+    "dev:site": "pnpm --filter @lifever/site dev",
     "dev:api": "pnpm --filter @lifever/api dev",
     "dev:worker": "pnpm db:generate && pnpm --filter @lifever/api dev:worker",
     "desktop:configure": "node scripts/desktop.mjs configure",
@@ -21,8 +22,10 @@
     "release": "node scripts/release.mjs",
     "release:version": "node scripts/set-version.mjs",
     "build": "pnpm db:generate && pnpm --filter @lifever/api build && pnpm --filter @lifever/web build",
+    "build:site": "pnpm --filter @lifever/site build",
     "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build:worker",
     "deploy:api": "pnpm db:deploy:d1 && pnpm deploy:worker",
+    "deploy:site": "pnpm dlx vercel@57.0.0 --cwd apps/site --prod --yes",
     "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy:worker",
     "check": "pnpm db:generate && pnpm -r check",
     "db:generate": "prisma generate && prisma generate --schema prisma/schema.d1.prisma",

@@ -8,6 +8,8 @@ node_modules
 .wrangler
 dist
 dist-worker
+.next
+.vercel
 target
 apps/api/src/generated/prisma
 apps/api/src/generated/prisma-worker

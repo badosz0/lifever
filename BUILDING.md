@@ -6,7 +6,7 @@ releases. For deployment configuration, see [SELF_HOSTING.md](SELF_HOSTING.md).
 ## Requirements
 
 - Node `22.14.0` from [.nvmrc](.nvmrc)
-- pnpm `8.13.1` through Corepack
+- pnpm `11.17.0` through Corepack
 - Docker or a PostgreSQL 17-compatible server for authenticated development
 - Rust `1.88.0` and Xcode Command Line Tools for the macOS app
 
@@ -23,6 +23,14 @@ The frontend can run immediately with its local demo profile:
 ```bash
 pnpm dev:web
 ```
+
+Run the public Next.js landing page separately:
+
+```bash
+pnpm dev:site
+```
+
+The landing page runs at [localhost:3000](http://localhost:3000).
 
 For the complete authenticated stack:
 
@@ -109,11 +117,36 @@ Useful focused commands:
 | Command | Purpose |
 | --- | --- |
 | `pnpm build` | Build the Node API and web frontend |
+| `pnpm build:site` | Build the Next.js landing page |
 | `pnpm build:worker` | Validate the Cloudflare Worker bundle |
 | `pnpm db:generate` | Regenerate PostgreSQL and D1 Prisma clients |
 | `pnpm db:migrate` | Create and apply a local PostgreSQL migration |
 | `pnpm db:deploy:d1:local` | Apply migrations to local Wrangler D1 |
 | `pnpm desktop:app` | Build and open the app bundle without installing |
+
+## Landing page
+
+The public site lives in `apps/site` and is deployed as the Vercel project
+`badoszs-projects/lifever`.
+
+Link a fresh checkout once:
+
+```bash
+pnpm dlx vercel@57.0.0 link \
+  --cwd apps/site \
+  --yes \
+  --project lifever \
+  --scope badoszs-projects
+```
+
+Deploy the validated source to production:
+
+```bash
+pnpm build:site
+pnpm deploy:site
+```
+
+The production alias is [lifever.vercel.app](https://lifever.vercel.app).
 
 ## Releases
 
@@ -149,4 +182,3 @@ Public releases require `APPLE_SIGNING_IDENTITY` plus one notarization method:
 
 `--allow-ad-hoc` exists for intentional unnotarized builds. It should not be the
 normal public release path.
-

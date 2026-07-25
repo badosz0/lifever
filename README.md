@@ -10,6 +10,8 @@
 </p>
 
 <p align="center">
+  <a href="https://lifever.vercel.app">Website</a>
+  ·
   <a href="https://github.com/badosz0/lifever/releases/latest">Download for macOS</a>
   ·
   <a href="#homebrew">Install with Homebrew</a>
@@ -56,7 +58,7 @@ brew upgrade lifever
 
 ## Run the demo
 
-Requirements: Node `22.14.0` and pnpm `8.13.1`.
+Requirements: Node `22.14.0` and pnpm `11.17.0`.
 
 ```bash
 corepack enable
@@ -77,4 +79,3 @@ Prisma · PostgreSQL · Cloudflare Workers and D1
 - [Building and local development](BUILDING.md)
 - [Self-hosting and deployment](SELF_HOSTING.md)
 - [Contributing](CONTRIBUTING.md)
-
