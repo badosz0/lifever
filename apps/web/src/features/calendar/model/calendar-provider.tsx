@@ -17,6 +17,7 @@ import {
   isCalendarCategoryColor,
 } from "@/features/calendar/lib/categories";
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 
@@ -222,29 +223,20 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     return () => window.clearTimeout(timeout);
   }, [categories, hydratedMode, isPending, session]);
 
-  useEffect(() => {
+  useRefreshOnFocus(() => {
     const userId = session?.user.id;
-    if (!userId) return;
-    const refresh = () => {
-      if (
-        document.visibilityState === "visible" &&
-        pendingCreates.current.size === 0 &&
-        pendingDeletes.current.size === 0 &&
-        eventWriteChains.current.size === 0 &&
-        pendingCategoryCreates.current.size === 0 &&
-        categoryWriteChains.current.size === 0 &&
-        pendingEventUpdates.current.size === 0
-      ) {
-        void loadRemote(userId, true);
-      }
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [loadRemote, session?.user.id]);
+    if (
+      userId &&
+      pendingCreates.current.size === 0 &&
+      pendingDeletes.current.size === 0 &&
+      eventWriteChains.current.size === 0 &&
+      pendingCategoryCreates.current.size === 0 &&
+      categoryWriteChains.current.size === 0 &&
+      pendingEventUpdates.current.size === 0
+    ) {
+      void loadRemote(userId, true);
+    }
+  }, Boolean(session?.user.id));
 
   useEffect(() => {
     const reset = () => {

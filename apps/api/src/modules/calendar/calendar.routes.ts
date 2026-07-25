@@ -1,19 +1,16 @@
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import {
   createCalendarEventSchema,
   updateCalendarEventSchema,
 } from "./calendar.schema.js";
 
-type CalendarEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
-
-export const calendarRoutes = new Hono<CalendarEnv>();
+export const calendarRoutes = new Hono<AuthenticatedEnv>();
 
 const calendarEventSelect = {
   id: true,
@@ -26,13 +23,7 @@ const calendarEventSelect = {
   createdAt: true,
 } as const;
 
-calendarRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-  if (!session) return context.json({ error: "Unauthorized" }, 401);
-
-  context.set("session", session);
-  await next();
-});
+calendarRoutes.use("*", requireSession);
 
 calendarRoutes.get("/", async (context) => {
   const session = context.get("session");

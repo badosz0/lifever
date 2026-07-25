@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 
 import { initialReminders } from "./seed";
 import type { Reminder, ReminderViewId } from "./types";
@@ -253,27 +254,18 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     }
   }, [hydratedMode, isPending, reminders, session]);
 
-  useEffect(() => {
+  useRefreshOnFocus(() => {
     const userId = session?.user.id;
-    if (!userId) return;
-    const refresh = () => {
-      if (
-        document.visibilityState === "visible" &&
-        pendingCreates.current.size === 0 &&
-        pendingDeletes.current.size === 0 &&
-        apiWriteChains.current.size === 0 &&
-        pendingApiUpdates.current.size === 0
-      ) {
-        void loadRemote(userId, true);
-      }
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [loadRemote, session?.user.id]);
+    if (
+      userId &&
+      pendingCreates.current.size === 0 &&
+      pendingDeletes.current.size === 0 &&
+      apiWriteChains.current.size === 0 &&
+      pendingApiUpdates.current.size === 0
+    ) {
+      void loadRemote(userId, true);
+    }
+  }, Boolean(session?.user.id));
 
   useEffect(() => {
     const reset = () => {

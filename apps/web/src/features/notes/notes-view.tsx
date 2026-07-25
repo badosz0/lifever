@@ -16,7 +16,6 @@ import { NotesNavigation } from "@/features/notes/components/notes-navigation";
 import { NotesSettingsDialog } from "@/features/notes/components/notes-settings-dialog";
 import {
   noteCategoryFilter,
-  noteDisplayTitle,
   notePlainText,
   sortNotes,
 } from "@/features/notes/lib/notes";

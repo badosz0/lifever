@@ -3,17 +3,14 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import {
   createCalendarCategorySchema,
   updateCalendarCategorySchema,
 } from "./calendar-categories.schema.js";
-
-type CalendarCategoriesEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
 
 const defaultCategories = [
   { name: "Work", color: "#3b82f6", position: 0 },
@@ -32,15 +29,9 @@ const calendarCategorySelect = {
   createdAt: true,
 } as const;
 
-export const calendarCategoriesRoutes = new Hono<CalendarCategoriesEnv>();
+export const calendarCategoriesRoutes = new Hono<AuthenticatedEnv>();
 
-calendarCategoriesRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-  if (!session) return context.json({ error: "Unauthorized" }, 401);
-
-  context.set("session", session);
-  await next();
-});
+calendarCategoriesRoutes.use("*", requireSession);
 
 calendarCategoriesRoutes.get("/", async (context) => {
   const session = context.get("session");

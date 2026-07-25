@@ -1,19 +1,16 @@
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import {
   createReminderSchema,
   updateReminderSchema,
 } from "./reminders.schema.js";
 
-type RemindersEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
-
-export const remindersRoutes = new Hono<RemindersEnv>();
+export const remindersRoutes = new Hono<AuthenticatedEnv>();
 
 const reminderSelect = {
   id: true,
@@ -25,16 +22,7 @@ const reminderSelect = {
   createdAt: true,
 } as const;
 
-remindersRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-
-  if (!session) {
-    return context.json({ error: "Unauthorized" }, 401);
-  }
-
-  context.set("session", session);
-  await next();
-});
+remindersRoutes.use("*", requireSession);
 
 remindersRoutes.get("/", async (context) => {
   const session = context.get("session");

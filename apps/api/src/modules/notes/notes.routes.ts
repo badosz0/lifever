@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import {
   createNoteCategorySchema,
   createNoteSchema,
@@ -11,12 +14,6 @@ import {
   updateNoteSchema,
   updateNotesSettingsSchema,
 } from "./notes.schema.js";
-
-type NotesEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
 
 const defaultCategories = [
   { name: "Personal", color: "#f59e0b", position: 0 },
@@ -48,14 +45,9 @@ const settingsSelect = {
   spellcheck: true,
 } as const;
 
-export const notesRoutes = new Hono<NotesEnv>();
+export const notesRoutes = new Hono<AuthenticatedEnv>();
 
-notesRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-  if (!session) return context.json({ error: "Unauthorized" }, 401);
-  context.set("session", session);
-  await next();
-});
+notesRoutes.use("*", requireSession);
 
 async function ensureNotesConfiguration(userId: string) {
   let categories = await prisma.noteCategory.findMany({

@@ -211,7 +211,7 @@ export function Formula1Inspector({ className }: Formula1InspectorProps) {
           </span>
         </div>
         <div className="overflow-hidden rounded-xl border border-border bg-background">
-          {item.sessions.map((session, index) => {
+          {item.sessions.map((session) => {
             const state = getSessionState(session, now);
             return (
               <div

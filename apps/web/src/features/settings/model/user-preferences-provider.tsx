@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { useSerialTaskQueue } from "@/hooks/use-serial-task-queue";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 import type {
@@ -70,8 +72,8 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
   const [hydratedMode, setHydratedMode] = useState<string | null>(null);
   const modeRef = useRef<string | null>(null);
   const mutationVersion = useRef(0);
-  const writeChain = useRef(Promise.resolve());
   const pendingWrites = useRef(0);
+  const enqueueWrite = useSerialTaskQueue();
 
   const loadRemote = useCallback(async (userId: string) => {
     const requestedMode = `user:${userId}`;
@@ -116,38 +118,20 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
     }
   }, [hydratedMode, isPending, preferences, session]);
 
-  useEffect(() => {
+  useRefreshOnFocus(() => {
     const userId = session?.user.id;
-    if (!userId) return;
-    const refresh = () => {
-      if (
-        document.visibilityState === "visible" &&
-        pendingWrites.current === 0
-      ) {
-        void loadRemote(userId);
-      }
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [loadRemote, session?.user.id]);
+    if (userId && pendingWrites.current === 0) void loadRemote(userId);
+  }, Boolean(session?.user.id));
 
   const updateRemote = useCallback(
     (patch: Partial<UserFormatPreferences>) => {
       if (!session) return;
       pendingWrites.current += 1;
-      const request = writeChain.current.then(() =>
+      const request = enqueueWrite(() =>
         apiRequest("/api/preferences", {
           method: "PATCH",
           body: JSON.stringify(patch),
         }),
-      );
-      writeChain.current = request.then(
-        () => undefined,
-        () => undefined,
       );
       void request
         .catch(() => void loadRemote(session.user.id))
@@ -155,7 +139,7 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
           pendingWrites.current -= 1;
         });
     },
-    [loadRemote, session],
+    [enqueueWrite, loadRemote, session],
   );
 
   const value = useMemo<UserPreferencesContextValue>(

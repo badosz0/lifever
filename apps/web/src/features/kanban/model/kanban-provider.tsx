@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 
@@ -300,25 +301,16 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     };
   }, [hydratedMode, loadRemote, session?.user.id, state]);
 
-  useEffect(() => {
+  useRefreshOnFocus(() => {
     const userId = session?.user.id;
-    if (!userId) return;
-    const refresh = () => {
-      if (
-        document.visibilityState === "visible" &&
-        pendingRemoteSave.current === null &&
-        remoteSaveCount.current === 0
-      ) {
-        void loadRemote(userId, true);
-      }
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [loadRemote, session?.user.id]);
+    if (
+      userId &&
+      pendingRemoteSave.current === null &&
+      remoteSaveCount.current === 0
+    ) {
+      void loadRemote(userId, true);
+    }
+  }, Boolean(session?.user.id));
 
   useEffect(() => {
     const flush = () => {

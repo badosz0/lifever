@@ -3,23 +3,15 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import { updateKanbanWorkspaceSchema } from "./kanban.schema.js";
 
-type KanbanEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
+export const kanbanRoutes = new Hono<AuthenticatedEnv>();
 
-export const kanbanRoutes = new Hono<KanbanEnv>();
-
-kanbanRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-  if (!session) return context.json({ error: "Unauthorized" }, 401);
-  context.set("session", session);
-  await next();
-});
+kanbanRoutes.use("*", requireSession);
 
 const createStarterState = () => {
   const now = new Date().toISOString();

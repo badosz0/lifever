@@ -1,14 +1,11 @@
 import { Hono } from "hono";
 
 import { prisma } from "../../db/client.js";
-import { getSession } from "../auth/session.js";
+import {
+  type AuthenticatedEnv,
+  requireSession,
+} from "../auth/session.js";
 import { updatePreferencesSchema } from "./preferences.schema.js";
-
-type PreferencesEnv = {
-  Variables: {
-    session: NonNullable<Awaited<ReturnType<typeof getSession>>>;
-  };
-};
 
 const preferencesSelect = {
   theme: true,
@@ -18,14 +15,9 @@ const preferencesSelect = {
   favoriteConstructorId: true,
 } as const;
 
-export const preferencesRoutes = new Hono<PreferencesEnv>();
+export const preferencesRoutes = new Hono<AuthenticatedEnv>();
 
-preferencesRoutes.use("*", async (context, next) => {
-  const session = await getSession(context);
-  if (!session) return context.json({ error: "Unauthorized" }, 401);
-  context.set("session", session);
-  await next();
-});
+preferencesRoutes.use("*", requireSession);
 
 preferencesRoutes.get("/", async (context) => {
   const userId = context.get("session").user.id;

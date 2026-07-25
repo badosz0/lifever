@@ -17,6 +17,8 @@ import type {
   Formula1RaceResult,
   Formula1Snapshot,
 } from "@/features/formula1/model/types";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { useSerialTaskQueue } from "@/hooks/use-serial-task-queue";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 
@@ -100,8 +102,8 @@ export function Formula1Provider({ children }: PropsWithChildren) {
   const [preferencesMode, setPreferencesMode] = useState<string | null>(null);
   const preferencesModeRef = useRef<string | null>(null);
   const preferencesMutationVersion = useRef(0);
-  const preferencesWriteChain = useRef(Promise.resolve());
   const pendingPreferenceWrites = useRef(0);
+  const enqueuePreferenceWrite = useSerialTaskQueue();
   const mountedRef = useRef(true);
   const snapshotRef = useRef<Formula1Snapshot | null>(initialCache);
   const pendingResults = useRef(new Map<number, Promise<Formula1RaceResult[]>>());
@@ -208,24 +210,12 @@ export function Formula1Provider({ children }: PropsWithChildren) {
     }
   }, [isPending, preferences, preferencesMode, session]);
 
-  useEffect(() => {
+  useRefreshOnFocus(() => {
     const userId = session?.user.id;
-    if (!userId) return;
-    const refreshPreferences = () => {
-      if (
-        document.visibilityState === "visible" &&
-        pendingPreferenceWrites.current === 0
-      ) {
-        void loadRemotePreferences(userId);
-      }
-    };
-    window.addEventListener("focus", refreshPreferences);
-    document.addEventListener("visibilitychange", refreshPreferences);
-    return () => {
-      window.removeEventListener("focus", refreshPreferences);
-      document.removeEventListener("visibilitychange", refreshPreferences);
-    };
-  }, [loadRemotePreferences, session?.user.id]);
+    if (userId && pendingPreferenceWrites.current === 0) {
+      void loadRemotePreferences(userId);
+    }
+  }, Boolean(session?.user.id));
 
   const updatePreferences = useCallback(
     (patch: Partial<Formula1Preferences>) => {
@@ -233,15 +223,11 @@ export function Formula1Provider({ children }: PropsWithChildren) {
       setPreferences((current) => ({ ...current, ...patch }));
       if (session) {
         pendingPreferenceWrites.current += 1;
-        const request = preferencesWriteChain.current.then(() =>
+        const request = enqueuePreferenceWrite(() =>
           apiRequest("/api/preferences", {
             method: "PATCH",
             body: JSON.stringify(patch),
           }),
-        );
-        preferencesWriteChain.current = request.then(
-          () => undefined,
-          () => undefined,
         );
         void request
           .catch(() => void loadRemotePreferences(session.user.id))
@@ -250,7 +236,7 @@ export function Formula1Provider({ children }: PropsWithChildren) {
           });
       }
     },
-    [loadRemotePreferences, session],
+    [enqueuePreferenceWrite, loadRemotePreferences, session],
   );
 
   const refresh = useCallback(async () => {
