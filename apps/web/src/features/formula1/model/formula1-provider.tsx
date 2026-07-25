@@ -17,6 +17,8 @@ import type {
   Formula1RaceResult,
   Formula1Snapshot,
 } from "@/features/formula1/model/types";
+import { authClient } from "@/lib/auth-client";
+import { apiRequest } from "@/lib/api";
 
 const CACHE_KEY = "lifever-formula1-cache-v1";
 const PREFERENCES_KEY = "lifever-formula1-preferences-v1";
@@ -25,6 +27,11 @@ const CACHE_TTL_MS = 15 * 60 * 1_000;
 type Formula1Preferences = {
   favoriteDriverId: string | null;
   favoriteConstructorId: string | null;
+};
+
+const defaultPreferences: Formula1Preferences = {
+  favoriteDriverId: null,
+  favoriteConstructorId: null,
 };
 
 type Formula1ContextValue = {
@@ -74,13 +81,14 @@ const readPreferences = (): Formula1Preferences => {
           : null,
     };
   } catch {
-    return { favoriteDriverId: null, favoriteConstructorId: null };
+    return defaultPreferences;
   }
 };
 
 const Formula1Context = createContext<Formula1ContextValue | null>(null);
 
 export function Formula1Provider({ children }: PropsWithChildren) {
+  const { data: session, isPending } = authClient.useSession();
   const initialCache = useMemo(readCache, []);
   const [snapshot, setSnapshot] = useState<Formula1Snapshot | null>(initialCache);
   const [loading, setLoading] = useState(!initialCache);
@@ -88,10 +96,36 @@ export function Formula1Provider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const [selectedRaceRound, setSelectedRaceRound] = useState<number | null>(null);
   const [preferences, setPreferences] =
-    useState<Formula1Preferences>(readPreferences);
+    useState<Formula1Preferences>(defaultPreferences);
+  const [preferencesMode, setPreferencesMode] = useState<string | null>(null);
+  const preferencesModeRef = useRef<string | null>(null);
+  const preferencesMutationVersion = useRef(0);
+  const preferencesWriteChain = useRef(Promise.resolve());
+  const pendingPreferenceWrites = useRef(0);
   const mountedRef = useRef(true);
   const snapshotRef = useRef<Formula1Snapshot | null>(initialCache);
   const pendingResults = useRef(new Map<number, Promise<Formula1RaceResult[]>>());
+
+  const loadRemotePreferences = useCallback(async (userId: string) => {
+    const requestedMode = `user:${userId}`;
+    const requestedVersion = preferencesMutationVersion.current;
+    try {
+      const { preferences: remotePreferences } = await apiRequest<{
+        preferences: Formula1Preferences;
+      }>("/api/preferences");
+      if (
+        preferencesModeRef.current === requestedMode &&
+        preferencesMutationVersion.current === requestedVersion
+      ) {
+        setPreferences(remotePreferences);
+        setPreferencesMode(requestedMode);
+      }
+    } catch {
+      if (preferencesModeRef.current === requestedMode) {
+        setPreferencesMode(requestedMode);
+      }
+    }
+  }, []);
 
   const requestSnapshot = useCallback(
     async (signal?: AbortSignal) => {
@@ -150,12 +184,74 @@ export function Formula1Provider({ children }: PropsWithChildren) {
   }, [initialCache, requestSnapshot]);
 
   useEffect(() => {
+    if (isPending) return;
+    const userId = session?.user.id;
+    const nextMode = userId ? `user:${userId}` : "local";
+    preferencesModeRef.current = nextMode;
+    preferencesMutationVersion.current = 0;
+    setPreferencesMode(null);
+    if (userId) {
+      setPreferences(defaultPreferences);
+      void loadRemotePreferences(userId);
+    } else {
+      setPreferences(readPreferences());
+      setPreferencesMode("local");
+    }
+  }, [isPending, loadRemotePreferences, session?.user.id]);
+
+  useEffect(() => {
+    if (preferencesMode !== "local" || session || isPending) return;
     try {
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
     } catch {
       // Preferences remain available for this session.
     }
-  }, [preferences]);
+  }, [isPending, preferences, preferencesMode, session]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refreshPreferences = () => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingPreferenceWrites.current === 0
+      ) {
+        void loadRemotePreferences(userId);
+      }
+    };
+    window.addEventListener("focus", refreshPreferences);
+    document.addEventListener("visibilitychange", refreshPreferences);
+    return () => {
+      window.removeEventListener("focus", refreshPreferences);
+      document.removeEventListener("visibilitychange", refreshPreferences);
+    };
+  }, [loadRemotePreferences, session?.user.id]);
+
+  const updatePreferences = useCallback(
+    (patch: Partial<Formula1Preferences>) => {
+      preferencesMutationVersion.current += 1;
+      setPreferences((current) => ({ ...current, ...patch }));
+      if (session) {
+        pendingPreferenceWrites.current += 1;
+        const request = preferencesWriteChain.current.then(() =>
+          apiRequest("/api/preferences", {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+          }),
+        );
+        preferencesWriteChain.current = request.then(
+          () => undefined,
+          () => undefined,
+        );
+        void request
+          .catch(() => void loadRemotePreferences(session.user.id))
+          .finally(() => {
+            pendingPreferenceWrites.current -= 1;
+          });
+      }
+    },
+    [loadRemotePreferences, session],
+  );
 
   const refresh = useCallback(async () => {
     await requestSnapshot();
@@ -209,9 +305,9 @@ export function Formula1Provider({ children }: PropsWithChildren) {
       favoriteConstructorId: preferences.favoriteConstructorId,
       setSelectedRaceRound,
       setFavoriteDriverId: (favoriteDriverId) =>
-        setPreferences((current) => ({ ...current, favoriteDriverId })),
+        updatePreferences({ favoriteDriverId }),
       setFavoriteConstructorId: (favoriteConstructorId) =>
-        setPreferences((current) => ({ ...current, favoriteConstructorId })),
+        updatePreferences({ favoriteConstructorId }),
       refresh,
       loadRaceResults,
     }),
@@ -224,6 +320,7 @@ export function Formula1Provider({ children }: PropsWithChildren) {
       refreshing,
       selectedRaceRound,
       snapshot,
+      updatePreferences,
     ],
   );
 
