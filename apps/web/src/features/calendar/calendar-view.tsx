@@ -87,10 +87,6 @@ export function CalendarView({
     const monday = startOfWeek(selectedDate);
     return Array.from({ length: 7 }, (_, index) => addDays(monday, index));
   }, [selectedDate, viewMode]);
-  const selectedEventStartAt = useMemo(
-    () => events.find((event) => event.id === selectedEventId)?.startAt,
-    [events, selectedEventId],
-  );
   const visibleEventCount = useMemo(() => {
     const rangeStart =
       viewMode === "year"
@@ -142,12 +138,6 @@ export function CalendarView({
     },
     [categories, isReady, selectedDate, selectedEventId, setSelectedEventId],
   );
-
-  useEffect(() => {
-    if (selectedEventStartAt) {
-      setSelectedDate(startOfLocalDay(new Date(selectedEventStartAt)));
-    }
-  }, [selectedEventStartAt]);
 
   useEffect(() => {
     try {
