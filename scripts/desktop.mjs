@@ -17,6 +17,8 @@ import {
 
 const productName = "Lifever";
 const bundleIdentifier = "app.lifever.desktop";
+const launchServicesRegister =
+  "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 const appPath = path.join(
   projectRoot,
   "apps/desktop/src-tauri/target/release/bundle/macos/Lifever.app",
@@ -174,6 +176,10 @@ async function verifyAppBundle(bundlePath) {
   ]);
 }
 
+async function registerAppBundle(bundlePath) {
+  await run(launchServicesRegister, ["-f", bundlePath]);
+}
+
 async function stopInstalledApp(destination) {
   if (!(await pathExists(destination))) return;
 
@@ -217,6 +223,7 @@ async function installAppBundle(requestedDirectory) {
     await rename(staging, destination);
     installedNewBundle = true;
     await verifyAppBundle(destination);
+    await registerAppBundle(destination);
     if (hasBackup) await rm(backup, { force: true, recursive: true });
   } catch (error) {
     await rm(staging, { force: true, recursive: true });
