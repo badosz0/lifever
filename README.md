@@ -158,6 +158,13 @@ brew trust --cask badosz0/lifever/lifever
 brew install lifever
 ```
 
+If `0.1.0` was installed before the Gatekeeper fix, refresh the cask once:
+
+```bash
+brew update
+brew reinstall lifever
+```
+
 After the tap has been added, updates use the normal Homebrew flow:
 
 ```bash
