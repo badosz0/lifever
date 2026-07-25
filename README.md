@@ -72,6 +72,15 @@ For production, set `BETTER_AUTH_URL`, `WEB_URL`, and `VITE_API_URL` to the depl
 
 ## macOS app
 
+The desktop app only needs the public API origin. Database credentials, Better
+Auth secrets, and OAuth secrets always stay in the API environment. Desktop
+commands save the public URL in the ignored `.env.desktop.local` file and prompt
+for it the first time:
+
+```bash
+pnpm desktop:configure
+```
+
 Run the API in one terminal and the Tauri app in another:
 
 ```bash
@@ -79,13 +88,32 @@ pnpm dev:api
 pnpm desktop:dev
 ```
 
-Build the macOS application and DMG with:
+Build and install the macOS application with:
+
+```bash
+pnpm desktop:install
+```
+
+The installer builds an ad-hoc signed app, safely replaces the copy in
+`/Applications` (or `~/Applications` when needed), verifies it, and opens the
+new version. App data and login state are stored outside the bundle and survive
+replacement. Updating from the current checkout is the same one-command flow:
+
+```bash
+pnpm desktop:update
+```
+
+Build a shareable application bundle and DMG without installing:
 
 ```bash
 pnpm desktop:build
 ```
 
-The release configuration embeds local, deterministic frontend assets and grants no filesystem, shell, or process permissions. Distribution builds still need an Apple signing identity and notarization credentials.
+Use `--api-url https://api.example.com` to change the endpoint for any desktop
+command, or `--install-dir ~/Applications` to override the install location.
+The release configuration embeds local, deterministic frontend assets and
+grants no filesystem, shell, or process permissions. Distribution to other Macs
+still needs a Developer ID signing identity and notarization credentials.
 
 ## Useful commands
 
@@ -99,6 +127,8 @@ pnpm db:deploy       # apply committed migrations in production
 pnpm db:studio       # inspect PostgreSQL data
 pnpm desktop:dev     # native shell with Vite HMR
 pnpm desktop:build   # macOS app + DMG
+pnpm desktop:install # build and install into Applications
+pnpm desktop:update  # rebuild and replace the installed app
 ```
 
 ## Product conventions
