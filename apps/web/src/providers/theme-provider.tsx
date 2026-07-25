@@ -23,15 +23,27 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+const THEME_STORAGE_KEY = "lifever-theme";
 
 const getSystemTheme = () =>
   window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
+const isTheme = (value: string | null): value is Theme =>
+  value === "light" || value === "dark" || value === "system";
+
+const getStoredTheme = (): Theme => {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return isTheme(stored) ? stored : "system";
+  } catch {
+    return "system";
+  }
+};
+
 export function ThemeProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(getSystemTheme);
-  const [hydratedMode, setHydratedMode] = useState<string | null>(null);
   const modeRef = useRef<string | null>(null);
   const mutationVersion = useRef(0);
   const pendingWrites = useRef(0);
@@ -50,10 +62,9 @@ export function ThemeProvider({ children }: PropsWithChildren) {
         mutationVersion.current === requestedVersion
       ) {
         setThemeState(preferences.theme);
-        setHydratedMode(requestedMode);
       }
     } catch {
-      if (modeRef.current === requestedMode) setHydratedMode(requestedMode);
+      // Keep the cached startup theme when the synced preference is unavailable.
     }
   }, []);
 
@@ -63,18 +74,10 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     const nextMode = userId ? `user:${userId}` : "local";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
-    setHydratedMode(null);
     if (userId) {
-      setThemeState("system");
       void loadRemote(userId);
     } else {
-      const stored = localStorage.getItem("lifever-theme");
-      setThemeState(
-        stored === "light" || stored === "dark" || stored === "system"
-          ? stored
-          : "system",
-      );
-      setHydratedMode("local");
+      setThemeState(getStoredTheme());
     }
   }, [isPending, loadRemote, session?.user.id]);
 
@@ -88,10 +91,15 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
     document.documentElement.style.colorScheme = resolvedTheme;
-    if (hydratedMode === "local" && !session && !isPending) {
-      localStorage.setItem("lifever-theme", theme);
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", resolvedTheme === "dark" ? "#1c1c1e" : "#f5f5f7");
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Theme application should not depend on storage availability.
     }
-  }, [hydratedMode, isPending, resolvedTheme, session, theme]);
+  }, [resolvedTheme, theme]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
