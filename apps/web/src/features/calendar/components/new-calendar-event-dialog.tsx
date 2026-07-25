@@ -30,7 +30,6 @@ import { getCalendarCategory } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type { CalendarEventPreview } from "@/features/calendar/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
-import { cn } from "@/lib/cn";
 
 type NewCalendarEventDialogProps = {
   open: boolean;
@@ -145,9 +144,9 @@ export function NewCalendarEventDialog({
             />
           </div>
 
-          <div className="mt-4 rounded-xl border border-border bg-background p-3">
-            <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center gap-2">
-              <div className="rounded-lg border border-border/70 bg-card p-2.5">
+          <div className="mt-4 rounded-xl border border-border bg-card p-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-end gap-2">
+              <div className="min-w-0">
                 <p className="mb-2 text-[10px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
                   Starts
                 </p>
@@ -184,18 +183,11 @@ export function NewCalendarEventDialog({
               </div>
 
               <ArrowRight
-                className="size-4 justify-self-center text-muted-foreground/70"
+                className="mb-2.5 size-4 justify-self-center text-muted-foreground/70"
                 aria-hidden="true"
               />
 
-              <div
-                className={cn(
-                  "rounded-lg border bg-card p-2.5",
-                  range.multiDay
-                    ? "border-primary/35 ring-1 ring-primary/10"
-                    : "border-border/70",
-                )}
-              >
+              <div className="min-w-0">
                 <p className="mb-2 text-[10px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
                   Ends
                 </p>
