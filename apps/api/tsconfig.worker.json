@@ -17,7 +17,7 @@
     "src/db/worker-client.ts",
     "src/modules/**/*.ts",
     "src/generated/prisma/**/*.ts",
-    "src/generated/prisma-worker/**/*.ts"
+    "src/generated/prisma-d1/**/*.ts"
   ],
   "exclude": ["src/index.ts", "src/config/node-env.ts", "src/db/client.ts"]
 }

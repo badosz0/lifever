@@ -2,18 +2,13 @@ import { createApp } from "./app.js";
 import { createApiConfig, type ApiEnvironment } from "./config/env.js";
 import { createWorkerPrisma } from "./db/worker-client.js";
 
-type HyperdriveBinding = {
-  connectionString: string;
-};
-
 export interface WorkerBindings extends ApiEnvironment {
-  HYPERDRIVE?: HyperdriveBinding;
+  DB: D1Database;
 }
 
 const getWorkerEnvironment = (bindings: WorkerBindings): ApiEnvironment => ({
   NODE_ENV: "production",
   PORT: bindings.PORT,
-  DATABASE_URL: bindings.DATABASE_URL,
   BETTER_AUTH_SECRET: bindings.BETTER_AUTH_SECRET,
   BETTER_AUTH_URL: bindings.BETTER_AUTH_URL,
   WEB_URL: bindings.WEB_URL,
@@ -23,13 +18,12 @@ const getWorkerEnvironment = (bindings: WorkerBindings): ApiEnvironment => ({
 
 export default {
   async fetch(request, bindings, executionContext) {
-    const databaseUrl =
-      bindings.HYPERDRIVE?.connectionString ?? bindings.DATABASE_URL;
     const config = createApiConfig(getWorkerEnvironment(bindings), {
-      databaseUrl,
+      databaseProvider: "sqlite",
       defaultAuthUrl: new URL(request.url).origin,
+      usesDatabaseBinding: true,
     });
-    const prisma = createWorkerPrisma(config.databaseUrl);
+    const prisma = createWorkerPrisma(bindings.DB);
 
     try {
       const app = createApp({ config, prisma });

@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
@@ -60,7 +58,7 @@ export const createNotesRoutes = ({
     if (categories.length === 0) {
       await prisma.noteCategory.createMany({
         data: defaultCategories.map((category) => ({
-          id: randomUUID(),
+          id: crypto.randomUUID(),
           ...category,
           userId,
         })),

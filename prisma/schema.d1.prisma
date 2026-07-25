@@ -1,25 +1,27 @@
+// Keep these models in sync with schema.prisma. This separate schema lets the
+// Worker use Cloudflare D1 without changing local Node/PostgreSQL development.
 generator client {
   provider = "prisma-client"
-  output   = "../apps/api/src/generated/prisma"
-  runtime  = "nodejs"
+  output   = "../apps/api/src/generated/prisma-d1"
+  runtime  = "cloudflare"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
-  id             String          @id
-  name           String
-  email          String          @unique
-  emailVerified  Boolean         @default(false)
-  image          String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  sessions       Session[]
-  accounts       Account[]
-  lists          ReminderList[]
-  reminders      Reminder[]
+  id                 String             @id
+  name               String
+  email              String             @unique
+  emailVerified      Boolean            @default(false)
+  image              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  sessions           Session[]
+  accounts           Account[]
+  lists              ReminderList[]
+  reminders          Reminder[]
   calendarEvents     CalendarEvent[]
   calendarCategories CalendarCategory[]
   notes              Note[]
@@ -205,14 +207,14 @@ model KanbanWorkspace {
 }
 
 model UserPreferences {
-  userId     String   @id
-  theme      String   @default("system")
-  timeFormat String   @default("system")
-  dateFormat String   @default("system")
+  userId                String   @id
+  theme                 String   @default("system")
+  timeFormat            String   @default("system")
+  dateFormat            String   @default("system")
   favoriteDriverId      String?
   favoriteConstructorId String?
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }

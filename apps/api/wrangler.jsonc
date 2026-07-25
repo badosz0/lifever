@@ -5,10 +5,20 @@
   "compatibility_date": "2026-07-25",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
+  "workers_dev": true,
+  "preview_urls": false,
   "placement": {
     "mode": "smart",
   },
   "observability": {
     "enabled": true,
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lifever",
+      "database_id": "b57cebe2-0ed4-471e-bd9e-ffbd03886215",
+      "migrations_dir": "../../prisma/d1-migrations",
+    },
+  ],
 }

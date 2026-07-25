@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
@@ -16,10 +14,10 @@ export const createKanbanRoutes = ({
 
   const createStarterState = () => {
     const now = new Date().toISOString();
-    const projectId = randomUUID();
-    const backlogId = randomUUID();
-    const progressId = randomUUID();
-    const doneId = randomUUID();
+    const projectId = crypto.randomUUID();
+    const backlogId = crypto.randomUUID();
+    const progressId = crypto.randomUUID();
+    const doneId = crypto.randomUUID();
     return {
       projects: [
         {

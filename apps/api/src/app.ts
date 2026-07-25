@@ -40,9 +40,14 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
     }),
   );
 
-  app.get("/api/health", (context) =>
-    context.json({ status: "ok", service: "lifever-api" }),
-  );
+  app.get("/api/health", async (context) => {
+    await prisma.user.findFirst({ select: { id: true } });
+    return context.json({
+      status: "ok",
+      service: "lifever-api",
+      database: "ok",
+    });
+  });
 
   app.on(["GET", "POST"], "/api/auth/*", (context) =>
     auth.handler(context.req.raw),

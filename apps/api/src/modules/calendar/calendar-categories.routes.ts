@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
@@ -45,7 +43,7 @@ export const createCalendarCategoriesRoutes = ({
     if (categories.length === 0) {
       await prisma.calendarCategory.createMany({
         data: defaultCategories.map((category) => ({
-          id: randomUUID(),
+          id: crypto.randomUUID(),
           ...category,
           userId: session.user.id,
         })),

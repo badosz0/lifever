@@ -11,6 +11,7 @@ dist-worker
 target
 apps/api/src/generated/prisma
 apps/api/src/generated/prisma-worker
+apps/api/src/generated/prisma-d1
 apps/desktop/src-tauri/gen
 apps/desktop/src-tauri/target
 *.log

@@ -21,7 +21,7 @@ export const createAuth = ({ config, prisma }: AuthDependencies) => {
     baseURL: config.authUrl,
     secret: config.authSecret,
     database: prismaAdapter(prisma, {
-      provider: "postgresql",
+      provider: config.databaseProvider,
     }),
     trustedOrigins: [config.webUrl, ...desktopOrigins],
     socialProviders: discordIsConfigured

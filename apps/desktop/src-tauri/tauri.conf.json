@@ -28,7 +28,7 @@
     ],
     "security": {
       "capabilities": ["default"],
-      "csp": "default-src 'self'; img-src 'self' asset: https: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:8787 https://api.lifever.app https://api.jolpi.ca; object-src 'none'; base-uri 'none'; frame-src 'none'"
+      "csp": "default-src 'self'; img-src 'self' asset: https: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:8787 https://api.lifever.app https://lifever-api.badoszk.workers.dev https://api.jolpi.ca; object-src 'none'; base-uri 'none'; frame-src 'none'"
     }
   },
   "bundle": {

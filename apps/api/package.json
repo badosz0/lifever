@@ -15,6 +15,7 @@
   "dependencies": {
     "@better-auth/prisma-adapter": "1.6.24",
     "@hono/node-server": "^1.19.9",
+    "@prisma/adapter-d1": "7.9.0",
     "@prisma/adapter-pg": "7.9.0",
     "@prisma/client": "7.9.0",
     "better-auth": "1.6.24",

@@ -1,4 +1,3 @@
-DATABASE_URL=postgresql://lifever:lifever@localhost:5432/lifever?schema=public
 BETTER_AUTH_SECRET=replace-with-a-long-random-secret
 BETTER_AUTH_URL=http://localhost:8787
 WEB_URL=http://localhost:5173

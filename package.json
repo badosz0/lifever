@@ -22,9 +22,11 @@
     "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build:worker",
     "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy:worker",
     "check": "pnpm db:generate && pnpm -r check",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && prisma generate --schema prisma/schema.d1.prisma",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:deploy:d1": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --remote",
+    "db:deploy:d1:local": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --local",
     "db:studio": "prisma studio"
   },
   "devDependencies": {

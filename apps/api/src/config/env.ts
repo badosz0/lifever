@@ -17,7 +17,9 @@ export type ApiConfig = ReturnType<typeof createApiConfig>;
 
 export type ApiConfigOptions = {
   defaultAuthUrl?: string;
+  databaseProvider?: "postgresql" | "sqlite";
   databaseUrl?: string;
+  usesDatabaseBinding?: boolean;
 };
 
 export const createApiConfig = (
@@ -35,6 +37,7 @@ export const createApiConfig = (
 
   if (
     nodeEnv === "production" &&
+    !options.usesDatabaseBinding &&
     !options.databaseUrl &&
     !environment.DATABASE_URL
   ) {
@@ -44,6 +47,7 @@ export const createApiConfig = (
   return {
     nodeEnv,
     port: Number(environment.PORT ?? 8787),
+    databaseProvider: options.databaseProvider ?? "postgresql",
     databaseUrl,
     authSecret,
     authUrl:

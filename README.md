@@ -8,7 +8,7 @@ Lifever is a calm, modular home for the everyday parts of life. It currently shi
 - Tailwind CSS 4 and local shadcn/ui components
 - Hono API with Better Auth 1.6, deployable to Node.js or Cloudflare Workers
 - Discord OAuth
-- Prisma 7 with PostgreSQL
+- Prisma 7 with PostgreSQL locally and Cloudflare D1 in the Worker
 - Tauri 2 for the native macOS shell
 - pnpm workspaces
 
@@ -24,7 +24,7 @@ prisma/      schema and migrations
 
 The browser and macOS app share the same UI build. Prisma, database credentials, Discord secrets, and trusted authorization decisions remain in the API process. Reminder and calendar queries are always scoped to the authenticated session's user ID; clients never choose a user ID.
 
-Reminders and Calendar work immediately as a local profile and store guest data on the device. After Discord sign-in, the same interaction layer reads and writes authenticated PostgreSQL collections through the API.
+Reminders and Calendar work immediately as a local profile and store guest data on the device. After Discord sign-in, the same interaction layer reads and writes authenticated collections through the API.
 
 ## Quick start
 
@@ -73,8 +73,9 @@ For production, set `BETTER_AUTH_URL`, `WEB_URL`, and `VITE_API_URL` to the depl
 ## Cloudflare Workers API
 
 The API has separate Node.js and Cloudflare entry points over the same Hono
-routes. Local development stays on Node with `pnpm dev:api`; the Worker uses a
-Prisma client generated specifically for the `cloudflare` runtime.
+routes. Local development stays on Node and PostgreSQL with `pnpm dev:api`; the
+Worker uses Cloudflare D1 and a Prisma client generated specifically for the
+`cloudflare` runtime.
 
 Test the Worker runtime locally:
 
@@ -83,48 +84,31 @@ cp apps/api/.dev.vars.example apps/api/.dev.vars
 pnpm dev:worker
 ```
 
-For the first production deployment, log in and configure the Worker. Migrations
-still run directly against PostgreSQL, before the Worker is deployed:
+The production database and Worker are managed entirely with Wrangler. The D1
+database only needs to be created once; its ID belongs in
+`apps/api/wrangler.jsonc`:
 
 ```bash
 pnpm --dir apps/api exec wrangler login
-DATABASE_URL="postgresql://..." pnpm db:deploy
-pnpm --dir apps/api exec wrangler secret put DATABASE_URL
+pnpm --dir apps/api exec wrangler d1 create lifever
+pnpm db:deploy:d1
 pnpm --dir apps/api exec wrangler secret put BETTER_AUTH_SECRET
-pnpm --dir apps/api exec wrangler secret put WEB_URL
 pnpm deploy:worker
 ```
 
-`WEB_URL` is the public web origin allowed by CORS. `BETTER_AUTH_URL` normally
-does not need to be set because the Worker derives it from the incoming request,
-including a custom domain. Set `DISCORD_CLIENT_ID` and
-`DISCORD_CLIENT_SECRET` as Worker secrets when Discord sign-in is enabled, and
-point the web build's `VITE_API_URL` at the deployed Worker.
-
-For production, Hyperdrive is the preferred database path because Cloudflare
-handles connection pooling close to the Worker while PostgreSQL remains the
-source of truth:
+Apply the same migrations to the local Wrangler database before running
+`pnpm dev:worker`:
 
 ```bash
-pnpm --dir apps/api exec wrangler hyperdrive create lifever-postgres \
-  --connection-string="$DATABASE_URL"
-cp apps/api/wrangler.hyperdrive.example.jsonc \
-  apps/api/wrangler.hyperdrive.jsonc
+pnpm db:deploy:d1:local
 ```
 
-Put the returned Hyperdrive ID in `wrangler.hyperdrive.jsonc`, then deploy it:
-
-```bash
-pnpm db:generate
-pnpm --dir apps/api exec wrangler deploy \
-  --config wrangler.hyperdrive.jsonc
-```
-
-The Worker accepts either the `HYPERDRIVE` binding or a `DATABASE_URL` secret,
-so the simple deployment can be upgraded without changing application code.
-Cloudflare D1 is intentionally not used: it is SQLite rather than PostgreSQL and
-would require replacing the existing schema, migrations, and local database
-workflow.
+`WEB_URL` is the public web origin allowed by CORS; set it with
+`wrangler secret put WEB_URL` when the web app has a public deployment.
+`BETTER_AUTH_URL` normally does not need to be set because the Worker derives it
+from the incoming request, including a custom domain. Set `DISCORD_CLIENT_ID`
+and `DISCORD_CLIENT_SECRET` as Worker secrets when Discord sign-in is enabled,
+and point the web build's `VITE_API_URL` at the deployed Worker.
 
 ## macOS app
 
@@ -183,6 +167,7 @@ pnpm deploy:worker   # deploy the API Worker
 pnpm db:generate     # regenerate the Prisma client
 pnpm db:migrate      # create/apply a local migration
 pnpm db:deploy       # apply committed migrations in production
+pnpm db:deploy:d1    # apply committed migrations to production D1
 pnpm db:studio       # inspect PostgreSQL data
 pnpm desktop:dev     # native shell with Vite HMR
 pnpm desktop:build   # macOS app + DMG
