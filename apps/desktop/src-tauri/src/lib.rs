@@ -29,7 +29,7 @@ fn close_oauth_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             notifications::initialize();
 
@@ -42,7 +42,7 @@ pub fn run() {
                 .ok_or_else(|| std::io::Error::other("main window configuration is missing"))?;
 
             let app_handle = app.handle().clone();
-            tauri::WebviewWindowBuilder::from_config(app, main_window)?
+            let main_window = tauri::WebviewWindowBuilder::from_config(app, main_window)?
                 .on_new_window(move |url, features| {
                     if !is_allowed_oauth_popup(&url) {
                         return tauri::webview::NewWindowResponse::Deny;
@@ -73,12 +73,37 @@ pub fn run() {
                 })
                 .build()?;
 
+            #[cfg(target_os = "macos")]
+            {
+                let window_to_hide = main_window.clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_to_hide.hide();
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             close_oauth_window,
             notifications::sync_native_notifications
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Lifever");
+
+    app.run(|app_handle, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } = event
+        {
+            if let Some(main_window) = app_handle.get_webview_window("main") {
+                let _ = main_window.show();
+                let _ = main_window.set_focus();
+            }
+        }
+    });
 }
