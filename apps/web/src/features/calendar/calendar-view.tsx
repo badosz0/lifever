@@ -1,13 +1,7 @@
-import {
-  CalendarPlus,
-  ChevronLeft,
-  ChevronRight,
-  Menu,
-  PanelLeft,
-  SlidersHorizontal,
-} from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Menu, PanelLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
@@ -238,16 +232,11 @@ export function CalendarView({
               </button>
             ))}
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="size-8 text-muted-foreground"
+          <AppSettingsButton
+            label="Calendar settings"
             onClick={() => setSettingsOpen(true)}
             disabled={!isReady}
-            aria-label="Calendar settings"
-          >
-            <SlidersHorizontal className="size-3.5" />
-          </Button>
+          />
           <ShortcutTooltip label="New Event" shortcut={["⌘", "N"]}>
             <Button size="icon-sm" className="size-8 rounded-full" onClick={() => openComposer()} disabled={!isReady} aria-label="New event">
               <CalendarPlus className="size-3.5" strokeWidth={2.4} />

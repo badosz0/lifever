@@ -1,12 +1,7 @@
-import {
-  FilePenLine,
-  Menu,
-  PanelLeft,
-  Plus,
-  Settings2,
-} from "lucide-react";
+import { FilePenLine, Menu, PanelLeft, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
@@ -153,16 +148,10 @@ export function NotesView({
             label="Search notes"
             className="notes-toolbar-search w-[230px] shrink-0"
           />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 text-muted-foreground"
+          <AppSettingsButton
+            label="Notes settings"
             onClick={() => setSettingsOpen(true)}
-            aria-label="Notes settings"
-            title="Notes settings"
-          >
-            <Settings2 className="size-[17px]" />
-          </Button>
+          />
           <ShortcutTooltip label="New Note" shortcut={["⌘", "N"]}>
             <Button
               size="icon-sm"

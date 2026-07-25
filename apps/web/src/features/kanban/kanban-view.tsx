@@ -1,10 +1,4 @@
-import {
-  Filter,
-  Menu,
-  PanelLeft,
-  Plus,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Filter, Menu, PanelLeft, Plus } from "lucide-react";
 import {
   type CSSProperties,
   useCallback,
@@ -14,6 +8,7 @@ import {
   useState,
 } from "react";
 
+import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -278,15 +273,10 @@ export function KanbanView({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="size-8 text-muted-foreground"
+          <AppSettingsButton
+            label="Project settings"
             onClick={() => setSettingsOpen(true)}
-            aria-label="Project settings"
-          >
-            <SlidersHorizontal className="size-3.5" />
-          </Button>
+          />
           <ShortcutTooltip label="New Card" shortcut={["⌘", "N"]}>
             <Button
               size="icon-sm"

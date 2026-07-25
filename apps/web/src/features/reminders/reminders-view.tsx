@@ -1,7 +1,6 @@
 import {
   ArrowUpDown,
   Menu,
-  MoreHorizontal,
   PanelLeft,
   Plus,
   Trash2,
@@ -9,6 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -235,14 +235,7 @@ export function RemindersView({
           <div className="flex-1" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-7 text-muted-foreground"
-                aria-label="Reminder options"
-              >
-                <MoreHorizontal className="size-[18px]" />
-              </Button>
+              <AppSettingsButton label="Reminder settings" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuSub>
