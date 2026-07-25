@@ -382,6 +382,7 @@ async function createReleaseNotes({ notesPath, version }) {
 
 \`\`\`bash
 brew tap ${homebrewTapName} ${homebrewTapUrl}
+brew trust --cask badosz0/lifever/lifever
 brew install lifever
 \`\`\`
 
@@ -538,6 +539,7 @@ async function main() {
   );
   console.log("Install:");
   console.log(`  brew tap ${homebrewTapName} ${homebrewTapUrl}`);
+  console.log("  brew trust --cask badosz0/lifever/lifever");
   console.log("  brew install lifever");
 }
 

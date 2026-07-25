@@ -154,6 +154,7 @@ Install the latest public macOS release with Homebrew:
 
 ```bash
 brew tap badosz0/lifever https://github.com/badosz0/lifever
+brew trust --cask badosz0/lifever/lifever
 brew install lifever
 ```
 
