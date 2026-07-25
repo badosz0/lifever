@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell/app-shell";
+import { MenuBarSync } from "@/components/app-shell/menu-bar-sync";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CalendarNotificationScheduler } from "@/features/calendar/components/calendar-notification-scheduler";
@@ -14,6 +15,7 @@ export function App() {
           <ReminderNotificationScheduler />
           <CalendarNotificationScheduler />
           <AppShell />
+          <MenuBarSync />
           <Toaster />
         </AppProviders>
       </TooltipProvider>
