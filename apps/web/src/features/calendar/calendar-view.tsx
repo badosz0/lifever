@@ -38,6 +38,15 @@ type CalendarViewProps = {
   onToggleSidebar: () => void;
 };
 
+const calendarViewShortcuts: Record<CalendarViewMode, string> = {
+  year: "Y",
+  month: "M",
+  week: "W",
+  day: "D",
+};
+
+const calendarViews: CalendarViewMode[] = ["year", "month", "week", "day"];
+
 const readViewMode = (): CalendarViewMode => {
   try {
     const storedMode = localStorage.getItem("lifever-calendar-view");
@@ -142,6 +151,25 @@ export function CalendarView({
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
+      const isInDialog = target?.closest('[role="dialog"]');
+      const shortcutView = calendarViews.find(
+        (mode) =>
+          calendarViewShortcuts[mode].toLowerCase() === event.key.toLowerCase(),
+      );
+
+      if (
+        shortcutView &&
+        !isTyping &&
+        !isInDialog &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        setViewMode(shortcutView);
+        return;
+      }
+
       if (
         event.key.toLowerCase() === "n" &&
         !event.altKey &&
@@ -215,21 +243,26 @@ export function CalendarView({
 
           <div className="flex-1" />
           <div className="flex h-8 items-center rounded-lg bg-muted p-0.5" aria-label="Calendar view">
-            {(["year", "month", "week", "day"] as const).map((mode) => (
-              <button
+            {calendarViews.map((mode) => (
+              <ShortcutTooltip
                 key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                className={cn(
-                  "h-7 rounded-md px-2.5 text-[11px] font-semibold capitalize outline-none transition-[background-color,color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring",
-                  viewMode === mode
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-pressed={viewMode === mode}
+                label={`${mode.charAt(0).toUpperCase()}${mode.slice(1)} view`}
+                shortcut={[calendarViewShortcuts[mode]]}
               >
-                {mode}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  className={cn(
+                    "h-7 rounded-md px-2.5 text-[11px] font-semibold capitalize outline-none transition-[background-color,color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring",
+                    viewMode === mode
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-pressed={viewMode === mode}
+                >
+                  {mode}
+                </button>
+              </ShortcutTooltip>
             ))}
           </div>
           <AppSettingsButton
