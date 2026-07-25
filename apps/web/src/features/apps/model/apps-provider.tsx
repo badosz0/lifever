@@ -21,6 +21,7 @@ const readActiveApp = (): AppId => {
     const stored = localStorage.getItem("lifever-active-app");
     if (
       stored === "calendar" ||
+      stored === "notes" ||
       stored === "kanban" ||
       stored === "formula1"
     ) {

@@ -215,6 +215,177 @@ button,
   transform: translate(-50%, -50%) scale(1.06);
 }
 
+.note-markdown {
+  overflow-wrap: anywhere;
+}
+
+.note-markdown > :first-child {
+  margin-top: 0;
+}
+
+.note-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.note-markdown h1,
+.note-markdown h2,
+.note-markdown h3,
+.note-markdown h4 {
+  margin: 1.45em 0 0.5em;
+  color: var(--foreground);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+}
+
+.note-markdown h1 {
+  font-size: 1.72em;
+}
+
+.note-markdown h2 {
+  font-size: 1.38em;
+}
+
+.note-markdown h3 {
+  font-size: 1.12em;
+}
+
+.note-markdown h4 {
+  font-size: 1em;
+}
+
+.note-markdown p,
+.note-markdown ul,
+.note-markdown ol,
+.note-markdown blockquote,
+.note-markdown pre,
+.note-markdown table {
+  margin: 0 0 1em;
+}
+
+.note-markdown ul,
+.note-markdown ol {
+  padding-left: 1.45em;
+}
+
+.note-markdown ul {
+  list-style: disc;
+}
+
+.note-markdown ol {
+  list-style: decimal;
+}
+
+.note-markdown li {
+  margin: 0.2em 0;
+  padding-left: 0.18em;
+}
+
+.note-markdown li::marker {
+  color: color-mix(in srgb, #f59e0b 78%, var(--foreground));
+}
+
+.note-markdown li.task-list-item {
+  list-style: none;
+}
+
+.note-markdown ul.contains-task-list {
+  padding-left: 0;
+}
+
+.note-markdown strong {
+  font-weight: 700;
+}
+
+.note-markdown a {
+  color: color-mix(in srgb, #f59e0b 76%, var(--foreground));
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 36%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.note-markdown a:hover {
+  text-decoration-color: currentColor;
+}
+
+.note-markdown blockquote {
+  border-left: 3px solid #f59e0b;
+  border-radius: 0 10px 10px 0;
+  background: var(--muted);
+  padding: 0.72em 0.9em;
+  color: var(--muted-foreground);
+}
+
+.note-markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.note-markdown code {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--muted);
+  padding: 0.12em 0.35em;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86em;
+}
+
+.note-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  padding: 0.9em 1em;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+}
+
+.note-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 0.83em;
+}
+
+.note-markdown hr {
+  height: 1px;
+  margin: 1.6em 0;
+  border: 0;
+  background: var(--border);
+}
+
+.note-markdown table {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  background: var(--background);
+  font-size: 0.88em;
+}
+
+.note-markdown th,
+.note-markdown td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 0.48em 0.68em;
+  text-align: left;
+}
+
+.note-markdown th {
+  background: var(--muted);
+  font-weight: 650;
+}
+
+.note-markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.note-markdown th:last-child,
+.note-markdown td:last-child {
+  border-right: 0;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .tauri-titlebar,
   .scroll-edge,

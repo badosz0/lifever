@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { LucideIcon } from "lucide-react";
 
-export type AppId = "reminders" | "calendar" | "kanban" | "formula1";
+export type AppId = "reminders" | "calendar" | "notes" | "kanban" | "formula1";
 
 export type AppViewProps = {
   onOpenMobileSidebar: () => void;
