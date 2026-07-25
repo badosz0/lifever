@@ -97,25 +97,18 @@ export function Formula1Inspector({ className }: Formula1InspectorProps) {
       )}
       aria-label="Race details"
     >
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border/70 px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <Formula1Flag country={race.circuit.country} className="size-4" />
-          <h2 className="truncate text-sm font-semibold">Round {race.round}</h2>
-        </div>
+      <div className="relative min-h-0 flex-1 overflow-y-auto p-4">
         {selectedRaceRound !== null ? (
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground"
+            className="absolute top-3 right-3 z-10 border border-border bg-background text-muted-foreground shadow-sm"
             onClick={() => setSelectedRaceRound(null)}
             aria-label="Close selected race"
           >
             <X className="size-4" />
           </Button>
         ) : null}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <RaceOverview race={race} />
 
         {completed ? (
@@ -154,7 +147,12 @@ export function Formula1Inspector({ className }: Formula1InspectorProps) {
     const state = getRaceState(item, now);
     return (
       <div>
-        <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex items-start gap-3",
+            selectedRaceRound !== null && "pr-9",
+          )}
+        >
           <Formula1Flag country={item.circuit.country} className="size-8" />
           <div className="min-w-0">
             <p className="text-[9px] font-bold tracking-[0.08em] text-red-600 uppercase">
