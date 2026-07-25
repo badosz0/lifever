@@ -28,12 +28,8 @@ export function InstallCommand() {
   return (
     <div className="install-command">
       <div className="terminal-bar">
-        <div className="terminal-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <span>Terminal</span>
+        <span className="terminal-label">Homebrew</span>
+        <span className="terminal-note">Copy all three commands</span>
         <button
           type="button"
           className="copy-button"

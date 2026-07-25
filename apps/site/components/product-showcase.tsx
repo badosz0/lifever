@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Product = {
   id: string;
@@ -20,6 +20,7 @@ type Product = {
   image: string;
   alt: string;
   accent: string;
+  points: string[];
   Icon: LucideIcon;
 };
 
@@ -34,6 +35,7 @@ const products: Product[] = [
     image: "/screenshots/calendar-week.jpg",
     alt: "Lifever calendar showing a compact week with color-coded events",
     accent: "#007aff",
+    points: ["Drag to create", "Day to year views", "Event alerts"],
     Icon: CalendarDays,
   },
   {
@@ -46,6 +48,7 @@ const products: Product[] = [
     image: "/screenshots/reminders-today.jpg",
     alt: "Lifever reminders Today list",
     accent: "#ff3b30",
+    points: ["Quick capture", "Natural scheduling", "Priorities and sound"],
     Icon: ListChecks,
   },
   {
@@ -58,6 +61,7 @@ const products: Product[] = [
     image: "/screenshots/notes-markdown.jpg",
     alt: "Lifever Markdown note with live preview",
     accent: "#ff9500",
+    points: ["Markdown preview", "Pins and categories", "Fast search"],
     Icon: FileText,
   },
   {
@@ -70,6 +74,7 @@ const products: Product[] = [
     image: "/screenshots/kanban-board.jpg",
     alt: "Lifever Kanban board with project cards and labels",
     accent: "#af52de",
+    points: ["Multiple projects", "Custom properties", "Fluid drag and drop"],
     Icon: Columns3,
   },
   {
@@ -82,19 +87,47 @@ const products: Product[] = [
     image: "/screenshots/formula-1.jpg",
     alt: "Lifever Formula 1 weekend overview",
     accent: "#ff2d55",
+    points: ["Local session times", "Live countdowns", "Race details"],
     Icon: FlagTriangleRight,
   },
 ];
 
 export function ProductShowcase() {
   const [activeId, setActiveId] = useState(products[0].id);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const activeProduct =
     products.find((product) => product.id === activeId) ?? products[0];
+
+  function selectTab(index: number) {
+    const product = products[index];
+    if (!product) return;
+    setActiveId(product.id);
+    tabRefs.current[index]?.focus();
+  }
+
+  function handleTabKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      selectTab((index + 1) % products.length);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      selectTab((index - 1 + products.length) % products.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      selectTab(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      selectTab(products.length - 1);
+    }
+  }
 
   return (
     <div className="product-showcase">
       <div className="product-tabs" role="tablist" aria-label="Lifever apps">
-        {products.map(({ id, label, shortLabel, Icon, accent }) => {
+        {products.map(({ id, label, shortLabel, Icon, accent }, index) => {
           const active = id === activeProduct.id;
           return (
             <button
@@ -103,9 +136,15 @@ export function ProductShowcase() {
               role="tab"
               aria-selected={active}
               aria-controls="product-panel"
+              id={`product-tab-${id}`}
+              tabIndex={active ? 0 : -1}
               className="product-tab"
               data-active={active}
               onClick={() => setActiveId(id)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               style={{ "--app-accent": accent } as React.CSSProperties}
             >
               <Icon size={17} strokeWidth={1.9} aria-hidden="true" />
@@ -120,6 +159,7 @@ export function ProductShowcase() {
         className="product-panel"
         id="product-panel"
         role="tabpanel"
+        aria-labelledby={`product-tab-${activeProduct.id}`}
         style={{ "--app-accent": activeProduct.accent } as React.CSSProperties}
       >
         <div className="product-copy">
@@ -130,15 +170,16 @@ export function ProductShowcase() {
             </span>
             <h3>{activeProduct.title}</h3>
           </div>
-          <p>{activeProduct.description}</p>
+          <div>
+            <p>{activeProduct.description}</p>
+            <ul className="product-points">
+              {activeProduct.points.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          </div>
         </div>
         <div className="product-image-shell">
-          <div className="window-rail" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-            <small>Lifever</small>
-          </div>
           <Image
             key={activeProduct.id}
             className="product-image"

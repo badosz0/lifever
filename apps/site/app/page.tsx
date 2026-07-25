@@ -1,5 +1,4 @@
 import {
-  ArrowDown,
   ArrowRight,
   Cloud,
   Code2,
@@ -21,25 +20,33 @@ const releaseUrl = `${githubUrl}/releases/latest`;
 const principles = [
   {
     number: "01",
-    title: "Local by default",
+    title: "Start without setup",
     description:
-      "Open the app and start. No account wall, no server required, and useful demo data from the first launch.",
+      "Open Lifever and it is already useful. A local profile and thoughtful demo data are ready before an account exists.",
     Icon: WifiOff,
   },
   {
     number: "02",
-    title: "Sync when you want",
+    title: "Sync on your terms",
     description:
-      "Sign in when you want the same reminders, events, notes, and projects on another device.",
+      "Sign in only when you want the same reminders, events, notes, and projects waiting on another device.",
     Icon: Cloud,
   },
   {
     number: "03",
-    title: "Yours to run",
+    title: "Own the whole system",
     description:
-      "Use the hosted backend or self-host with Cloudflare D1 or PostgreSQL. The entire stack is open source.",
+      "Use the hosted backend or run the full stack yourself with Cloudflare D1 or PostgreSQL. Nothing important is hidden.",
     Icon: ServerCog,
   },
+];
+
+const rhythms = [
+  { verb: "Remember", app: "Reminders" },
+  { verb: "Plan", app: "Calendar" },
+  { verb: "Think", app: "Notes" },
+  { verb: "Move", app: "Kanban" },
+  { verb: "Follow", app: "Formula 1" },
 ];
 
 const faqs = [
@@ -89,13 +96,13 @@ export default function Home() {
           <Brand />
           <nav className="main-nav" aria-label="Primary navigation">
             <a href="#product">Product</a>
-            <a href="#principles">Why Lifever</a>
+            <a href="#principles">Philosophy</a>
             <a href="#install">Install</a>
             <a href="#faq">FAQ</a>
           </nav>
           <a className="button button-small" href={releaseUrl}>
-            <Download size={15} aria-hidden="true" />
-            Download
+            Get Lifever
+            <ArrowRight size={14} aria-hidden="true" />
           </a>
         </div>
       </header>
@@ -103,11 +110,17 @@ export default function Home() {
       <main>
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">Your days, in one place</p>
-            <h1>Life, together.</h1>
+            <a className="announcement" href={releaseUrl}>
+              <span>Free</span>
+              Open source for macOS and the web
+              <ArrowRight size={14} aria-hidden="true" />
+            </a>
+            <h1>
+              Life, <mark>together.</mark>
+            </h1>
             <p className="hero-lede">
-              Reminders, calendar, notes, projects, and race weekends in one calm
-              app.
+              Reminders, calendar, notes, projects, and race weekends—designed
+              as one quiet place, not five apps fighting for attention.
             </p>
             <div className="hero-actions">
               <a className="button" href={releaseUrl}>
@@ -115,20 +128,18 @@ export default function Home() {
                 Download for macOS
               </a>
               <a className="button button-secondary" href="#product">
-                See how it works
-                <ArrowDown size={16} aria-hidden="true" />
+                Explore the product
+                <ArrowRight size={16} aria-hidden="true" />
               </a>
             </div>
-            <p className="hero-meta">Free · Open source · Local first</p>
+            <ul className="hero-meta" aria-label="Lifever highlights">
+              <li>No account required</li>
+              <li>Local first</li>
+              <li>Cross-device sync</li>
+            </ul>
           </div>
 
           <div className="hero-frame">
-            <div className="window-rail" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <small>Lifever · Calendar</small>
-            </div>
             <Image
               className="hero-image"
               src="/screenshots/calendar-week.jpg"
@@ -143,13 +154,26 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="rhythm-section" aria-label="Lifever apps">
+          <p>One home for the things that shape a day.</p>
+          <div className="rhythm-list">
+            {rhythms.map(({ verb, app }) => (
+              <div className="rhythm" key={app}>
+                <strong>{verb}</strong>
+                <span>{app}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="section product-section" id="product">
           <div className="section-heading">
-            <p className="eyebrow">Five focused apps</p>
-            <h2>Everything has a place.</h2>
+            <p className="eyebrow">The product</p>
+            <h2>Everything close. Nothing crowded.</h2>
             <p>
-              Each app stays simple on its own. Together they cover the ordinary
-              work of planning a life.
+              Each app keeps its own rhythm. Together they cover the ordinary
+              work of planning a life without turning it into a system to
+              maintain.
             </p>
           </div>
           <ProductShowcase />
@@ -158,24 +182,35 @@ export default function Home() {
         <section className="principles" id="principles">
           <div className="section principles-inner">
             <div className="principles-heading">
-              <p className="eyebrow">Useful before you sign in</p>
-              <h2>Start locally. Take it further when you need to.</h2>
+              <p className="eyebrow">A calmer default</p>
+              <h2>Useful before an account even exists.</h2>
+              <p>
+                Most productivity software asks you to build a system before it
+                gives anything back. Lifever starts ready, stays understandable,
+                and grows only when you ask it to.
+              </p>
             </div>
-            <div className="principle-list">
-              {principles.map(({ number, title, description, Icon }) => (
-                <article className="principle" key={title}>
-                  <span className="principle-number">{number}</span>
-                  <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                </article>
-              ))}
+            <div>
+              <div className="principle-list">
+                {principles.map(({ number, title, description, Icon }) => (
+                  <article className="principle" key={title}>
+                    <span className="principle-number">{number}</span>
+                    <div className="principle-icon">
+                      <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3>{title}</h3>
+                      <p>{description}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <p className="privacy-line">
+                <LockKeyhole size={15} aria-hidden="true" />
+                Authenticated data stays behind your session and is never mixed
+                with the local profile.
+              </p>
             </div>
-            <p className="privacy-line">
-              <LockKeyhole size={15} aria-hidden="true" />
-              Authenticated data stays behind your session and is never mixed
-              with the local profile.
-            </p>
           </div>
         </section>
 
@@ -188,14 +223,14 @@ export default function Home() {
               width={58}
               height={58}
             />
-            <p className="eyebrow">Native on macOS</p>
-            <h2>Install in a minute.</h2>
+            <p className="eyebrow">Native without the ceremony</p>
+            <h2>On your Mac in a minute.</h2>
             <p>
-              A lightweight Tauri app with native notifications, signed releases,
-              and simple Homebrew updates.
+              A lightweight Tauri app with native notifications, signed
+              releases, and updates that stay as simple as the install.
             </p>
             <a className="text-link" href={releaseUrl}>
-              Download the latest release
+              Prefer a direct download?
               <ArrowRight size={15} aria-hidden="true" />
             </a>
           </div>
@@ -204,12 +239,12 @@ export default function Home() {
 
         <section className="section source-section">
           <div>
-            <p className="eyebrow">Open source, end to end</p>
-            <h2>Run it your way.</h2>
+            <p className="eyebrow">Yours, end to end</p>
+            <h2>Open means open.</h2>
           </div>
           <p>
-            The product, API, database schemas, desktop host, deployment scripts,
-            and release pipeline live in one public repository.
+            The app, API, database schemas, desktop host, deployment scripts,
+            and release pipeline all live in one public repository.
           </p>
           <div className="source-links">
             <a href={`${githubUrl}/blob/main/SELF_HOSTING.md`}>
@@ -229,8 +264,8 @@ export default function Home() {
 
         <section className="section faq-section" id="faq">
           <div className="faq-heading">
-            <p className="eyebrow">A few useful answers</p>
-            <h2>Good to know.</h2>
+            <p className="eyebrow">The practical bits</p>
+            <h2>Questions, answered.</h2>
           </div>
           <div className="faq-list">
             {faqs.map(({ question, answer }) => (
@@ -254,6 +289,7 @@ export default function Home() {
             height={72}
           />
           <h2>Make a little room for life.</h2>
+          <p>Start locally today. Sign in only when sync becomes useful.</p>
           <div className="hero-actions">
             <a className="button" href={releaseUrl}>
               <Download size={17} aria-hidden="true" />
