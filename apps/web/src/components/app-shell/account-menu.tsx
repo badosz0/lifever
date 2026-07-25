@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { authClient } from "@/lib/auth-client";
+import { isTauri } from "@/lib/runtime";
 
 export function AccountMenu() {
   const { data: session } = authClient.useSession();
@@ -22,14 +23,19 @@ export function AccountMenu() {
   const initial = name.charAt(0).toUpperCase();
 
   const signIn = async () => {
-    const result = await authClient.signIn.social({
-      provider: "discord",
-      callbackURL: window.location.href,
-    });
+    const result = isTauri
+      ? await authClient.signIn.popup({
+          provider: "discord",
+          callbackURL: window.location.href,
+        })
+      : await authClient.signIn.social({
+          provider: "discord",
+          callbackURL: window.location.href,
+        });
 
     if (result.error) {
-      toast.error("Discord sign-in is not configured yet", {
-        description: "Add the Discord credentials from .env.example, then restart the API.",
+      toast.error("Couldn’t sign in with Discord", {
+        description: result.error.message,
       });
     }
   };

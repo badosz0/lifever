@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { bearer, oauthPopup } from "better-auth/plugins";
 
 import type { ApiConfig } from "../../config/env.js";
 import type { AppPrisma } from "../../db/types.js";
@@ -23,6 +24,7 @@ export const createAuth = ({ config, prisma }: AuthDependencies) => {
     database: prismaAdapter(prisma, {
       provider: config.databaseProvider,
     }),
+    plugins: [oauthPopup(), bearer()],
     trustedOrigins: [config.webUrl, ...desktopOrigins],
     socialProviders: discordIsConfigured
       ? {

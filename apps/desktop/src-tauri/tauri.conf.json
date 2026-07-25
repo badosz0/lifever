@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Lifever",
         "width": 1240,
         "height": 780,
