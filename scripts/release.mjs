@@ -18,7 +18,8 @@ import {
   projectRoot,
 } from "./lib/desktop-config.mjs";
 import {
-  homebrewTapRepository,
+  homebrewTapName,
+  homebrewTapUrl,
   releaseAssetName,
   releaseRepository,
   renderHomebrewCask,
@@ -226,15 +227,13 @@ async function assertRepositoryReady(version) {
   }
 
   await run("gh", ["auth", "status"]);
-  for (const repository of [releaseRepository, homebrewTapRepository]) {
-    await run("gh", [
-      "repo",
-      "view",
-      repository,
-      "--json",
-      "nameWithOwner",
-    ]);
-  }
+  await run("gh", [
+    "repo",
+    "view",
+    releaseRepository,
+    "--json",
+    "nameWithOwner",
+  ]);
 
   const tag = `v${version}`;
   const existingTag = await run(
@@ -253,7 +252,7 @@ async function confirmRelease({ apiUrl, dryRun, skipDeploy, version, yes }) {
   console.log(`\nLifever ${version}`);
   console.log(`API: ${apiUrl}`);
   console.log(`Release repository: ${releaseRepository}`);
-  console.log(`Homebrew tap: ${homebrewTapRepository}`);
+  console.log(`Homebrew tap: ${homebrewTapUrl}`);
   if (dryRun) {
     console.log("Mode: dry run (no deployment, tag, release, or tap update)");
     return;
@@ -382,8 +381,8 @@ async function createReleaseNotes({ notesPath, version }) {
   return `## Install
 
 \`\`\`bash
-brew tap badosz0/lifever
-brew install --cask lifever
+brew tap ${homebrewTapName} ${homebrewTapUrl}
+brew install lifever
 \`\`\`
 
 Universal macOS build for Apple silicon and Intel. Requires macOS 12 or newer.
@@ -465,44 +464,26 @@ async function publishGithubRelease({
   }
 }
 
-async function updateHomebrewTap({ sha256, version }) {
-  const temporaryDirectory = await mkdtemp(
-    path.join(tmpdir(), "lifever-homebrew-"),
-  );
-  const checkout = path.join(temporaryDirectory, "tap");
-  try {
-    await run("gh", [
-      "repo",
-      "clone",
-      homebrewTapRepository,
-      checkout,
-      "--",
-      "--depth",
-      "1",
-    ]);
-    const casksDirectory = path.join(checkout, "Casks");
-    const caskPath = path.join(casksDirectory, "lifever.rb");
-    await mkdir(casksDirectory, { recursive: true });
-    await writeFile(caskPath, renderHomebrewCask({ sha256, version }));
+async function updateHomebrewCask({ sha256, version }) {
+  const casksDirectory = path.join(projectRoot, "Casks");
+  const caskPath = path.join(casksDirectory, "lifever.rb");
+  await mkdir(casksDirectory, { recursive: true });
+  await writeFile(caskPath, renderHomebrewCask({ sha256, version }));
 
-    await run("git", ["add", "Casks/lifever.rb"], { cwd: checkout });
-    const changes = await run("git", ["diff", "--cached", "--quiet"], {
-      allowFailure: true,
-      cwd: checkout,
-    });
-    if (changes.code === 0) {
-      console.log("Homebrew tap is already current.");
-      return;
-    }
-    await run(
-      "git",
-      ["commit", "-m", `Update Lifever to ${version}`],
-      { cwd: checkout },
-    );
-    await run("git", ["push", "origin", "HEAD:main"], { cwd: checkout });
-  } finally {
-    await rm(temporaryDirectory, { force: true, recursive: true });
+  await run("git", ["add", "Casks/lifever.rb"]);
+  const changes = await run("git", ["diff", "--cached", "--quiet"], {
+    allowFailure: true,
+  });
+  if (changes.code === 0) {
+    console.log("Homebrew cask is already current.");
+    return;
   }
+  await run("git", [
+    "commit",
+    "-m",
+    `chore(homebrew): update Lifever to ${version}`,
+  ]);
+  await run("git", ["push", "origin", "main"]);
 }
 
 async function main() {
@@ -546,7 +527,7 @@ async function main() {
     tag: repository.tag,
     version,
   });
-  await updateHomebrewTap({
+  await updateHomebrewCask({
     sha256: artifact.sha256,
     version,
   });
@@ -556,8 +537,8 @@ async function main() {
     `Release: https://github.com/${releaseRepository}/releases/tag/${repository.tag}`,
   );
   console.log("Install:");
-  console.log("  brew tap badosz0/lifever");
-  console.log("  brew install --cask lifever");
+  console.log(`  brew tap ${homebrewTapName} ${homebrewTapUrl}`);
+  console.log("  brew install lifever");
 }
 
 main().catch((error) => {

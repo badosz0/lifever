@@ -153,8 +153,8 @@ pnpm desktop:build
 Install the latest public macOS release with Homebrew:
 
 ```bash
-brew tap badosz0/lifever
-brew install --cask lifever
+brew tap badosz0/lifever https://github.com/badosz0/lifever
+brew install lifever
 ```
 
 After the tap has been added, updates use the normal Homebrew flow:
@@ -177,7 +177,8 @@ release needs a Developer ID signing identity and notarization credentials.
 The release command is intentionally end-to-end. It verifies a clean and pushed
 `main`, checks the workspace, builds and verifies a universal macOS DMG, applies
 production D1 migrations, deploys the Cloudflare Worker, tags the source commit,
-publishes the public GitHub Release, and updates the Homebrew cask checksum.
+publishes the GitHub Release, and commits the Homebrew cask checksum back to
+`main`.
 
 Prepare and commit a version, then publish it:
 

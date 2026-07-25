@@ -1,6 +1,7 @@
-export const homebrewTapRepository = "badosz0/homebrew-lifever";
 export const sourceRepository = "badosz0/lifever";
 export const releaseRepository = sourceRepository;
+export const homebrewTapName = "badosz0/lifever";
+export const homebrewTapUrl = `https://github.com/${sourceRepository}`;
 
 export const releaseAssetName = (version) =>
   `Lifever-${version}-macOS-universal.dmg`;
