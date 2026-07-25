@@ -18,6 +18,8 @@
     "desktop:build": "node scripts/desktop.mjs build",
     "desktop:install": "node scripts/desktop.mjs install",
     "desktop:update": "node scripts/desktop.mjs update",
+    "release": "node scripts/release.mjs",
+    "release:version": "node scripts/set-version.mjs",
     "build": "pnpm db:generate && pnpm --filter @lifever/api build && pnpm --filter @lifever/web build",
     "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build:worker",
     "deploy:api": "pnpm db:deploy:d1 && pnpm deploy:worker",

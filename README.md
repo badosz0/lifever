@@ -150,11 +150,50 @@ Build a shareable application bundle and DMG without installing:
 pnpm desktop:build
 ```
 
+Install the latest public macOS release with Homebrew:
+
+```bash
+brew tap badosz0/lifever
+brew install --cask lifever
+```
+
+After the tap has been added, updates use the normal Homebrew flow:
+
+```bash
+brew update
+brew upgrade --cask lifever
+```
+
 Use `--api-url https://api.example.com` to change the endpoint for any desktop
 command, or `--install-dir ~/Applications` to override the install location.
 The release configuration embeds local, deterministic frontend assets and
 grants no filesystem, shell, or process permissions. Distribution to other Macs
-still needs a Developer ID signing identity and notarization credentials.
+uses a universal DMG for Apple silicon and Intel. Public builds fall back to an
+ad-hoc signature when a Developer ID identity is unavailable; a fully trusted
+release needs a Developer ID signing identity and notarization credentials.
+
+## Releasing
+
+The release command is intentionally end-to-end. It verifies a clean and pushed
+`main`, checks the workspace, builds and verifies a universal macOS DMG, applies
+production D1 migrations, deploys the Cloudflare Worker, tags the source commit,
+publishes the public GitHub Release, and updates the Homebrew cask checksum.
+
+Prepare and commit a version, then publish it:
+
+```bash
+pnpm release:version 0.2.0
+git add .
+git commit -m "chore(release): prepare v0.2.0"
+git push
+pnpm release
+```
+
+Use `pnpm release -- --dry-run` to exercise the check and universal build
+without changing production. `--skip-deploy` is only for resuming a partially
+completed release after the API was already deployed. Release downloads live
+alongside the source in the public
+[Lifever repository](https://github.com/badosz0/lifever).
 
 ## Useful commands
 
@@ -174,6 +213,8 @@ pnpm desktop:dev     # native shell with Vite HMR
 pnpm desktop:build   # macOS app + DMG
 pnpm desktop:install # build and install into Applications
 pnpm desktop:update  # rebuild and replace the installed app
+pnpm release:version # synchronize the next app version
+pnpm release         # build, deploy, publish, and update Homebrew
 ```
 
 ## Product conventions
