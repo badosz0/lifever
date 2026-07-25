@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "wrangler dev",
     "build": "tsc -p tsconfig.build.json",
+    "build:worker": "wrangler deploy --dry-run --outdir dist-worker",
     "start": "node dist/index.js",
-    "check": "tsc --noEmit"
+    "deploy:worker": "wrangler deploy",
+    "check": "tsc --noEmit && tsc -p tsconfig.worker.json --noEmit"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.6.24",
@@ -17,12 +20,15 @@
     "better-auth": "1.6.24",
     "dotenv": "^17.2.3",
     "hono": "^4.10.6",
+    "pg": "^8.16.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260724.1",
     "@types/node": "^24.10.1",
+    "@types/pg": "^8.20.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.114.0"
   }
 }
-

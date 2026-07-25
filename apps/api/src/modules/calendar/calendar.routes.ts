@@ -1,89 +1,54 @@
 import { Hono } from "hono";
 
-import { prisma } from "../../db/client.js";
-import {
-  type AuthenticatedEnv,
-  requireSession,
-} from "../auth/session.js";
+import type { AuthenticatedEnv } from "../auth/session.js";
+import type { RouteDependencies } from "../route-dependencies.js";
 import {
   createCalendarEventSchema,
   updateCalendarEventSchema,
 } from "./calendar.schema.js";
 
-export const calendarRoutes = new Hono<AuthenticatedEnv>();
+export const createCalendarRoutes = ({
+  prisma,
+  requireSession,
+}: RouteDependencies) => {
+  const calendarRoutes = new Hono<AuthenticatedEnv>();
 
-const calendarEventSelect = {
-  id: true,
-  title: true,
-  startAt: true,
-  endAt: true,
-  categoryId: true,
-  location: true,
-  notes: true,
-  createdAt: true,
-} as const;
+  const calendarEventSelect = {
+    id: true,
+    title: true,
+    startAt: true,
+    endAt: true,
+    categoryId: true,
+    location: true,
+    notes: true,
+    createdAt: true,
+  } as const;
 
-calendarRoutes.use("*", requireSession);
+  calendarRoutes.use("*", requireSession);
 
-calendarRoutes.get("/", async (context) => {
-  const session = context.get("session");
-  const events = await prisma.calendarEvent.findMany({
-    where: { userId: session.user.id },
-    select: calendarEventSelect,
-    orderBy: [{ startAt: "asc" }, { createdAt: "asc" }],
+  calendarRoutes.get("/", async (context) => {
+    const session = context.get("session");
+    const events = await prisma.calendarEvent.findMany({
+      where: { userId: session.user.id },
+      select: calendarEventSelect,
+      orderBy: [{ startAt: "asc" }, { createdAt: "asc" }],
+    });
+
+    return context.json({ events });
   });
 
-  return context.json({ events });
-});
-
-calendarRoutes.post("/", async (context) => {
-  const session = context.get("session");
-  const parsed = createCalendarEventSchema.safeParse(await context.req.json());
-  if (!parsed.success) {
-    return context.json(
-      { error: "Invalid calendar event", issues: parsed.error.issues },
-      400,
+  calendarRoutes.post("/", async (context) => {
+    const session = context.get("session");
+    const parsed = createCalendarEventSchema.safeParse(
+      await context.req.json(),
     );
-  }
+    if (!parsed.success) {
+      return context.json(
+        { error: "Invalid calendar event", issues: parsed.error.issues },
+        400,
+      );
+    }
 
-  const category = await prisma.calendarCategory.findFirst({
-    where: { id: parsed.data.categoryId, userId: session.user.id },
-    select: { id: true },
-  });
-  if (!category) {
-    return context.json({ error: "Calendar category not found" }, 400);
-  }
-
-  const event = await prisma.calendarEvent.create({
-    data: {
-      ...parsed.data,
-      startAt: new Date(parsed.data.startAt),
-      endAt: new Date(parsed.data.endAt),
-      userId: session.user.id,
-    },
-    select: calendarEventSelect,
-  });
-
-  return context.json({ event }, 201);
-});
-
-calendarRoutes.patch("/:id", async (context) => {
-  const session = context.get("session");
-  const existing = await prisma.calendarEvent.findFirst({
-    where: { id: context.req.param("id"), userId: session.user.id },
-    select: { id: true, startAt: true, endAt: true },
-  });
-  if (!existing) return context.json({ error: "Calendar event not found" }, 404);
-
-  const parsed = updateCalendarEventSchema.safeParse(await context.req.json());
-  if (!parsed.success) {
-    return context.json(
-      { error: "Invalid calendar event", issues: parsed.error.issues },
-      400,
-    );
-  }
-
-  if (parsed.data.categoryId) {
     const category = await prisma.calendarCategory.findFirst({
       where: { id: parsed.data.categoryId, userId: session.user.id },
       select: { id: true },
@@ -91,36 +56,85 @@ calendarRoutes.patch("/:id", async (context) => {
     if (!category) {
       return context.json({ error: "Calendar category not found" }, 400);
     }
-  }
 
-  const startAt = parsed.data.startAt
-    ? new Date(parsed.data.startAt)
-    : existing.startAt;
-  const endAt = parsed.data.endAt ? new Date(parsed.data.endAt) : existing.endAt;
-  if (endAt.getTime() <= startAt.getTime()) {
-    return context.json({ error: "The event must end after it starts." }, 400);
-  }
+    const event = await prisma.calendarEvent.create({
+      data: {
+        ...parsed.data,
+        startAt: new Date(parsed.data.startAt),
+        endAt: new Date(parsed.data.endAt),
+        userId: session.user.id,
+      },
+      select: calendarEventSelect,
+    });
 
-  const event = await prisma.calendarEvent.update({
-    where: { id: existing.id },
-    data: {
-      ...parsed.data,
-      ...(parsed.data.startAt ? { startAt } : {}),
-      ...(parsed.data.endAt ? { endAt } : {}),
-    },
-    select: calendarEventSelect,
+    return context.json({ event }, 201);
   });
 
-  return context.json({ event });
-});
+  calendarRoutes.patch("/:id", async (context) => {
+    const session = context.get("session");
+    const existing = await prisma.calendarEvent.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
+      select: { id: true, startAt: true, endAt: true },
+    });
+    if (!existing)
+      return context.json({ error: "Calendar event not found" }, 404);
 
-calendarRoutes.delete("/:id", async (context) => {
-  const session = context.get("session");
-  const result = await prisma.calendarEvent.deleteMany({
-    where: { id: context.req.param("id"), userId: session.user.id },
+    const parsed = updateCalendarEventSchema.safeParse(
+      await context.req.json(),
+    );
+    if (!parsed.success) {
+      return context.json(
+        { error: "Invalid calendar event", issues: parsed.error.issues },
+        400,
+      );
+    }
+
+    if (parsed.data.categoryId) {
+      const category = await prisma.calendarCategory.findFirst({
+        where: { id: parsed.data.categoryId, userId: session.user.id },
+        select: { id: true },
+      });
+      if (!category) {
+        return context.json({ error: "Calendar category not found" }, 400);
+      }
+    }
+
+    const startAt = parsed.data.startAt
+      ? new Date(parsed.data.startAt)
+      : existing.startAt;
+    const endAt = parsed.data.endAt
+      ? new Date(parsed.data.endAt)
+      : existing.endAt;
+    if (endAt.getTime() <= startAt.getTime()) {
+      return context.json(
+        { error: "The event must end after it starts." },
+        400,
+      );
+    }
+
+    const event = await prisma.calendarEvent.update({
+      where: { id: existing.id },
+      data: {
+        ...parsed.data,
+        ...(parsed.data.startAt ? { startAt } : {}),
+        ...(parsed.data.endAt ? { endAt } : {}),
+      },
+      select: calendarEventSelect,
+    });
+
+    return context.json({ event });
   });
-  if (result.count === 0) {
-    return context.json({ error: "Calendar event not found" }, 404);
-  }
-  return context.body(null, 204);
-});
+
+  calendarRoutes.delete("/:id", async (context) => {
+    const session = context.get("session");
+    const result = await prisma.calendarEvent.deleteMany({
+      where: { id: context.req.param("id"), userId: session.user.id },
+    });
+    if (result.count === 0) {
+      return context.json({ error: "Calendar event not found" }, 404);
+    }
+    return context.body(null, 204);
+  });
+
+  return calendarRoutes;
+};

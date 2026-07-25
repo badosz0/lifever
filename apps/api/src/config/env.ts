@@ -1,36 +1,57 @@
-import { config } from "dotenv";
-import { fileURLToPath } from "node:url";
-
-config({
-  path: fileURLToPath(new URL("../../../../.env", import.meta.url)),
-  quiet: true,
-});
-
 const developmentSecret = "lifever-development-secret-change-before-release";
 const localDatabaseUrl =
   "postgresql://lifever:lifever@localhost:5432/lifever?schema=public";
 
-export const env = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
-  port: Number(process.env.PORT ?? 8787),
-  databaseUrl: process.env.DATABASE_URL ?? localDatabaseUrl,
-  authSecret: process.env.BETTER_AUTH_SECRET ?? developmentSecret,
-  authUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:8787",
-  webUrl: process.env.WEB_URL ?? "http://localhost:5173",
-  discordClientId: process.env.DISCORD_CLIENT_ID,
-  discordClientSecret: process.env.DISCORD_CLIENT_SECRET,
+export type ApiEnvironment = {
+  NODE_ENV?: string;
+  PORT?: string;
+  DATABASE_URL?: string;
+  BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_URL?: string;
+  WEB_URL?: string;
+  DISCORD_CLIENT_ID?: string;
+  DISCORD_CLIENT_SECRET?: string;
 };
 
-export const discordIsConfigured = Boolean(
-  env.discordClientId && env.discordClientSecret,
-);
+export type ApiConfig = ReturnType<typeof createApiConfig>;
 
-if (env.nodeEnv === "production") {
-  if (env.authSecret === developmentSecret) {
+export type ApiConfigOptions = {
+  defaultAuthUrl?: string;
+  databaseUrl?: string;
+};
+
+export const createApiConfig = (
+  environment: ApiEnvironment,
+  options: ApiConfigOptions = {},
+) => {
+  const nodeEnv = environment.NODE_ENV ?? "development";
+  const databaseUrl =
+    options.databaseUrl ?? environment.DATABASE_URL ?? localDatabaseUrl;
+  const authSecret = environment.BETTER_AUTH_SECRET ?? developmentSecret;
+
+  if (nodeEnv === "production" && authSecret === developmentSecret) {
     throw new Error("BETTER_AUTH_SECRET must be configured in production.");
   }
 
-  if (!process.env.DATABASE_URL) {
+  if (
+    nodeEnv === "production" &&
+    !options.databaseUrl &&
+    !environment.DATABASE_URL
+  ) {
     throw new Error("DATABASE_URL must be configured in production.");
   }
-}
+
+  return {
+    nodeEnv,
+    port: Number(environment.PORT ?? 8787),
+    databaseUrl,
+    authSecret,
+    authUrl:
+      environment.BETTER_AUTH_URL ??
+      options.defaultAuthUrl ??
+      "http://localhost:8787",
+    webUrl: environment.WEB_URL ?? "http://localhost:5173",
+    discordClientId: environment.DISCORD_CLIENT_ID,
+    discordClientSecret: environment.DISCORD_CLIENT_SECRET,
+  };
+};

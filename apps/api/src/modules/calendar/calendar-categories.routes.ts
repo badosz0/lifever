@@ -2,11 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { Hono } from "hono";
 
-import { prisma } from "../../db/client.js";
-import {
-  type AuthenticatedEnv,
-  requireSession,
-} from "../auth/session.js";
+import type { AuthenticatedEnv } from "../auth/session.js";
+import type { RouteDependencies } from "../route-dependencies.js";
 import {
   createCalendarCategorySchema,
   updateCalendarCategorySchema,
@@ -29,92 +26,118 @@ const calendarCategorySelect = {
   createdAt: true,
 } as const;
 
-export const calendarCategoriesRoutes = new Hono<AuthenticatedEnv>();
+export const createCalendarCategoriesRoutes = ({
+  prisma,
+  requireSession,
+}: RouteDependencies) => {
+  const calendarCategoriesRoutes = new Hono<AuthenticatedEnv>();
 
-calendarCategoriesRoutes.use("*", requireSession);
+  calendarCategoriesRoutes.use("*", requireSession);
 
-calendarCategoriesRoutes.get("/", async (context) => {
-  const session = context.get("session");
-  let categories = await prisma.calendarCategory.findMany({
-    where: { userId: session.user.id },
-    select: calendarCategorySelect,
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-  });
-
-  if (categories.length === 0) {
-    await prisma.calendarCategory.createMany({
-      data: defaultCategories.map((category) => ({
-        id: randomUUID(),
-        ...category,
-        userId: session.user.id,
-      })),
-    });
-    categories = await prisma.calendarCategory.findMany({
+  calendarCategoriesRoutes.get("/", async (context) => {
+    const session = context.get("session");
+    let categories = await prisma.calendarCategory.findMany({
       where: { userId: session.user.id },
       select: calendarCategorySelect,
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
-  }
 
-  return context.json({ categories });
-});
+    if (categories.length === 0) {
+      await prisma.calendarCategory.createMany({
+        data: defaultCategories.map((category) => ({
+          id: randomUUID(),
+          ...category,
+          userId: session.user.id,
+        })),
+      });
+      categories = await prisma.calendarCategory.findMany({
+        where: { userId: session.user.id },
+        select: calendarCategorySelect,
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      });
+    }
 
-calendarCategoriesRoutes.post("/", async (context) => {
-  const session = context.get("session");
-  const parsed = createCalendarCategorySchema.safeParse(await context.req.json());
-  if (!parsed.success) {
-    return context.json({ error: "Invalid calendar category", issues: parsed.error.issues }, 400);
-  }
-
-  const category = await prisma.calendarCategory.create({
-    data: { ...parsed.data, userId: session.user.id },
-    select: calendarCategorySelect,
+    return context.json({ categories });
   });
-  return context.json({ category }, 201);
-});
 
-calendarCategoriesRoutes.patch("/:id", async (context) => {
-  const session = context.get("session");
-  const parsed = updateCalendarCategorySchema.safeParse(await context.req.json());
-  if (!parsed.success) {
-    return context.json({ error: "Invalid calendar category", issues: parsed.error.issues }, 400);
-  }
+  calendarCategoriesRoutes.post("/", async (context) => {
+    const session = context.get("session");
+    const parsed = createCalendarCategorySchema.safeParse(
+      await context.req.json(),
+    );
+    if (!parsed.success) {
+      return context.json(
+        { error: "Invalid calendar category", issues: parsed.error.issues },
+        400,
+      );
+    }
 
-  const existing = await prisma.calendarCategory.findFirst({
-    where: { id: context.req.param("id"), userId: session.user.id },
-    select: { id: true },
+    const category = await prisma.calendarCategory.create({
+      data: { ...parsed.data, userId: session.user.id },
+      select: calendarCategorySelect,
+    });
+    return context.json({ category }, 201);
   });
-  if (!existing) return context.json({ error: "Calendar category not found" }, 404);
 
-  const category = await prisma.calendarCategory.update({
-    where: { id: existing.id },
-    data: parsed.data,
-    select: calendarCategorySelect,
+  calendarCategoriesRoutes.patch("/:id", async (context) => {
+    const session = context.get("session");
+    const parsed = updateCalendarCategorySchema.safeParse(
+      await context.req.json(),
+    );
+    if (!parsed.success) {
+      return context.json(
+        { error: "Invalid calendar category", issues: parsed.error.issues },
+        400,
+      );
+    }
+
+    const existing = await prisma.calendarCategory.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
+      select: { id: true },
+    });
+    if (!existing)
+      return context.json({ error: "Calendar category not found" }, 404);
+
+    const category = await prisma.calendarCategory.update({
+      where: { id: existing.id },
+      data: parsed.data,
+      select: calendarCategorySelect,
+    });
+    return context.json({ category });
   });
-  return context.json({ category });
-});
 
-calendarCategoriesRoutes.delete("/:id", async (context) => {
-  const session = context.get("session");
-  const categories = await prisma.calendarCategory.findMany({
-    where: { userId: session.user.id },
-    select: { id: true },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+  calendarCategoriesRoutes.delete("/:id", async (context) => {
+    const session = context.get("session");
+    const categories = await prisma.calendarCategory.findMany({
+      where: { userId: session.user.id },
+      select: { id: true },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    });
+    const target = categories.find(
+      (category) => category.id === context.req.param("id"),
+    );
+    if (!target)
+      return context.json({ error: "Calendar category not found" }, 404);
+    if (categories.length === 1) {
+      return context.json(
+        { error: "Keep at least one calendar category." },
+        400,
+      );
+    }
+
+    const replacement = categories.find(
+      (category) => category.id !== target.id,
+    )!;
+    await prisma.$transaction([
+      prisma.calendarEvent.updateMany({
+        where: { userId: session.user.id, categoryId: target.id },
+        data: { categoryId: replacement.id },
+      }),
+      prisma.calendarCategory.delete({ where: { id: target.id } }),
+    ]);
+
+    return context.json({ replacementCategoryId: replacement.id });
   });
-  const target = categories.find((category) => category.id === context.req.param("id"));
-  if (!target) return context.json({ error: "Calendar category not found" }, 404);
-  if (categories.length === 1) {
-    return context.json({ error: "Keep at least one calendar category." }, 400);
-  }
 
-  const replacement = categories.find((category) => category.id !== target.id)!;
-  await prisma.$transaction([
-    prisma.calendarEvent.updateMany({
-      where: { userId: session.user.id, categoryId: target.id },
-      data: { categoryId: replacement.id },
-    }),
-    prisma.calendarCategory.delete({ where: { id: target.id } }),
-  ]);
-
-  return context.json({ replacementCategoryId: replacement.id });
-});
+  return calendarCategoriesRoutes;
+};

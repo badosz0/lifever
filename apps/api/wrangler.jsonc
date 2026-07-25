@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "lifever-api",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "placement": {
+    "mode": "smart",
+  },
+  "observability": {
+    "enabled": true,
+  },
+}

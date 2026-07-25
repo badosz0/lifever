@@ -9,6 +9,10 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/worker.ts",
+    "src/db/worker-client.ts",
+    "src/generated/prisma-worker"
+  ]
 }
-

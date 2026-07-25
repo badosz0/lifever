@@ -2,52 +2,68 @@ import { cors } from "hono/cors";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 
-import { env } from "./config/env.js";
-import { auth } from "./modules/auth/auth.js";
-import { calendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
-import { calendarRoutes } from "./modules/calendar/calendar.routes.js";
-import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
-import { notesRoutes } from "./modules/notes/notes.routes.js";
-import { preferencesRoutes } from "./modules/preferences/preferences.routes.js";
-import { remindersRoutes } from "./modules/reminders/reminders.routes.js";
+import type { ApiConfig } from "./config/env.js";
+import type { AppPrisma } from "./db/types.js";
+import { createAuth } from "./modules/auth/auth.js";
+import { createSessionMiddleware } from "./modules/auth/session.js";
+import { createCalendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
+import { createCalendarRoutes } from "./modules/calendar/calendar.routes.js";
+import { createKanbanRoutes } from "./modules/kanban/kanban.routes.js";
+import { createNotesRoutes } from "./modules/notes/notes.routes.js";
+import { createPreferencesRoutes } from "./modules/preferences/preferences.routes.js";
+import { createRemindersRoutes } from "./modules/reminders/reminders.routes.js";
 
-const allowedOrigins = new Set([
-  env.webUrl,
-  "tauri://localhost",
-  "https://tauri.localhost",
-]);
+type ApiDependencies = {
+  config: ApiConfig;
+  prisma: AppPrisma;
+};
 
-export const app = new Hono();
+export const createApp = ({ config, prisma }: ApiDependencies) => {
+  const app = new Hono();
+  const auth = createAuth({ config, prisma });
+  const requireSession = createSessionMiddleware(auth);
+  const routeDependencies = { prisma, requireSession };
+  const allowedOrigins = new Set([
+    config.webUrl,
+    "tauri://localhost",
+    "https://tauri.localhost",
+  ]);
 
-app.use(logger());
-app.use(
-  "/api/*",
-  cors({
-    origin: (origin) => (allowedOrigins.has(origin) ? origin : env.webUrl),
-    credentials: true,
-    allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  }),
-);
+  app.use(logger());
+  app.use(
+    "/api/*",
+    cors({
+      origin: (origin) => (allowedOrigins.has(origin) ? origin : config.webUrl),
+      credentials: true,
+      allowHeaders: ["Content-Type", "Authorization"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    }),
+  );
 
-app.get("/api/health", (context) =>
-  context.json({ status: "ok", service: "lifever-api" }),
-);
+  app.get("/api/health", (context) =>
+    context.json({ status: "ok", service: "lifever-api" }),
+  );
 
-app.on(["GET", "POST"], "/api/auth/*", (context) =>
-  auth.handler(context.req.raw),
-);
+  app.on(["GET", "POST"], "/api/auth/*", (context) =>
+    auth.handler(context.req.raw),
+  );
 
-app.route("/api/reminders", remindersRoutes);
-app.route("/api/calendar-categories", calendarCategoriesRoutes);
-app.route("/api/calendar-events", calendarRoutes);
-app.route("/api/kanban", kanbanRoutes);
-app.route("/api/notes", notesRoutes);
-app.route("/api/preferences", preferencesRoutes);
+  app.route("/api/reminders", createRemindersRoutes(routeDependencies));
+  app.route(
+    "/api/calendar-categories",
+    createCalendarCategoriesRoutes(routeDependencies),
+  );
+  app.route("/api/calendar-events", createCalendarRoutes(routeDependencies));
+  app.route("/api/kanban", createKanbanRoutes(routeDependencies));
+  app.route("/api/notes", createNotesRoutes(routeDependencies));
+  app.route("/api/preferences", createPreferencesRoutes(routeDependencies));
 
-app.notFound((context) => context.json({ error: "Not found" }, 404));
+  app.notFound((context) => context.json({ error: "Not found" }, 404));
 
-app.onError((error, context) => {
-  console.error(error);
-  return context.json({ error: "Something went wrong" }, 500);
-});
+  app.onError((error, context) => {
+    console.error(error);
+    return context.json({ error: "Something went wrong" }, 500);
+  });
+
+  return app;
+};

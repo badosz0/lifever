@@ -4,9 +4,13 @@ node_modules
 .env
 .env.*
 !.env.example
+.dev.vars
+.wrangler
 dist
+dist-worker
 target
 apps/api/src/generated/prisma
+apps/api/src/generated/prisma-worker
 apps/desktop/src-tauri/gen
 apps/desktop/src-tauri/target
 *.log
