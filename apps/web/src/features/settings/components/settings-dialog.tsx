@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Clock3,
   Laptop,
+  Mail,
   Moon,
   RotateCcw,
   Settings2,
@@ -61,6 +62,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme();
   const { dateFormat, setDateFormat, setTimeFormat, timeFormat } =
     useUserPreferences();
+  const accountName = session?.user.name ?? "Local profile";
+  const accountDetail =
+    session?.user.email ??
+    (session ? "Signed in with Discord" : "Data is stored on this device");
+  const AccountIcon = session ? Mail : Laptop;
 
   const confirmReset = () => {
     resetDemoData();
@@ -85,6 +91,27 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         </div>
 
         <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+          {!isPending ? (
+            <fieldset>
+              <legend className="mb-2 text-xs font-semibold text-muted-foreground">
+                Account
+              </legend>
+              <div className="flex min-h-14 items-center gap-3 rounded-xl border border-border/70 bg-card px-3">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <AccountIcon className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold">
+                    {accountName}
+                  </p>
+                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    {accountDetail}
+                  </p>
+                </div>
+              </div>
+            </fieldset>
+          ) : null}
+
           <fieldset>
             <legend className="mb-2 text-xs font-semibold text-muted-foreground">
               Theme

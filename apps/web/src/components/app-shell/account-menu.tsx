@@ -8,7 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -64,10 +63,6 @@ export function AccountMenu() {
           align="start"
           className="w-56"
         >
-          <DropdownMenuLabel className="truncate">
-            {session?.user.email ?? "Stored on this device"}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
             <Settings2 className="size-4" />
             Settings
