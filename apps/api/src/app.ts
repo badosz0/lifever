@@ -6,6 +6,9 @@ import { env } from "./config/env.js";
 import { auth } from "./modules/auth/auth.js";
 import { calendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
 import { calendarRoutes } from "./modules/calendar/calendar.routes.js";
+import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
+import { notesRoutes } from "./modules/notes/notes.routes.js";
+import { preferencesRoutes } from "./modules/preferences/preferences.routes.js";
 import { remindersRoutes } from "./modules/reminders/reminders.routes.js";
 
 const allowedOrigins = new Set([
@@ -23,7 +26,7 @@ app.use(
     origin: (origin) => (allowedOrigins.has(origin) ? origin : env.webUrl),
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
 
@@ -38,6 +41,9 @@ app.on(["GET", "POST"], "/api/auth/*", (context) =>
 app.route("/api/reminders", remindersRoutes);
 app.route("/api/calendar-categories", calendarCategoriesRoutes);
 app.route("/api/calendar-events", calendarRoutes);
+app.route("/api/kanban", kanbanRoutes);
+app.route("/api/notes", notesRoutes);
+app.route("/api/preferences", preferencesRoutes);
 
 app.notFound((context) => context.json({ error: "Not found" }, 404));
 

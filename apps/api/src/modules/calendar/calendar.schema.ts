@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const calendarEventFields = {
+  id: z.string().uuid(),
   title: z.string().trim().min(1).max(160),
   startAt: z.string().datetime(),
   endAt: z.string().datetime(),

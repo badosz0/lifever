@@ -84,6 +84,7 @@ export function RemindersView({
   const {
     activeView,
     clearCompletedReminders,
+    isReady,
     reminders,
     selectedReminderId,
     setSelectedReminderId,
@@ -93,9 +94,10 @@ export function RemindersView({
   const [clearCompletedOpen, setClearCompletedOpen] = useState(false);
   const [viewOptions, setViewOptions] = useState(readViewOptions);
   const openComposer = useCallback(() => {
+    if (!isReady) return;
     setSelectedReminderId(null);
     setComposerOpen(true);
-  }, [setSelectedReminderId]);
+  }, [isReady, setSelectedReminderId]);
 
   useEffect(() => {
     try {
@@ -283,6 +285,7 @@ export function RemindersView({
               size="icon-sm"
               className="size-7 rounded-full"
               onClick={openComposer}
+              disabled={!isReady}
               aria-label="New reminder"
             >
               <Plus className="size-3.5" strokeWidth={2.5} />
@@ -314,7 +317,7 @@ export function RemindersView({
             <EmptyReminders
               view={activeView === "completed" ? "completed" : "active"}
               onCreate={
-                activeView === "completed"
+                activeView === "completed" || !isReady
                   ? undefined
                   : openComposer
               }

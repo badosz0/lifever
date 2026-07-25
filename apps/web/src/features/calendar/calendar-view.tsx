@@ -59,7 +59,14 @@ export function CalendarView({
   onOpenMobileSidebar,
   onToggleSidebar,
 }: CalendarViewProps) {
-  const { categories, events, selectedEventId, setSelectedEventId, updateEvent } = useCalendar();
+  const {
+    categories,
+    events,
+    isReady,
+    selectedEventId,
+    setSelectedEventId,
+    updateEvent,
+  } = useCalendar();
   const { dateFormat } = useUserPreferences();
   const [viewMode, setViewMode] = useState<CalendarViewMode>(readViewMode);
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay(new Date()));
@@ -105,6 +112,7 @@ export function CalendarView({
 
   const openComposer = useCallback(
     (start?: Date, end?: Date) => {
+      if (!isReady) return;
       let nextRange;
       if (start && end) {
         nextRange = { start, end };
@@ -125,7 +133,7 @@ export function CalendarView({
       setSelectedEventId(null);
       setComposerOpen(true);
     },
-    [categories, selectedDate, setSelectedEventId],
+    [categories, isReady, selectedDate, setSelectedEventId],
   );
 
   useEffect(() => {
@@ -235,12 +243,13 @@ export function CalendarView({
             size="icon-sm"
             className="size-8 text-muted-foreground"
             onClick={() => setSettingsOpen(true)}
+            disabled={!isReady}
             aria-label="Calendar settings"
           >
             <SlidersHorizontal className="size-3.5" />
           </Button>
           <ShortcutTooltip label="New Event" shortcut={["⌘", "N"]}>
-            <Button size="icon-sm" className="size-8 rounded-full" onClick={() => openComposer()} aria-label="New event">
+            <Button size="icon-sm" className="size-8 rounded-full" onClick={() => openComposer()} disabled={!isReady} aria-label="New event">
               <CalendarPlus className="size-3.5" strokeWidth={2.4} />
             </Button>
           </ShortcutTooltip>

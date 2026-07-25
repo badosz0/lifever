@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 import { addMinutes, toCalendarDate } from "@/features/calendar/lib/dates";
 import {
@@ -15,6 +16,7 @@ import {
   defaultCalendarCategories,
   isCalendarCategoryColor,
 } from "@/features/calendar/lib/categories";
+import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 
@@ -26,6 +28,7 @@ import type {
 } from "./types";
 
 type CalendarContextValue = {
+  isReady: boolean;
   categories: CalendarCategory[];
   events: CalendarEvent[];
   selectedEventId: string | null;
@@ -47,6 +50,19 @@ const CalendarContext = createContext<CalendarContextValue | null>(null);
 const STORAGE_KEY = "lifever-calendar-events";
 const CATEGORY_STORAGE_KEY = "lifever-calendar-categories";
 const WRITE_DELAY = 400;
+const REMOTE_WRITE_DELAY = 400;
+
+type CalendarEventPatch = Partial<
+  Pick<
+    CalendarEvent,
+    "title" | "startAt" | "endAt" | "categoryId" | "location" | "notes"
+  >
+>;
+
+type PendingEventUpdate = {
+  body: CalendarEventPatch;
+  timeout: number;
+};
 
 type StoredCalendarEvent = Omit<CalendarEvent, "categoryId"> & {
   categoryId?: string;
@@ -109,81 +125,228 @@ function writeStoredCategories(categories: CalendarCategory[]) {
 }
 
 export function CalendarProvider({ children }: PropsWithChildren) {
-  const { data: session } = authClient.useSession();
-  const [categories, setCategories] =
-    useState<CalendarCategory[]>(readStoredCategories);
-  const [events, setEvents] = useState<CalendarEvent[]>(readStoredEvents);
+  const { data: session, isPending } = authClient.useSession();
+  const [categories, setCategories] = useState<CalendarCategory[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const previousUserId = useRef<string | null>(null);
+  const [hydratedMode, setHydratedMode] = useState<string | null>(null);
+  const modeRef = useRef<string | null>(null);
+  const mutationVersion = useRef(0);
+  const pendingCreates = useRef(new Map<string, Promise<void>>());
+  const pendingDeletes = useRef(new Map<string, Promise<void>>());
+  const eventWriteChains = useRef(new Map<string, Promise<void>>());
+  const pendingCategoryCreates = useRef(new Map<string, Promise<void>>());
+  const categoryWriteChains = useRef(new Map<string, Promise<void>>());
+  const pendingEventUpdates = useRef(new Map<string, PendingEventUpdate>());
+  const eventsRef = useRef(events);
+  const categoriesRef = useRef(categories);
+  eventsRef.current = events;
+  categoriesRef.current = categories;
+
+  const loadRemote = useCallback(
+    async (userId: string, preserveSelection = false) => {
+      const requestedMode = `user:${userId}`;
+      const requestedVersion = mutationVersion.current;
+      try {
+        const [{ events: remoteEvents }, { categories: remoteCategories }] =
+          await Promise.all([
+            apiRequest<{ events: CalendarEvent[] }>("/api/calendar-events"),
+            apiRequest<{ categories: CalendarCategory[] }>(
+              "/api/calendar-categories",
+            ),
+          ]);
+        if (
+          modeRef.current !== requestedMode ||
+          requestedVersion !== mutationVersion.current
+        ) {
+          return;
+        }
+        setEvents(remoteEvents);
+        setCategories(remoteCategories);
+        if (!preserveSelection) setSelectedEventId(null);
+        setHydratedMode(requestedMode);
+      } catch {
+        if (modeRef.current === requestedMode) {
+          toast.error("Calendar could not sync", {
+            id: "calendar-sync-error",
+            description: "Check your connection and try again.",
+          });
+        }
+      }
+    },
+    [],
+  );
+
+  const recoverRemote = useCallback(
+    (userId: string) => {
+      toast.error("Calendar could not save", {
+        id: "calendar-sync-error",
+        description: "Lifever is refreshing your latest synced copy.",
+      });
+      void loadRemote(userId, true);
+    },
+    [loadRemote],
+  );
 
   useEffect(() => {
-    const userId = session?.user.id ?? null;
-    let cancelled = false;
+    if (isPending) return;
+    const userId = session?.user.id;
+    const nextMode = userId ? `user:${userId}` : "local";
+    modeRef.current = nextMode;
+    mutationVersion.current = 0;
+    setHydratedMode(null);
+    setSelectedEventId(null);
     if (userId) {
-      void Promise.all([
-        apiRequest<{ events: CalendarEvent[] }>("/api/calendar-events"),
-        apiRequest<{ categories: CalendarCategory[] }>(
-          "/api/calendar-categories",
-        ),
-      ]).then(
-        ([{ events: remoteEvents }, { categories: remoteCategories }]) => {
-          if (!cancelled) {
-            setEvents(remoteEvents);
-            setCategories(remoteCategories);
-            setSelectedEventId(null);
-          }
-        },
-        () => {
-          // Keep the local snapshot visible while the API is unavailable.
-        },
-      );
-    } else if (previousUserId.current) {
+      setEvents([]);
+      setCategories([]);
+      void loadRemote(userId);
+    } else {
       setEvents(readStoredEvents());
       setCategories(readStoredCategories());
-      setSelectedEventId(null);
+      setHydratedMode("local");
     }
-    previousUserId.current = userId;
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user.id]);
+  }, [isPending, loadRemote, session?.user.id]);
 
   useEffect(() => {
-    if (session) return;
+    if (hydratedMode !== "local" || session || isPending) return;
     const timeout = window.setTimeout(() => writeStoredEvents(events), WRITE_DELAY);
     return () => window.clearTimeout(timeout);
-  }, [events, session]);
+  }, [events, hydratedMode, isPending, session]);
 
   useEffect(() => {
-    if (session) return;
+    if (hydratedMode !== "local" || session || isPending) return;
     const timeout = window.setTimeout(
       () => writeStoredCategories(categories),
       WRITE_DELAY,
     );
     return () => window.clearTimeout(timeout);
-  }, [categories, session]);
+  }, [categories, hydratedMode, isPending, session]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingCreates.current.size === 0 &&
+        pendingDeletes.current.size === 0 &&
+        eventWriteChains.current.size === 0 &&
+        pendingCategoryCreates.current.size === 0 &&
+        categoryWriteChains.current.size === 0 &&
+        pendingEventUpdates.current.size === 0
+      ) {
+        void loadRemote(userId, true);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadRemote, session?.user.id]);
+
+  useEffect(() => {
+    const reset = () => {
+      if (modeRef.current !== "local") return;
+      setEvents(initialCalendarEvents.map((event) => ({ ...event })));
+      setCategories(
+        defaultCalendarCategories.map((category) => ({ ...category })),
+      );
+      setSelectedEventId(null);
+    };
+    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
+    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
+  }, []);
+
+  const sendEventUpdate = useCallback(
+    (id: string, body: CalendarEventPatch) => {
+      const create = pendingCreates.current.get(id);
+      const previous =
+        eventWriteChains.current.get(id) ?? create ?? Promise.resolve();
+      const request = previous
+        .then(() =>
+          apiRequest(`/api/calendar-events/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          }).then(() => undefined),
+        )
+        .catch(() => {
+          const userId = session?.user.id;
+          if (userId) recoverRemote(userId);
+        });
+      eventWriteChains.current.set(id, request);
+      void request.finally(() => {
+        if (eventWriteChains.current.get(id) === request) {
+          eventWriteChains.current.delete(id);
+        }
+      });
+    },
+    [recoverRemote, session?.user.id],
+  );
+
+  const flushEventUpdate = useCallback(
+    (id: string) => {
+      const pending = pendingEventUpdates.current.get(id);
+      if (!pending) return;
+      window.clearTimeout(pending.timeout);
+      pendingEventUpdates.current.delete(id);
+      sendEventUpdate(id, pending.body);
+    },
+    [sendEventUpdate],
+  );
+
+  const queueEventUpdate = useCallback(
+    (id: string, body: CalendarEventPatch, deferred: boolean) => {
+      const pending = pendingEventUpdates.current.get(id);
+      if (pending) window.clearTimeout(pending.timeout);
+      const merged = { ...pending?.body, ...body };
+      if (!deferred) {
+        pendingEventUpdates.current.delete(id);
+        sendEventUpdate(id, merged);
+        return;
+      }
+      const timeout = window.setTimeout(
+        () => flushEventUpdate(id),
+        REMOTE_WRITE_DELAY,
+      );
+      pendingEventUpdates.current.set(id, { body: merged, timeout });
+    },
+    [flushEventUpdate, sendEventUpdate],
+  );
+
+  useEffect(() => {
+    const flush = () => {
+      if (modeRef.current === "local") {
+        writeStoredEvents(eventsRef.current);
+        writeStoredCategories(categoriesRef.current);
+      }
+      for (const id of pendingEventUpdates.current.keys()) {
+        flushEventUpdate(id);
+      }
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      for (const pending of pendingEventUpdates.current.values()) {
+        window.clearTimeout(pending.timeout);
+      }
+    };
+  }, [flushEventUpdate]);
 
   const persistNewEvent = useCallback(
     (optimisticEvent: CalendarEvent, input: NewCalendarEvent) => {
       if (!session) return;
-      void apiRequest<{ event: CalendarEvent }>("/api/calendar-events", {
+      const request = apiRequest<{ event: CalendarEvent }>("/api/calendar-events", {
         method: "POST",
-        body: JSON.stringify(input),
-      }).then(
-        ({ event: savedEvent }) => {
-          setEvents((current) =>
-            current.map((item) => (item.id === optimisticEvent.id ? savedEvent : item)),
-          );
-          setSelectedEventId((current) =>
-            current === optimisticEvent.id ? savedEvent.id : current,
-          );
-        },
-        () => {
-          // The optimistic event remains available locally.
-        },
-      );
+        body: JSON.stringify({ id: optimisticEvent.id, ...input }),
+      })
+        .then(() => undefined)
+        .catch(() => recoverRemote(session.user.id))
+        .finally(() => pendingCreates.current.delete(optimisticEvent.id));
+      pendingCreates.current.set(optimisticEvent.id, request);
     },
-    [session],
+    [recoverRemote, session],
   );
 
   const addEvent = useCallback(
@@ -193,6 +356,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         ...input,
         createdAt: new Date().toISOString(),
       };
+      mutationVersion.current += 1;
       setEvents((current) => [...current, event]);
       setSelectedEventId(event.id);
       persistNewEvent(event, input);
@@ -203,11 +367,12 @@ export function CalendarProvider({ children }: PropsWithChildren) {
 
   const updateEvent = useCallback(
     (id: string, patch: Partial<CalendarEvent>) => {
+      mutationVersion.current += 1;
       setEvents((current) =>
         current.map((event) => (event.id === id ? { ...event, ...patch } : event)),
       );
       if (session) {
-        const allowedPatch = {
+        const allowedPatch: CalendarEventPatch = {
           ...(patch.title !== undefined ? { title: patch.title } : {}),
           ...(patch.startAt !== undefined ? { startAt: patch.startAt } : {}),
           ...(patch.endAt !== undefined ? { endAt: patch.endAt } : {}),
@@ -218,44 +383,64 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
         };
         if (Object.keys(allowedPatch).length > 0) {
-          void apiRequest(`/api/calendar-events/${id}`, {
-            method: "PATCH",
-            body: JSON.stringify(allowedPatch),
-          }).catch(() => {
-            // Optimistic edits remain visible if the sync fails.
-          });
+          const textOnly = Object.keys(allowedPatch).every(
+            (key) => key === "title" || key === "location" || key === "notes",
+          );
+          queueEventUpdate(id, allowedPatch, textOnly);
         }
       }
     },
-    [session],
+    [queueEventUpdate, session],
   );
 
   const removeEvent = useCallback(
     (id: string) => {
       const event = events.find((item) => item.id === id) ?? null;
+      mutationVersion.current += 1;
+      const pending = pendingEventUpdates.current.get(id);
+      if (pending) {
+        window.clearTimeout(pending.timeout);
+        pendingEventUpdates.current.delete(id);
+      }
       setEvents((current) => current.filter((item) => item.id !== id));
       setSelectedEventId((current) => (current === id ? null : current));
       if (session) {
-        void apiRequest(`/api/calendar-events/${id}`, { method: "DELETE" }).catch(() => {
-          // Undo remains available in the UI.
-        });
+        const previous =
+          eventWriteChains.current.get(id) ??
+          pendingCreates.current.get(id) ??
+          Promise.resolve();
+        const request = previous
+          .then(() =>
+            apiRequest(`/api/calendar-events/${id}`, { method: "DELETE" }),
+          )
+          .then(() => undefined)
+          .catch(() => recoverRemote(session.user.id))
+          .finally(() => pendingDeletes.current.delete(id));
+        pendingDeletes.current.set(id, request);
       }
       return event;
     },
-    [events, session],
+    [events, recoverRemote, session],
   );
 
   const restoreEvent = useCallback(
     (event: CalendarEvent) => {
+      mutationVersion.current += 1;
       setEvents((current) => [...current, event]);
-      persistNewEvent(event, {
+      const input = {
         title: event.title,
         startAt: event.startAt,
         endAt: event.endAt,
         categoryId: event.categoryId,
         location: event.location,
         notes: event.notes,
-      });
+      };
+      const deletion = pendingDeletes.current.get(event.id);
+      if (deletion) {
+        void deletion.then(() => persistNewEvent(event, input));
+      } else {
+        persistNewEvent(event, input);
+      }
     },
     [persistNewEvent],
   );
@@ -290,18 +475,21 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           ) + 1,
         createdAt: new Date().toISOString(),
       };
+      mutationVersion.current += 1;
       setCategories((current) => [...current, category]);
       if (session) {
-        void apiRequest("/api/calendar-categories", {
+        const request = apiRequest("/api/calendar-categories", {
           method: "POST",
           body: JSON.stringify(category),
-        }).catch(() => {
-          // The optimistic category remains available locally.
-        });
+        })
+          .then(() => undefined)
+          .catch(() => recoverRemote(session.user.id))
+          .finally(() => pendingCategoryCreates.current.delete(category.id));
+        pendingCategoryCreates.current.set(category.id, request);
       }
       return category;
     },
-    [categories, session],
+    [categories, recoverRemote, session],
   );
 
   const updateCategory = useCallback(
@@ -309,21 +497,34 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       id: string,
       patch: Partial<Pick<CalendarCategory, "name" | "color" | "position">>,
     ) => {
+      mutationVersion.current += 1;
       setCategories((current) =>
         current.map((category) =>
           category.id === id ? { ...category, ...patch } : category,
         ),
       );
       if (session && Object.keys(patch).length > 0) {
-        void apiRequest(`/api/calendar-categories/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(patch),
-        }).catch(() => {
-          // Optimistic edits remain visible if sync fails.
+        const previous =
+          categoryWriteChains.current.get(id) ??
+          pendingCategoryCreates.current.get(id) ??
+          Promise.resolve();
+        const request = previous
+          .then(() =>
+            apiRequest(`/api/calendar-categories/${id}`, {
+              method: "PATCH",
+              body: JSON.stringify(patch),
+            }).then(() => undefined),
+          )
+          .catch(() => recoverRemote(session.user.id));
+        categoryWriteChains.current.set(id, request);
+        void request.finally(() => {
+          if (categoryWriteChains.current.get(id) === request) {
+            categoryWriteChains.current.delete(id);
+          }
         });
       }
     },
-    [session],
+    [recoverRemote, session],
   );
 
   const removeCategory = useCallback(
@@ -334,6 +535,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         return false;
       }
 
+      mutationVersion.current += 1;
       setCategories((current) =>
         current.filter((category) => category.id !== id),
       );
@@ -345,19 +547,26 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         ),
       );
       if (session) {
-        void apiRequest(`/api/calendar-categories/${id}`, {
-          method: "DELETE",
-        }).catch(() => {
-          // The local category organization remains usable if sync fails.
-        });
+        const previous =
+          categoryWriteChains.current.get(id) ??
+          pendingCategoryCreates.current.get(id) ??
+          Promise.resolve();
+        void previous
+          .then(() =>
+            apiRequest(`/api/calendar-categories/${id}`, {
+              method: "DELETE",
+            }),
+          )
+          .catch(() => recoverRemote(session.user.id));
       }
       return true;
     },
-    [categories, session],
+    [categories, recoverRemote, session],
   );
 
   const value = useMemo(
     () => ({
+      isReady: hydratedMode !== null && categories.length > 0,
       categories,
       events,
       selectedEventId,
@@ -375,6 +584,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       addEvent,
       addCategory,
       categories,
+      hydratedMode,
       duplicateEvent,
       events,
       removeEvent,

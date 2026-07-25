@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createReminderSchema = z.object({
+  id: z.string().uuid(),
   title: z.string().trim().min(1).max(240),
   notes: z.string().max(10_000).nullable().optional(),
   dueAt: z.iso.datetime().nullable().optional(),
@@ -9,6 +10,7 @@ export const createReminderSchema = z.object({
 });
 
 export const updateReminderSchema = createReminderSchema
+  .omit({ id: true })
   .partial()
   .extend({
     completed: z.boolean().optional(),

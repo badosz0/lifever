@@ -8,9 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
+import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 
 import { initialReminders } from "./seed";
 import type { Reminder, ReminderViewId } from "./types";
@@ -18,6 +20,7 @@ import type { Reminder, ReminderViewId } from "./types";
 type NewReminder = Pick<Reminder, "title" | "dueAt">;
 
 type RemindersContextValue = {
+  isReady: boolean;
   reminders: Reminder[];
   activeView: ReminderViewId;
   selectedReminderId: string | null;
@@ -99,28 +102,90 @@ function writeStoredReminders(reminders: Reminder[]) {
 }
 
 export function RemindersProvider({ children }: PropsWithChildren) {
-  const { data: session } = authClient.useSession();
-  const [reminders, setReminders] = useState<Reminder[]>(readStoredReminders);
+  const { data: session, isPending } = authClient.useSession();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [activeView, setActiveView] = useState<ReminderViewId>("today");
   const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
-  const previousUserId = useRef<string | null>(null);
+  const [hydratedMode, setHydratedMode] = useState<string | null>(null);
+  const modeRef = useRef<string | null>(null);
+  const mutationVersion = useRef(0);
+  const pendingCreates = useRef(new Map<string, Promise<void>>());
+  const pendingDeletes = useRef(new Map<string, Promise<void>>());
+  const apiWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingApiUpdates = useRef(new Map<string, PendingApiUpdate>());
   const remindersRef = useRef(reminders);
   const sessionRef = useRef(session);
   remindersRef.current = reminders;
   sessionRef.current = session;
 
-  const sendApiUpdate = useCallback((id: string, body: ApiReminderUpdate) => {
-    if (Object.keys(body).length === 0) return;
+  const loadRemote = useCallback(
+    async (userId: string, preserveSelection = false) => {
+      const requestedMode = `user:${userId}`;
+      const requestedVersion = mutationVersion.current;
+      try {
+        const { reminders: remoteReminders } = await apiRequest<{
+          reminders: ApiReminder[];
+        }>("/api/reminders");
+        if (
+          modeRef.current !== requestedMode ||
+          requestedVersion !== mutationVersion.current
+        ) {
+          return;
+        }
+        const nextReminders = remoteReminders.map(fromApiReminder);
+        setReminders(nextReminders);
+        if (!preserveSelection) setSelectedReminderId(null);
+        setHydratedMode(requestedMode);
+      } catch {
+        if (modeRef.current === requestedMode) {
+          toast.error("Reminders could not sync", {
+            id: "reminders-sync-error",
+            description: "Check your connection and try again.",
+          });
+        }
+      }
+    },
+    [],
+  );
 
-    void apiRequest(`/api/reminders/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-      keepalive: true,
-    }).catch(() => {
-      // Optimistic edits stay visible and can be retried by editing again.
-    });
-  }, []);
+  const recoverRemote = useCallback(
+    (userId: string) => {
+      toast.error("Reminders could not save", {
+        id: "reminders-sync-error",
+        description: "Lifever is refreshing your latest synced copy.",
+      });
+      void loadRemote(userId, true);
+    },
+    [loadRemote],
+  );
+
+  const sendApiUpdate = useCallback(
+    (id: string, body: ApiReminderUpdate) => {
+      if (Object.keys(body).length === 0) return;
+      const create = pendingCreates.current.get(id);
+      const previous =
+        apiWriteChains.current.get(id) ?? create ?? Promise.resolve();
+      const request = previous
+        .then(() =>
+          apiRequest(`/api/reminders/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+            keepalive: true,
+          }).then(() => undefined),
+        )
+        .catch(() => {
+          const userId = session?.user.id;
+          if (userId) recoverRemote(userId);
+        });
+      apiWriteChains.current.set(id, request);
+      void request.finally(() => {
+        if (apiWriteChains.current.get(id) === request) {
+          apiWriteChains.current.delete(id);
+        }
+      });
+    },
+    [recoverRemote, session?.user.id],
+  );
 
   const flushApiUpdate = useCallback(
     (id: string) => {
@@ -162,41 +227,64 @@ export function RemindersProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    const userId = session?.user.id ?? null;
-    let cancelled = false;
-
+    if (isPending) return;
+    const userId = session?.user.id;
+    const nextMode = userId ? `user:${userId}` : "local";
+    modeRef.current = nextMode;
+    mutationVersion.current = 0;
+    setHydratedMode(null);
+    setSelectedReminderId(null);
     if (userId) {
-      void apiRequest<{ reminders: ApiReminder[] }>("/api/reminders").then(
-        ({ reminders: remoteReminders }) => {
-          if (!cancelled) {
-            setReminders(remoteReminders.map(fromApiReminder));
-            setSelectedReminderId(null);
-          }
-        },
-        () => {
-          // Keep the local snapshot visible if the network is unavailable.
-        },
-      );
-    } else if (previousUserId.current) {
+      setReminders([]);
+      void loadRemote(userId);
+    } else {
       setReminders(readStoredReminders());
-      setSelectedReminderId(null);
+      setHydratedMode("local");
     }
-
-    previousUserId.current = userId;
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user.id]);
+  }, [isPending, loadRemote, session?.user.id]);
 
   useEffect(() => {
-    if (!session) {
+    if (hydratedMode === "local" && !session && !isPending) {
       const timeout = window.setTimeout(
         () => writeStoredReminders(reminders),
         TEXT_SYNC_DELAY,
       );
       return () => window.clearTimeout(timeout);
     }
-  }, [reminders, session]);
+  }, [hydratedMode, isPending, reminders, session]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingCreates.current.size === 0 &&
+        pendingDeletes.current.size === 0 &&
+        apiWriteChains.current.size === 0 &&
+        pendingApiUpdates.current.size === 0
+      ) {
+        void loadRemote(userId, true);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadRemote, session?.user.id]);
+
+  useEffect(() => {
+    const reset = () => {
+      if (modeRef.current !== "local") return;
+      setReminders(initialReminders.map((reminder) => ({ ...reminder })));
+      setActiveView("today");
+      setSelectedReminderId(null);
+    };
+    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
+    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
+  }, []);
 
   useEffect(() => {
     const flushPendingWork = () => {
@@ -224,36 +312,29 @@ export function RemindersProvider({ children }: PropsWithChildren) {
       important: false,
       createdAt: new Date().toISOString(),
     };
+    mutationVersion.current += 1;
     setReminders((current) => [reminder, ...current]);
 
     if (session) {
-      void apiRequest<{ reminder: ApiReminder }>("/api/reminders", {
+      const request = apiRequest<{ reminder: ApiReminder }>("/api/reminders", {
         method: "POST",
         body: JSON.stringify({
+          id: reminder.id,
           title: input.title,
           dueAt: input.dueAt,
         }),
-      }).then(
-        ({ reminder: savedReminder }) => {
-          setReminders((current) =>
-            current.map((item) =>
-              item.id === reminder.id ? fromApiReminder(savedReminder) : item,
-            ),
-          );
-          setSelectedReminderId((current) =>
-            current === reminder.id ? savedReminder.id : current,
-          );
-        },
-        () => {
-          // The optimistic local reminder remains available for retry.
-        },
-      );
+      })
+        .then(() => undefined)
+        .catch(() => recoverRemote(session.user.id))
+        .finally(() => pendingCreates.current.delete(reminder.id));
+      pendingCreates.current.set(reminder.id, request);
     }
 
     return reminder;
-  }, [session]);
+  }, [recoverRemote, session]);
 
   const updateReminder = useCallback((id: string, patch: Partial<Reminder>) => {
+    mutationVersion.current += 1;
     setReminders((current) =>
       current.map((reminder) =>
         reminder.id === id ? { ...reminder, ...patch } : reminder,
@@ -281,19 +362,27 @@ export function RemindersProvider({ children }: PropsWithChildren) {
   const removeReminder = useCallback(
     (id: string) => {
       const reminder = reminders.find((item) => item.id === id) ?? null;
+      mutationVersion.current += 1;
       cancelApiUpdate(id);
       setReminders((current) => current.filter((item) => item.id !== id));
       setSelectedReminderId((current) => (current === id ? null : current));
 
       if (session) {
-        void apiRequest(`/api/reminders/${id}`, { method: "DELETE" }).catch(() => {
-          // Undo remains available from the toast if the remote delete fails.
-        });
+        const previous =
+          apiWriteChains.current.get(id) ??
+          pendingCreates.current.get(id) ??
+          Promise.resolve();
+        const request = previous
+          .then(() => apiRequest(`/api/reminders/${id}`, { method: "DELETE" }))
+          .then(() => undefined)
+          .catch(() => recoverRemote(session.user.id))
+          .finally(() => pendingDeletes.current.delete(id));
+        pendingDeletes.current.set(id, request);
       }
 
       return reminder;
     },
-    [cancelApiUpdate, reminders, session],
+    [cancelApiUpdate, recoverRemote, reminders, session],
   );
 
   const clearCompletedReminders = useCallback(() => {
@@ -304,6 +393,7 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     );
     if (completedIds.size === 0) return 0;
 
+    mutationVersion.current += 1;
     for (const id of completedIds) cancelApiUpdate(id);
     setReminders((current) =>
       current.filter((reminder) => !completedIds.has(reminder.id)),
@@ -313,38 +403,45 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     );
 
     if (session) {
-      void apiRequest("/api/reminders/completed", { method: "DELETE" }).catch(() => {
-        // The local view remains responsive if the remote cleanup fails.
-      });
+      const creates = [...completedIds]
+        .map((id) => pendingCreates.current.get(id))
+        .filter((request): request is Promise<void> => Boolean(request));
+      void Promise.all(creates)
+        .then(() =>
+          apiRequest("/api/reminders/completed", { method: "DELETE" }),
+        )
+        .catch(() => recoverRemote(session.user.id));
     }
 
     return completedIds.size;
-  }, [cancelApiUpdate, reminders, session]);
+  }, [cancelApiUpdate, recoverRemote, reminders, session]);
 
   const restoreReminder = useCallback((reminder: Reminder) => {
+    mutationVersion.current += 1;
     setReminders((current) => [reminder, ...current]);
 
     if (session) {
-      void apiRequest<{ reminder: ApiReminder }>("/api/reminders", {
-        method: "POST",
-        body: JSON.stringify({
-          title: reminder.title,
-          notes: reminder.notes,
-          dueAt: reminder.dueAt,
-          important: reminder.important,
-        }),
-      }).then(({ reminder: restored }) => {
-        setReminders((current) =>
-          current.map((item) =>
-            item.id === reminder.id ? fromApiReminder(restored) : item,
-          ),
-        );
-      });
+      const deletion = pendingDeletes.current.get(reminder.id);
+      void (deletion ?? Promise.resolve())
+        .then(() =>
+          apiRequest<{ reminder: ApiReminder }>("/api/reminders", {
+            method: "POST",
+            body: JSON.stringify({
+              id: reminder.id,
+              title: reminder.title,
+              notes: reminder.notes,
+              dueAt: reminder.dueAt,
+              important: reminder.important,
+            }),
+          }),
+        )
+        .catch(() => recoverRemote(session.user.id));
     }
-  }, [session]);
+  }, [recoverRemote, session]);
 
   const value = useMemo(
     () => ({
+      isReady: hydratedMode !== null,
       reminders,
       activeView,
       selectedReminderId,
@@ -360,6 +457,7 @@ export function RemindersProvider({ children }: PropsWithChildren) {
       activeView,
       addReminder,
       clearCompletedReminders,
+      hydratedMode,
       reminders,
       removeReminder,
       restoreReminder,

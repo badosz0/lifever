@@ -5,8 +5,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
+
+import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { authClient } from "@/lib/auth-client";
+import { apiRequest } from "@/lib/api";
 
 import { readKanbanState, writeKanbanState } from "./storage";
 import { initialKanbanState } from "./seed";
@@ -21,7 +27,21 @@ import type {
 } from "./types";
 
 const WRITE_DELAY = 250;
+const REMOTE_WRITE_DELAY = 400;
 const ACTIVE_PROJECT_KEY = "lifever-kanban-active-project";
+const emptyKanbanState: KanbanState = {
+  projects: [],
+  columns: [],
+  labels: [],
+  cards: [],
+};
+
+type KanbanWorkspacePayload = {
+  workspace: {
+    state: KanbanState;
+    updatedAt: string;
+  };
+};
 
 type KanbanContextValue = KanbanState & {
   activeProjectId: string;
@@ -109,24 +129,250 @@ const createDefaultColumns = (projectId: string): KanbanColumn[] => [
 ];
 
 export function KanbanProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<KanbanState>(readKanbanState);
-  const [activeProjectId, setActiveProjectIdState] = useState(() =>
-    readActiveProject(state),
-  );
+  const { data: session, isPending } = authClient.useSession();
+  const [state, setState] = useState<KanbanState>(emptyKanbanState);
+  const [activeProjectId, setActiveProjectIdState] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [hydratedMode, setHydratedMode] = useState<string | null>(null);
+  const modeRef = useRef<string | null>(null);
+  const mutationVersion = useRef(0);
+  const applyingRemoteState = useRef(false);
+  const lastRemoteSnapshot = useRef("");
+  const lastRemoteState = useRef<KanbanState | null>(null);
+  const lastRemoteUpdatedAt = useRef("");
+  const pendingRemoteSave = useRef<number | null>(null);
+  const remoteSaveChain = useRef(Promise.resolve());
+  const remoteSaveCount = useRef(0);
+  const stateRef = useRef(state);
+  const activeProjectIdRef = useRef(activeProjectId);
+  const sessionRef = useRef(session);
+  stateRef.current = state;
+  activeProjectIdRef.current = activeProjectId;
+  sessionRef.current = session;
+
+  const loadRemote = useCallback(
+    async (userId: string, preserveSelection = false) => {
+      const requestedMode = `user:${userId}`;
+      const requestedVersion = mutationVersion.current;
+      try {
+        const { workspace } =
+          await apiRequest<KanbanWorkspacePayload>("/api/kanban");
+        if (
+          modeRef.current !== requestedMode ||
+          requestedVersion !== mutationVersion.current
+        ) {
+          return;
+        }
+        const snapshot = JSON.stringify(workspace.state);
+        applyingRemoteState.current = true;
+        lastRemoteSnapshot.current = snapshot;
+        lastRemoteState.current = workspace.state;
+        lastRemoteUpdatedAt.current = workspace.updatedAt;
+        setState(workspace.state);
+        setActiveProjectIdState((current) =>
+          workspace.state.projects.some((project) => project.id === current)
+            ? current
+            : workspace.state.projects[0]?.id ?? "",
+        );
+        if (!preserveSelection) setSelectedCardId(null);
+        setHydratedMode(requestedMode);
+      } catch {
+        if (modeRef.current === requestedMode) {
+          toast.error("Kanban could not sync", {
+            id: "kanban-sync-error",
+            description: "Check your connection and try again.",
+          });
+        }
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
+    if (isPending) return;
+    const userId = session?.user.id;
+    const nextMode = userId ? `user:${userId}` : "local";
+    modeRef.current = nextMode;
+    mutationVersion.current = 0;
+    setHydratedMode(null);
+    setSelectedCardId(null);
+    if (pendingRemoteSave.current) {
+      window.clearTimeout(pendingRemoteSave.current);
+      pendingRemoteSave.current = null;
+    }
+    if (userId) {
+      setState(emptyKanbanState);
+      setActiveProjectIdState("");
+      void loadRemote(userId);
+    } else {
+      const localState = readKanbanState();
+      setState(localState);
+      setActiveProjectIdState(readActiveProject(localState));
+      setHydratedMode("local");
+    }
+  }, [isPending, loadRemote, session?.user.id]);
+
+  useEffect(() => {
+    if (hydratedMode !== "local" || session || isPending) return;
     const timeout = window.setTimeout(() => writeKanbanState(state), WRITE_DELAY);
     return () => window.clearTimeout(timeout);
-  }, [state]);
+  }, [hydratedMode, isPending, session, state]);
 
   useEffect(() => {
+    if (hydratedMode !== "local" || session || isPending || !activeProjectId) {
+      return;
+    }
     try {
       localStorage.setItem(ACTIVE_PROJECT_KEY, activeProjectId);
     } catch {
       // The in-memory selection remains available.
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, hydratedMode, isPending, session]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || hydratedMode !== `user:${userId}`) return;
+    if (applyingRemoteState.current) {
+      applyingRemoteState.current = false;
+      return;
+    }
+    const snapshot = JSON.stringify(state);
+    if (snapshot === lastRemoteSnapshot.current) return;
+    mutationVersion.current += 1;
+    if (pendingRemoteSave.current) {
+      window.clearTimeout(pendingRemoteSave.current);
+    }
+    pendingRemoteSave.current = window.setTimeout(() => {
+      pendingRemoteSave.current = null;
+      remoteSaveCount.current += 1;
+      const request = remoteSaveChain.current.then(() =>
+        apiRequest<KanbanWorkspacePayload>("/api/kanban", {
+          method: "PUT",
+          body: JSON.stringify({
+            state,
+            baseUpdatedAt: lastRemoteUpdatedAt.current,
+          }),
+          keepalive: true,
+        }),
+      );
+      remoteSaveChain.current = request.then(
+        () => undefined,
+        () => undefined,
+      );
+      void request.then(
+        ({ workspace }) => {
+          lastRemoteSnapshot.current = snapshot;
+          lastRemoteState.current = state;
+          lastRemoteUpdatedAt.current = workspace.updatedAt;
+        },
+        () => {
+          const remoteState = lastRemoteState.current;
+          if (remoteState) {
+            applyingRemoteState.current = true;
+            setState(remoteState);
+            setActiveProjectIdState((current) =>
+              remoteState.projects.some((project) => project.id === current)
+                ? current
+                : remoteState.projects[0]?.id ?? "",
+            );
+            setSelectedCardId((current) =>
+              current && remoteState.cards.some((card) => card.id === current)
+                ? current
+                : null,
+            );
+          }
+          toast.error("Kanban could not save", {
+            id: "kanban-sync-error",
+            description:
+              "The latest server version was restored so another device is not overwritten.",
+          });
+          void loadRemote(userId, true);
+        },
+      ).finally(() => {
+        remoteSaveCount.current -= 1;
+      });
+    }, REMOTE_WRITE_DELAY);
+    return () => {
+      if (pendingRemoteSave.current) {
+        window.clearTimeout(pendingRemoteSave.current);
+        pendingRemoteSave.current = null;
+      }
+    };
+  }, [hydratedMode, loadRemote, session?.user.id, state]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingRemoteSave.current === null &&
+        remoteSaveCount.current === 0
+      ) {
+        void loadRemote(userId, true);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadRemote, session?.user.id]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (modeRef.current === "local") {
+        writeKanbanState(stateRef.current);
+        try {
+          localStorage.setItem(
+            ACTIVE_PROJECT_KEY,
+            activeProjectIdRef.current,
+          );
+        } catch {
+          // The latest in-memory selection remains available until close.
+        }
+        return;
+      }
+      if (!sessionRef.current) return;
+      if (pendingRemoteSave.current) {
+        window.clearTimeout(pendingRemoteSave.current);
+        pendingRemoteSave.current = null;
+      }
+      void remoteSaveChain.current.then(() =>
+        apiRequest("/api/kanban", {
+          method: "PUT",
+          body: JSON.stringify({
+            state: stateRef.current,
+            baseUpdatedAt: lastRemoteUpdatedAt.current,
+          }),
+          keepalive: true,
+        }),
+      );
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
+
+  useEffect(() => {
+    const reset = () => {
+      if (modeRef.current !== "local") return;
+      const demo: KanbanState = {
+        projects: initialKanbanState.projects.map((project) => ({ ...project })),
+        columns: initialKanbanState.columns.map((column) => ({ ...column })),
+        labels: initialKanbanState.labels.map((label) => ({ ...label })),
+        cards: initialKanbanState.cards.map((card) => ({
+          ...card,
+          labelIds: [...card.labelIds],
+        })),
+      };
+      setState(demo);
+      setActiveProjectIdState(readActiveProject(demo));
+      setSelectedCardId(null);
+    };
+    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
+    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
+  }, []);
 
   const setActiveProjectId = useCallback(
     (id: string) => {
