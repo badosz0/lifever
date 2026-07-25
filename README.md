@@ -163,6 +163,7 @@ pnpm dev             # web + API
 pnpm check           # Prisma generation + all TypeScript/Tauri checks
 pnpm build           # production API and web builds
 pnpm build:worker    # bundle-check the Worker without deploying
+pnpm deploy:api      # migrate production D1 and deploy the API Worker
 pnpm deploy:worker   # deploy the API Worker
 pnpm db:generate     # regenerate the Prisma client
 pnpm db:migrate      # create/apply a local migration

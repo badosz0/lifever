@@ -20,6 +20,7 @@
     "desktop:update": "node scripts/desktop.mjs update",
     "build": "pnpm db:generate && pnpm --filter @lifever/api build && pnpm --filter @lifever/web build",
     "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build:worker",
+    "deploy:api": "pnpm db:deploy:d1 && pnpm deploy:worker",
     "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy:worker",
     "check": "pnpm db:generate && pnpm -r check",
     "db:generate": "prisma generate && prisma generate --schema prisma/schema.d1.prisma",
