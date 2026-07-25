@@ -13,8 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
-import { authClient } from "@/lib/auth-client";
-import { isTauri } from "@/lib/runtime";
+import { authClient, signInWithDiscord } from "@/lib/auth-client";
 
 export function AccountMenu() {
   const { data: session } = authClient.useSession();
@@ -23,15 +22,7 @@ export function AccountMenu() {
   const initial = name.charAt(0).toUpperCase();
 
   const signIn = async () => {
-    const result = isTauri
-      ? await authClient.signIn.popup({
-          provider: "discord",
-          callbackURL: window.location.href,
-        })
-      : await authClient.signIn.social({
-          provider: "discord",
-          callbackURL: window.location.href,
-        });
+    const result = await signInWithDiscord();
 
     if (result.error) {
       toast.error("Couldn’t sign in with Discord", {
