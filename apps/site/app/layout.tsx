@@ -8,7 +8,7 @@ const siteUrl = "https://www.lifever.app";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Lifever — Life, together",
+    default: "Lifever — Life, together.",
     template: "%s · Lifever",
   },
   description:
@@ -30,24 +30,24 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "/",
     siteName: "Lifever",
-    title: "Lifever — Life, together",
+    title: "Lifever — Life, together.",
     description:
       "Reminders, calendar, notes, projects, and Formula 1 in one calm place.",
     images: [
       {
-        url: "/screenshots/calendar-week.jpg",
-        width: 1920,
-        height: 1080,
-        alt: "Lifever week calendar",
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Lifever — Life, together.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lifever — Life, together",
+    title: "Lifever — Life, together.",
     description:
       "Reminders, calendar, notes, projects, and Formula 1 in one calm place.",
-    images: ["/screenshots/calendar-week.jpg"],
+    images: ["/og.png"],
   },
   icons: {
     icon: "/lifever-logo.png",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light",
-  themeColor: "#ffffff",
+  themeColor: "#fefefd",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
