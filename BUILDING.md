@@ -146,7 +146,7 @@ pnpm build:site
 pnpm deploy:site
 ```
 
-The production alias is [lifever.vercel.app](https://lifever.vercel.app).
+The production site is [www.lifever.app](https://www.lifever.app).
 
 ## Releases
 

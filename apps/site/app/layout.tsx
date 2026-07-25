@@ -3,10 +3,7 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 
-const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-const siteUrl = productionHost
-  ? `https://${productionHost}`
-  : "https://lifever.vercel.app";
+const siteUrl = "https://www.lifever.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

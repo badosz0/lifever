@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://lifever.vercel.app">Website</a>
+  <a href="https://www.lifever.app">Website</a>
   ·
   <a href="https://github.com/badosz0/lifever/releases/latest">Download for macOS</a>
   ·
