@@ -1,6 +1,6 @@
 cask "lifever" do
-  version "0.1.1"
-  sha256 "41ed7d732fc6c0e3f064e024ca7626bd0e78a29d72a77527deaf0b84839d5cdf"
+  version "0.1.2"
+  sha256 "c32419dc8ad722c5497a94fb4a4fe27dc8d09cad773f4bc9d1a85dea7210ddae"
 
   url "https://github.com/badosz0/lifever/releases/download/v#{version}/Lifever-#{version}-macOS-universal.dmg",
       verified: "github.com/badosz0/lifever/"
