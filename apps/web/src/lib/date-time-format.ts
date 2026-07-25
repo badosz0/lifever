@@ -117,6 +117,7 @@ export const formatUserDateRange = (
   const sameMonth =
     start.getFullYear() === end.getFullYear() &&
     start.getMonth() === end.getMonth();
+  const sameYear = start.getFullYear() === end.getFullYear();
 
   if (preference === "system") {
     return new Intl.DateTimeFormat(undefined, {
@@ -132,13 +133,23 @@ export const formatUserDateRange = (
     return `${startLabel}–${formatUserDate(end, preference, { includeYear: true })}`;
   }
 
-  const month = getMonthLabel(start, "short");
-  const year = start.getFullYear();
+  const startMonth = getMonthLabel(start, "short");
+  const endMonth = getMonthLabel(end, "short");
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
   if (sameMonth) {
     return preference === "month-day-year"
-      ? `${month} ${start.getDate()}–${end.getDate()}${includeYear ? `, ${year}` : ""}`
-      : `${start.getDate()}–${end.getDate()} ${month}${includeYear ? ` ${year}` : ""}`;
+      ? `${startMonth} ${start.getDate()}–${end.getDate()}${includeYear ? `, ${startYear}` : ""}`
+      : `${start.getDate()}–${end.getDate()} ${startMonth}${includeYear ? ` ${startYear}` : ""}`;
   }
 
-  return `${formatUserDate(start, preference, { includeYear })}–${formatUserDate(end, preference, { includeYear })}`;
+  if (preference === "month-day-year") {
+    const startLabel = `${startMonth} ${start.getDate()}${includeYear && !sameYear ? `, ${startYear}` : ""}`;
+    const endLabel = `${endMonth} ${end.getDate()}${includeYear ? `, ${endYear}` : ""}`;
+    return `${startLabel}–${endLabel}`;
+  }
+
+  const startLabel = `${start.getDate()} ${startMonth}${includeYear && !sameYear ? ` ${startYear}` : ""}`;
+  const endLabel = `${end.getDate()} ${endMonth}${includeYear ? ` ${endYear}` : ""}`;
+  return `${startLabel}–${endLabel}`;
 };
