@@ -36,8 +36,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/screenshots/calendar-week.jpg",
-        width: 1280,
-        height: 720,
+        width: 1920,
+        height: 1080,
         alt: "Lifever week calendar",
       },
     ],

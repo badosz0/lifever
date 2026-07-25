@@ -133,10 +133,11 @@ export default function Home() {
               className="hero-image"
               src="/screenshots/calendar-week.jpg"
               alt="Lifever week calendar showing color-coded events across a compact full-day view"
-              width={1280}
-              height={720}
+              width={1920}
+              height={1080}
               loading="eager"
               priority
+              quality={92}
               sizes="(max-width: 720px) 94vw, 1180px"
             />
           </div>

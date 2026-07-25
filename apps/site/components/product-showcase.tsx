@@ -144,8 +144,9 @@ export function ProductShowcase() {
             className="product-image"
             src={activeProduct.image}
             alt={activeProduct.alt}
-            width={1280}
-            height={720}
+            width={1920}
+            height={1080}
+            quality={92}
             sizes="(max-width: 720px) 92vw, 1080px"
           />
         </div>
