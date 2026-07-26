@@ -47,8 +47,8 @@ export function HomeSettingsDialog({
             <span className="text-center">Home</span>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-            {lifeverFeatureApps.map((app, index) => {
+          <div className="divide-y divide-border/55">
+            {lifeverFeatureApps.map((app) => {
               const Icon = app.icon;
               const enabled = isAppEnabled(app.id);
               return (
@@ -83,9 +83,6 @@ export function HomeSettingsDialog({
                       aria-label={`${isAppOnHome(app.id) ? "Hide" : "Show"} ${app.label} on Home`}
                     />
                   </div>
-                  {index < lifeverFeatureApps.length - 1 ? (
-                    <div className="col-span-3 ml-11 h-px bg-border/55" />
-                  ) : null}
                 </div>
               );
             })}
