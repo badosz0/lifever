@@ -31,6 +31,7 @@ import {
 import { getCalendarCategory } from "@/features/calendar/lib/categories";
 import { intervalOverlapsRange } from "@/features/calendar/lib/event-segments";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
+import { useCalendarEventActions } from "@/features/calendar/model/use-calendar-event-actions";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import type {
   CalendarEventPreview,
@@ -76,8 +77,11 @@ export function CalendarView({
     selectedEventId,
     setSelectedEventId,
     setVisibleEventRange,
+    undoLastEventAction,
     updateEvent,
   } = useCalendar();
+  const { deleteCalendarEvent, duplicateCalendarEvent } =
+    useCalendarEventActions();
   const { calendarClickToCreate, dateFormat } = useUserPreferences();
   const [viewMode, setViewMode] = useState<CalendarViewMode>(readViewMode);
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay(new Date()));
@@ -171,6 +175,20 @@ export function CalendarView({
     ],
   );
 
+  const navigate = useCallback(
+    (direction: -1 | 1) => {
+      setSelectedDate((current) =>
+        viewMode === "year"
+          ? addYears(current, direction)
+          : viewMode === "month"
+            ? addMonths(current, direction)
+            : addDays(current, direction * (viewMode === "week" ? 7 : 1)),
+      );
+      setSelectedEventId(null);
+    },
+    [setSelectedEventId, viewMode],
+  );
+
   useEffect(() => {
     try {
       localStorage.setItem("lifever-calendar-view", viewMode);
@@ -181,20 +199,87 @@ export function CalendarView({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+
       const target = event.target as HTMLElement | null;
-      const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
-      const isInDialog = target?.closest('[role="dialog"]');
+      const isTyping = Boolean(
+        target?.closest(
+          "input, textarea, select, [contenteditable='true']",
+        ),
+      );
+      const isInOverlay = Boolean(
+        target?.closest('[role="dialog"], [role="menu"], [role="listbox"]'),
+      );
+      const commandPressed = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
+      const selectedEvent = events.find((item) => item.id === selectedEventId);
+
+      if (
+        !isTyping &&
+        !isInOverlay &&
+        !commandPressed &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        event.preventDefault();
+        navigate(event.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
+
+      if (
+        !isTyping &&
+        !isInOverlay &&
+        commandPressed &&
+        !event.altKey &&
+        !event.shiftKey &&
+        key === "d" &&
+        selectedEvent &&
+        !selectedEvent.readOnly
+      ) {
+        event.preventDefault();
+        duplicateCalendarEvent(selectedEvent.id);
+        return;
+      }
+
+      if (
+        !isTyping &&
+        !isInOverlay &&
+        !commandPressed &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key === "Backspace" &&
+        selectedEvent &&
+        !selectedEvent.readOnly
+      ) {
+        event.preventDefault();
+        deleteCalendarEvent(selectedEvent.id);
+        return;
+      }
+
+      if (
+        !isTyping &&
+        !isInOverlay &&
+        commandPressed &&
+        !event.altKey &&
+        !event.shiftKey &&
+        key === "z" &&
+        undoLastEventAction()
+      ) {
+        event.preventDefault();
+        return;
+      }
+
       const shortcutView = calendarViews.find(
         (mode) =>
-          calendarViewShortcuts[mode].toLowerCase() === event.key.toLowerCase(),
+          calendarViewShortcuts[mode].toLowerCase() === key,
       );
 
       if (
         shortcutView &&
         !isTyping &&
-        !isInDialog &&
-        !event.metaKey &&
-        !event.ctrlKey &&
+        !isInOverlay &&
+        !commandPressed &&
         !event.altKey
       ) {
         event.preventDefault();
@@ -203,9 +288,9 @@ export function CalendarView({
       }
 
       if (
-        event.key.toLowerCase() === "n" &&
+        key === "n" &&
         !event.altKey &&
-        ((event.metaKey || event.ctrlKey) || !isTyping)
+        (commandPressed || !isTyping)
       ) {
         event.preventDefault();
         openComposer();
@@ -213,18 +298,15 @@ export function CalendarView({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openComposer]);
-
-  const navigate = (direction: -1 | 1) => {
-    setSelectedDate((current) =>
-      viewMode === "year"
-        ? addYears(current, direction)
-        : viewMode === "month"
-        ? addMonths(current, direction)
-        : addDays(current, direction * (viewMode === "week" ? 7 : 1)),
-    );
-    setSelectedEventId(null);
-  };
+  }, [
+    deleteCalendarEvent,
+    duplicateCalendarEvent,
+    events,
+    navigate,
+    openComposer,
+    selectedEventId,
+    undoLastEventAction,
+  ]);
 
   const showDay = (day: Date) => {
     setSelectedDate(startOfLocalDay(day));
