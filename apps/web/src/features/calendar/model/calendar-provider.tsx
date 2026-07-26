@@ -10,48 +10,78 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { addMinutes, toCalendarDate } from "@/features/calendar/lib/dates";
+import { useAppCalendarSources } from "@/features/apps/calendar-source-registry";
+import { useApps } from "@/features/apps/model/apps-provider";
 import {
   categoryIdForLegacyColor,
   defaultCalendarCategories,
   isCalendarCategoryColor,
 } from "@/features/calendar/lib/categories";
-import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
-import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
-import { authClient } from "@/lib/auth-client";
-import { apiRequest } from "@/lib/api";
-
-import { initialCalendarEvents } from "./seed";
+import {
+  addDays,
+  addMinutes,
+  toCalendarDate,
+} from "@/features/calendar/lib/dates";
+import {
+  defaultLocalCalendars,
+  initialCalendarEvents,
+} from "@/features/calendar/model/seed";
 import type {
   CalendarCategory,
+  CalendarCollection,
   CalendarEvent,
   NewCalendarEvent,
-} from "./types";
+} from "@/features/calendar/model/types";
+import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { apiRequest, apiUrl } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+
+type GoogleCalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  lastSyncedAt: string | null;
+};
 
 type CalendarContextValue = {
   isReady: boolean;
   categories: CalendarCategory[];
+  calendars: CalendarCollection[];
   events: CalendarEvent[];
+  nativeEvents: CalendarEvent[];
+  activeCalendarId: string | null;
   selectedEventId: string | null;
+  google: GoogleCalendarStatus & { syncing: boolean };
+  setActiveCalendarId: (id: string) => void;
+  setVisibleEventRange: (start: Date, end: Date) => void;
   setSelectedEventId: (id: string | null) => void;
+  setCalendarVisibility: (id: string, visible: boolean) => void;
   addEvent: (input: NewCalendarEvent) => CalendarEvent;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   removeEvent: (id: string) => CalendarEvent | null;
-  restoreEvent: (event: CalendarEvent) => void;
+  restoreEvent: (event: CalendarEvent) => CalendarEvent | null;
   duplicateEvent: (id: string) => CalendarEvent | null;
-  addCategory: (input: Pick<CalendarCategory, "name" | "color">) => CalendarCategory;
+  addCalendar: (
+    input: Pick<CalendarCollection, "name" | "color">,
+  ) => CalendarCollection;
+  updateCalendar: (
+    id: string,
+    patch: Partial<Pick<CalendarCollection, "name" | "color" | "position">>,
+  ) => void;
+  removeCalendar: (id: string) => boolean;
+  connectGoogle: () => Promise<void>;
+  disconnectGoogle: () => Promise<void>;
+  refreshGoogle: () => Promise<void>;
+  addCategory: (
+    input: Pick<CalendarCategory, "name" | "color" | "calendarId">,
+  ) => CalendarCategory;
   updateCategory: (
     id: string,
     patch: Partial<Pick<CalendarCategory, "name" | "color" | "position">>,
   ) => void;
   removeCategory: (id: string) => boolean;
 };
-
-const CalendarContext = createContext<CalendarContextValue | null>(null);
-const STORAGE_KEY = "lifever-calendar-events";
-const CATEGORY_STORAGE_KEY = "lifever-calendar-categories";
-const WRITE_DELAY = 400;
-const REMOTE_WRITE_DELAY = 400;
 
 type CalendarEventPatch = Partial<
   Pick<
@@ -60,9 +90,11 @@ type CalendarEventPatch = Partial<
     | "startAt"
     | "endAt"
     | "categoryId"
+    | "calendarId"
     | "location"
     | "notes"
     | "alertsEnabled"
+    | "allDay"
   >
 >;
 
@@ -73,41 +105,151 @@ type PendingEventUpdate = {
 
 type StoredCalendarEvent = Omit<
   CalendarEvent,
-  "categoryId" | "alertsEnabled"
+  | "alertsEnabled"
+  | "allDay"
+  | "calendarId"
+  | "categoryId"
+  | "readOnly"
+  | "source"
 > & {
-  categoryId?: string;
   alertsEnabled?: boolean;
+  allDay?: boolean;
+  calendarId?: string;
+  categoryId?: string;
   color?: unknown;
+  readOnly?: boolean;
+  source?: CalendarEvent["source"];
 };
 
-function normalizeCalendarEvent(event: StoredCalendarEvent): CalendarEvent {
-  const { color, ...currentEvent } = event;
+type RemoteCalendar = {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  visible: boolean;
+  createdAt: string;
+};
+
+type RemoteGoogleCalendar = RemoteCalendar & {
+  accessRole: string;
+  primary: boolean;
+};
+
+type GoogleStatusResponse = {
+  configured: boolean;
+  connected: boolean;
+  lastSyncedAt: string | null;
+  calendars: RemoteGoogleCalendar[];
+};
+
+const CalendarContext = createContext<CalendarContextValue | null>(null);
+const EVENT_STORAGE_KEY = "lifever-calendar-events";
+const CATEGORY_STORAGE_KEY = "lifever-calendar-categories";
+const CALENDAR_STORAGE_KEY = "lifever-calendars";
+const ACTIVE_CALENDAR_STORAGE_KEY = "lifever-active-calendar";
+const WRITE_DELAY = 400;
+const REMOTE_WRITE_DELAY = 400;
+
+const defaultGoogleEventRange = () => {
+  const year = new Date().getFullYear();
+  return {
+    timeMin: new Date(year, 0, 1).toISOString(),
+    timeMax: new Date(year + 1, 0, 1).toISOString(),
+  };
+};
+
+const normalizeCalendarEvent = (
+  event: StoredCalendarEvent,
+  fallbackCalendarId: string,
+): CalendarEvent => {
+  const { color: storedColor, ...currentEvent } = event;
+  const source = event.source ?? "lifever";
   return {
     ...currentEvent,
-    categoryId: event.categoryId || categoryIdForLegacyColor(color),
+    categoryId:
+      event.categoryId ||
+      categoryIdForLegacyColor(source === "lifever" ? storedColor : null),
+    calendarId: event.calendarId || fallbackCalendarId,
     alertsEnabled: event.alertsEnabled !== false,
+    allDay: event.allDay === true,
+    source,
+    readOnly: event.readOnly === true,
+    ...(source !== "lifever" && typeof storedColor === "string"
+      ? { color: storedColor }
+      : {}),
   };
-}
+};
 
-function readStoredEvents(): CalendarEvent[] {
+const normalizeNativeCalendar = (
+  calendar: RemoteCalendar,
+): CalendarCollection => ({
+  ...calendar,
+  source: "lifever",
+  writable: true,
+});
+
+const normalizeGoogleCalendar = (
+  calendar: RemoteGoogleCalendar,
+): CalendarCollection => ({
+  ...calendar,
+  source: "google",
+  writable:
+    calendar.accessRole === "writer" || calendar.accessRole === "owner",
+});
+
+const readStoredCalendars = (): CalendarCollection[] => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = JSON.parse(
+      localStorage.getItem(CALENDAR_STORAGE_KEY) ?? "null",
+    ) as CalendarCollection[] | null;
+    const calendars = stored?.filter(
+      (calendar) =>
+        calendar.id &&
+        calendar.name?.trim() &&
+        isCalendarCategoryColor(calendar.color),
+    );
+    if (calendars?.length) {
+      return calendars
+        .map((calendar) => ({
+          ...calendar,
+          source: "lifever" as const,
+          writable: true,
+        }))
+        .sort((left, right) => left.position - right.position);
+    }
+  } catch {
+    // Fall back to the curated local calendar.
+  }
+  return defaultLocalCalendars.map((calendar) => ({ ...calendar }));
+};
+
+const readStoredEvents = (fallbackCalendarId: string): CalendarEvent[] => {
+  try {
+    const stored = localStorage.getItem(EVENT_STORAGE_KEY);
     if (stored) {
-      return (JSON.parse(stored) as StoredCalendarEvent[]).map(
-        normalizeCalendarEvent,
+      return (JSON.parse(stored) as StoredCalendarEvent[]).map((event) =>
+        normalizeCalendarEvent(event, fallbackCalendarId),
       );
     }
   } catch {
-    // A local storage issue should not prevent Calendar from opening.
+    // A storage issue should not prevent Calendar from opening.
   }
-  return initialCalendarEvents;
-}
+  return initialCalendarEvents.map((event) => ({
+    ...event,
+    calendarId: fallbackCalendarId,
+  }));
+};
 
-function readStoredCategories(): CalendarCategory[] {
+const readStoredCategories = (fallbackCalendarId: string): CalendarCategory[] => {
   try {
     const stored = localStorage.getItem(CATEGORY_STORAGE_KEY);
     if (stored) {
-      const categories = (JSON.parse(stored) as CalendarCategory[]).filter(
+      const categories = (JSON.parse(stored) as CalendarCategory[])
+        .map((category) => ({
+          ...category,
+          calendarId: category.calendarId || fallbackCalendarId,
+        }))
+        .filter(
         (category) =>
           category.id &&
           category.name?.trim() &&
@@ -120,30 +262,68 @@ function readStoredCategories(): CalendarCategory[] {
   } catch {
     // Fall back to the curated category set.
   }
-  return defaultCalendarCategories;
-}
+  return defaultCalendarCategories.map((category) => ({
+    ...category,
+    calendarId: fallbackCalendarId,
+  }));
+};
 
-function writeStoredEvents(events: CalendarEvent[]) {
+const writeLocalState = ({
+  calendars,
+  categories,
+  events,
+}: {
+  calendars: CalendarCollection[];
+  categories: CalendarCategory[];
+  events: CalendarEvent[];
+}) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-  } catch {
-    // The in-memory calendar remains available in restricted contexts.
-  }
-}
-
-function writeStoredCategories(categories: CalendarCategory[]) {
-  try {
+    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(calendars));
     localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
+    localStorage.setItem(EVENT_STORAGE_KEY, JSON.stringify(events));
   } catch {
-    // The in-memory calendar remains available in restricted contexts.
+    // The current in-memory state remains usable in restricted contexts.
   }
-}
+};
+
+const readActiveCalendar = () => {
+  try {
+    return localStorage.getItem(ACTIVE_CALENDAR_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
 
 export function CalendarProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
+  const { isAppEnabled } = useApps();
+  const appCalendarSources = useAppCalendarSources();
+  const {
+    calendarSourceConfiguration,
+    setCalendarSourceConfiguration,
+  } = useUserPreferences();
   const [categories, setCategories] = useState<CalendarCategory[]>([]);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [nativeCalendars, setNativeCalendars] = useState<
+    CalendarCollection[]
+  >([]);
+  const [googleCalendars, setGoogleCalendars] = useState<
+    CalendarCollection[]
+  >([]);
+  const [nativeEvents, setNativeEvents] = useState<CalendarEvent[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [activeCalendarId, setActiveCalendarIdState] = useState<string | null>(
+    readActiveCalendar,
+  );
+  const [googleStatus, setGoogleStatus] = useState<GoogleCalendarStatus>({
+    configured: false,
+    connected: false,
+    lastSyncedAt: null,
+  });
+  const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [visibleGoogleRange, setVisibleGoogleRange] = useState(
+    defaultGoogleEventRange,
+  );
   const [hydratedMode, setHydratedMode] = useState<string | null>(null);
   const modeRef = useRef<string | null>(null);
   const mutationVersion = useRef(0);
@@ -152,32 +332,178 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   const eventWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingCategoryCreates = useRef(new Map<string, Promise<void>>());
   const categoryWriteChains = useRef(new Map<string, Promise<void>>());
+  const pendingCalendarCreates = useRef(new Map<string, Promise<void>>());
+  const calendarWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingEventUpdates = useRef(new Map<string, PendingEventUpdate>());
-  const eventsRef = useRef(events);
+  const nativeEventsRef = useRef(nativeEvents);
+  const googleEventsRef = useRef(googleEvents);
   const categoriesRef = useRef(categories);
-  eventsRef.current = events;
+  const nativeCalendarsRef = useRef(nativeCalendars);
+  nativeEventsRef.current = nativeEvents;
+  googleEventsRef.current = googleEvents;
   categoriesRef.current = categories;
+  nativeCalendarsRef.current = nativeCalendars;
+
+  const appCalendars = useMemo(
+    () =>
+      appCalendarSources
+        .filter((source) => isAppEnabled(source.appId))
+        .map<CalendarCollection>((source, position) => ({
+          id: source.id,
+          appId: source.appId,
+          name: source.name,
+          color: source.color,
+          position,
+          visible:
+            calendarSourceConfiguration.visibility?.[source.id] ??
+            source.defaultVisible,
+          writable: false,
+          source: "app",
+        })),
+    [
+      appCalendarSources,
+      calendarSourceConfiguration.visibility,
+      isAppEnabled,
+    ],
+  );
+  const calendars = useMemo(
+    () => [...nativeCalendars, ...googleCalendars, ...appCalendars],
+    [appCalendars, googleCalendars, nativeCalendars],
+  );
+  const appEvents = useMemo(
+    () =>
+      appCalendarSources
+        .filter((source) => isAppEnabled(source.appId))
+        .flatMap((source) =>
+          source.events.map<CalendarEvent>((event) => ({
+            id: event.id,
+            externalId: event.id,
+            title: event.title,
+            startAt: event.startAt,
+            endAt: event.endAt,
+            categoryId: "",
+            calendarId: source.id,
+            calendarName: source.name,
+            color: source.color,
+            location: event.location ?? "",
+            notes: event.notes ?? "",
+            alertsEnabled: false,
+            allDay: event.allDay === true,
+            source: "app",
+            readOnly: true,
+            htmlLink: event.htmlLink ?? null,
+            createdAt: event.startAt,
+          })),
+        ),
+    [appCalendarSources, isAppEnabled],
+  );
+  const visibleCalendarIds = useMemo(
+    () =>
+      new Set(
+        calendars
+          .filter((calendar) => calendar.visible)
+          .map((calendar) => calendar.id),
+      ),
+    [calendars],
+  );
+  const events = useMemo(
+    () =>
+      [...nativeEvents, ...googleEvents, ...appEvents].filter((event) =>
+        visibleCalendarIds.has(event.calendarId),
+      ),
+    [appEvents, googleEvents, nativeEvents, visibleCalendarIds],
+  );
+
+  const recoverRemote = useCallback((message: string) => {
+    toast.error("Calendar could not save", {
+      id: "calendar-sync-error",
+      description: message,
+    });
+  }, []);
+
+  const loadGoogleEvents = useCallback(async () => {
+    if (!session || !googleStatus.connected) {
+      setGoogleEvents([]);
+      return;
+    }
+    const query = new URLSearchParams(visibleGoogleRange);
+    const { events: remoteEvents } = await apiRequest<{
+      events: CalendarEvent[];
+    }>(`/api/calendar-integrations/google/events?${query.toString()}`);
+    setGoogleEvents(
+      remoteEvents.map((event) =>
+        normalizeCalendarEvent(event, event.calendarId),
+      ),
+    );
+  }, [googleStatus.connected, session, visibleGoogleRange]);
+
+  const loadGoogleStatus = useCallback(async () => {
+    if (!session) {
+      setGoogleCalendars([]);
+      setGoogleEvents([]);
+      setGoogleStatus({
+        configured: false,
+        connected: false,
+        lastSyncedAt: null,
+      });
+      return;
+    }
+    const status = await apiRequest<GoogleStatusResponse>(
+      "/api/calendar-integrations/google/status",
+    );
+    setGoogleCalendars(status.calendars.map(normalizeGoogleCalendar));
+    setGoogleStatus({
+      configured: status.configured,
+      connected: status.connected,
+      lastSyncedAt: status.lastSyncedAt,
+    });
+    if (!status.connected) setGoogleEvents([]);
+  }, [session]);
 
   const loadRemote = useCallback(
     async (userId: string, preserveSelection = false) => {
       const requestedMode = `user:${userId}`;
       const requestedVersion = mutationVersion.current;
       try {
-        const [{ events: remoteEvents }, { categories: remoteCategories }] =
-          await Promise.all([
-            apiRequest<{ events: CalendarEvent[] }>("/api/calendar-events"),
-            apiRequest<{ categories: CalendarCategory[] }>(
-              "/api/calendar-categories",
-            ),
-          ]);
+        const [
+          { events: remoteEvents },
+          { categories: remoteCategories },
+          { calendars: remoteCalendars },
+          google,
+        ] = await Promise.all([
+          apiRequest<{ events: CalendarEvent[] }>("/api/calendar-events"),
+          apiRequest<{ categories: CalendarCategory[] }>(
+            "/api/calendar-categories",
+          ),
+          apiRequest<{ calendars: RemoteCalendar[] }>("/api/calendars"),
+          apiRequest<GoogleStatusResponse>(
+            "/api/calendar-integrations/google/status",
+          ),
+        ]);
         if (
           modeRef.current !== requestedMode ||
           requestedVersion !== mutationVersion.current
         ) {
           return;
         }
-        setEvents(remoteEvents.map(normalizeCalendarEvent));
+        const normalizedCalendars = remoteCalendars.map(
+          normalizeNativeCalendar,
+        );
+        const fallbackCalendarId = normalizedCalendars[0]!.id;
+        setNativeCalendars(normalizedCalendars);
+        setNativeEvents(
+          remoteEvents.map((event) =>
+            normalizeCalendarEvent(event, fallbackCalendarId),
+          ),
+        );
         setCategories(remoteCategories);
+        setGoogleCalendars(google.calendars.map(normalizeGoogleCalendar));
+        setGoogleStatus({
+          configured: google.configured,
+          connected: google.connected,
+          lastSyncedAt: google.lastSyncedAt,
+        });
+        if (!google.connected) setGoogleEvents([]);
         if (!preserveSelection) setSelectedEventId(null);
         setHydratedMode(requestedMode);
       } catch {
@@ -192,17 +518,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     [],
   );
 
-  const recoverRemote = useCallback(
-    (userId: string) => {
-      toast.error("Calendar could not save", {
-        id: "calendar-sync-error",
-        description: "Lifever is refreshing your latest synced copy.",
-      });
-      void loadRemote(userId, true);
-    },
-    [loadRemote],
-  );
-
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
@@ -212,30 +527,88 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     setHydratedMode(null);
     setSelectedEventId(null);
     if (userId) {
-      setEvents([]);
+      setNativeEvents([]);
+      setNativeCalendars([]);
       setCategories([]);
       void loadRemote(userId);
     } else {
-      setEvents(readStoredEvents());
-      setCategories(readStoredCategories());
+      const storedCalendars = readStoredCalendars();
+      setNativeCalendars(storedCalendars);
+      setNativeEvents(readStoredEvents(storedCalendars[0]!.id));
+      setCategories(readStoredCategories(storedCalendars[0]!.id));
+      setGoogleCalendars([]);
+      setGoogleEvents([]);
+      setGoogleStatus({
+        configured: false,
+        connected: false,
+        lastSyncedAt: null,
+      });
       setHydratedMode("local");
     }
   }, [isPending, loadRemote, session?.user.id]);
 
   useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending) return;
-    const timeout = window.setTimeout(() => writeStoredEvents(events), WRITE_DELAY);
-    return () => window.clearTimeout(timeout);
-  }, [events, hydratedMode, isPending, session]);
+    if (!session || !googleStatus.connected) return;
+    void loadGoogleEvents().catch(() => {
+      toast.error("Google Calendar could not sync", {
+        id: "google-calendar-sync-error",
+        description: "Lifever will try again when the app regains focus.",
+      });
+    });
+  }, [googleStatus.connected, loadGoogleEvents, session]);
 
   useEffect(() => {
     if (hydratedMode !== "local" || session || isPending) return;
     const timeout = window.setTimeout(
-      () => writeStoredCategories(categories),
+      () =>
+        writeLocalState({
+          calendars: nativeCalendars,
+          categories,
+          events: nativeEvents,
+        }),
       WRITE_DELAY,
     );
     return () => window.clearTimeout(timeout);
-  }, [categories, hydratedMode, isPending, session]);
+  }, [
+    categories,
+    hydratedMode,
+    isPending,
+    nativeCalendars,
+    nativeEvents,
+    session,
+  ]);
+
+  useEffect(() => {
+    const writableCalendars = calendars.filter(
+      (calendar) => calendar.writable && calendar.visible,
+    );
+    if (
+      activeCalendarId &&
+      writableCalendars.some((calendar) => calendar.id === activeCalendarId)
+    ) {
+      return;
+    }
+    setActiveCalendarIdState(writableCalendars[0]?.id ?? null);
+  }, [activeCalendarId, calendars]);
+
+  useEffect(() => {
+    if (
+      selectedEventId &&
+      !events.some((event) => event.id === selectedEventId)
+    ) {
+      setSelectedEventId(null);
+    }
+  }, [events, selectedEventId]);
+
+  useEffect(() => {
+    try {
+      if (activeCalendarId) {
+        localStorage.setItem(ACTIVE_CALENDAR_STORAGE_KEY, activeCalendarId);
+      }
+    } catch {
+      // The current selection remains available in memory.
+    }
+  }, [activeCalendarId]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
@@ -246,40 +619,87 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       eventWriteChains.current.size === 0 &&
       pendingCategoryCreates.current.size === 0 &&
       categoryWriteChains.current.size === 0 &&
+      pendingCalendarCreates.current.size === 0 &&
+      calendarWriteChains.current.size === 0 &&
       pendingEventUpdates.current.size === 0
     ) {
-      void loadRemote(userId, true);
+      void loadRemote(userId, true).then(() => loadGoogleEvents());
     }
   }, Boolean(session?.user.id));
 
   useEffect(() => {
     const reset = () => {
       if (modeRef.current !== "local") return;
-      setEvents(initialCalendarEvents.map((event) => ({ ...event })));
-      setCategories(
-        defaultCalendarCategories.map((category) => ({ ...category })),
+      const resetCalendars = defaultLocalCalendars.map((calendar) => ({
+        ...calendar,
+      }));
+      setNativeCalendars(resetCalendars);
+      setNativeEvents(
+        initialCalendarEvents.map((event) => ({
+          ...event,
+          calendarId: resetCalendars[0]!.id,
+        })),
       );
+      setCategories(
+        defaultCalendarCategories.map((category) => ({
+          ...category,
+          calendarId: resetCalendars[0]!.id,
+        })),
+      );
+      setActiveCalendarIdState(resetCalendars[0]!.id);
       setSelectedEventId(null);
     };
     window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
     return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
   }, []);
 
+  const findEvent = useCallback(
+    (id: string) =>
+      nativeEventsRef.current.find((event) => event.id === id) ??
+      googleEventsRef.current.find((event) => event.id === id) ??
+      appEvents.find((event) => event.id === id),
+    [appEvents],
+  );
+
   const sendEventUpdate = useCallback(
     (id: string, body: CalendarEventPatch) => {
+      const event = findEvent(id);
+      if (!session || !event || event.readOnly) return;
       const create = pendingCreates.current.get(id);
       const previous =
         eventWriteChains.current.get(id) ?? create ?? Promise.resolve();
       const request = previous
-        .then(() =>
-          apiRequest(`/api/calendar-events/${id}`, {
+        .then(async () => {
+          if (event.source === "google" && event.externalId) {
+            const { event: savedEvent } = await apiRequest<{
+              event: CalendarEvent;
+            }>(
+              `/api/calendar-integrations/google/events/${encodeURIComponent(
+                event.calendarId,
+              )}/${encodeURIComponent(event.externalId)}`,
+              {
+                method: "PATCH",
+                body: JSON.stringify(body),
+              },
+            );
+            setGoogleEvents((current) =>
+              current.map((item) =>
+                item.id === id
+                  ? normalizeCalendarEvent(savedEvent, savedEvent.calendarId)
+                  : item,
+              ),
+            );
+            return;
+          }
+          await apiRequest(`/api/calendar-events/${id}`, {
             method: "PATCH",
             body: JSON.stringify(body),
-          }).then(() => undefined),
-        )
+          });
+        })
         .catch(() => {
-          const userId = session?.user.id;
-          if (userId) recoverRemote(userId);
+          recoverRemote("Lifever is refreshing your latest synced copy.");
+          const userId = session.user.id;
+          void loadRemote(userId, true).then(() => loadGoogleEvents());
         });
       eventWriteChains.current.set(id, request);
       void request.finally(() => {
@@ -288,7 +708,13 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         }
       });
     },
-    [recoverRemote, session?.user.id],
+    [
+      findEvent,
+      loadGoogleEvents,
+      loadRemote,
+      recoverRemote,
+      session,
+    ],
   );
 
   const flushEventUpdate = useCallback(
@@ -324,8 +750,11 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const flush = () => {
       if (modeRef.current === "local") {
-        writeStoredEvents(eventsRef.current);
-        writeStoredCategories(categoriesRef.current);
+        writeLocalState({
+          calendars: nativeCalendarsRef.current,
+          categories: categoriesRef.current,
+          events: nativeEventsRef.current,
+        });
       }
       for (const id of pendingEventUpdates.current.keys()) {
         flushEventUpdate(id);
@@ -343,40 +772,92 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   const persistNewEvent = useCallback(
     (optimisticEvent: CalendarEvent, input: NewCalendarEvent) => {
       if (!session) return;
-      const request = apiRequest<{ event: CalendarEvent }>("/api/calendar-events", {
-        method: "POST",
-        body: JSON.stringify({ id: optimisticEvent.id, ...input }),
-      })
-        .then(() => undefined)
-        .catch(() => recoverRemote(session.user.id))
+      const request =
+        optimisticEvent.source === "google"
+          ? apiRequest<{ event: CalendarEvent }>(
+              "/api/calendar-integrations/google/events",
+              {
+                method: "POST",
+                body: JSON.stringify(input),
+              },
+            ).then(({ event }) => {
+              const normalized = normalizeCalendarEvent(
+                event,
+                event.calendarId,
+              );
+              setGoogleEvents((current) =>
+                current.map((item) =>
+                  item.id === optimisticEvent.id ? normalized : item,
+                ),
+              );
+              setSelectedEventId((current) =>
+                current === optimisticEvent.id ? normalized.id : current,
+              );
+            })
+          : apiRequest<{ event: CalendarEvent }>("/api/calendar-events", {
+              method: "POST",
+              body: JSON.stringify({ id: optimisticEvent.id, ...input }),
+            }).then(() => undefined);
+      const tracked = request
+        .catch(() => {
+          if (optimisticEvent.source === "google") {
+            setGoogleEvents((current) =>
+              current.filter((event) => event.id !== optimisticEvent.id),
+            );
+          }
+          recoverRemote("The new event was not saved.");
+        })
         .finally(() => pendingCreates.current.delete(optimisticEvent.id));
-      pendingCreates.current.set(optimisticEvent.id, request);
+      pendingCreates.current.set(optimisticEvent.id, tracked);
     },
     [recoverRemote, session],
   );
 
   const addEvent = useCallback(
     (input: NewCalendarEvent) => {
+      const requestedCalendar =
+        calendars.find((calendar) => calendar.id === input.calendarId) ??
+        calendars.find(
+          (calendar) => calendar.id === activeCalendarId,
+        ) ??
+        calendars.find((calendar) => calendar.writable);
+      if (!requestedCalendar?.writable) {
+        throw new Error("Choose a writable calendar.");
+      }
       const event: CalendarEvent = {
         id: crypto.randomUUID(),
         ...input,
+        calendarId: requestedCalendar.id,
+        calendarName: requestedCalendar.name,
+        ...(requestedCalendar.source !== "lifever"
+          ? { color: requestedCalendar.color }
+          : {}),
+        source: requestedCalendar.source,
+        readOnly: false,
         createdAt: new Date().toISOString(),
       };
       mutationVersion.current += 1;
-      setEvents((current) => [...current, event]);
+      if (event.source === "google") {
+        setGoogleEvents((current) => [...current, event]);
+      } else {
+        setNativeEvents((current) => [...current, event]);
+      }
       setSelectedEventId(event.id);
-      persistNewEvent(event, input);
+      persistNewEvent(event, { ...input, calendarId: requestedCalendar.id });
       return event;
     },
-    [persistNewEvent],
+    [activeCalendarId, calendars, persistNewEvent],
   );
 
   const updateEvent = useCallback(
     (id: string, patch: Partial<CalendarEvent>) => {
+      const event = findEvent(id);
+      if (!event || event.readOnly) return;
       mutationVersion.current += 1;
-      setEvents((current) =>
-        current.map((event) => (event.id === id ? { ...event, ...patch } : event)),
-      );
+      const apply = (current: CalendarEvent[]) =>
+        current.map((item) => (item.id === id ? { ...item, ...patch } : item));
+      if (event.source === "google") setGoogleEvents(apply);
+      else setNativeEvents(apply);
       if (session) {
         const allowedPatch: CalendarEventPatch = {
           ...(patch.title !== undefined ? { title: patch.title } : {}),
@@ -385,12 +866,29 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           ...(patch.categoryId !== undefined
             ? { categoryId: patch.categoryId }
             : {}),
-          ...(patch.location !== undefined ? { location: patch.location } : {}),
+          ...(patch.calendarId !== undefined
+            ? { calendarId: patch.calendarId }
+            : {}),
+          ...(patch.location !== undefined
+            ? { location: patch.location }
+            : {}),
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
           ...(patch.alertsEnabled !== undefined
             ? { alertsEnabled: patch.alertsEnabled }
             : {}),
+          ...(patch.allDay !== undefined ? { allDay: patch.allDay } : {}),
         };
+        if (event.source === "google") {
+          delete allowedPatch.categoryId;
+          delete allowedPatch.calendarId;
+          delete allowedPatch.alertsEnabled;
+          if (
+            patch.startAt !== undefined ||
+            patch.endAt !== undefined
+          ) {
+            allowedPatch.allDay = event.allDay;
+          }
+        }
         if (Object.keys(allowedPatch).length > 0) {
           const textOnly = Object.keys(allowedPatch).every(
             (key) => key === "title" || key === "location" || key === "notes",
@@ -399,19 +897,28 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         }
       }
     },
-    [queueEventUpdate, session],
+    [findEvent, queueEventUpdate, session],
   );
 
   const removeEvent = useCallback(
     (id: string) => {
-      const event = events.find((item) => item.id === id) ?? null;
+      const event = findEvent(id) ?? null;
+      if (!event || event.readOnly) return null;
       mutationVersion.current += 1;
       const pending = pendingEventUpdates.current.get(id);
       if (pending) {
         window.clearTimeout(pending.timeout);
         pendingEventUpdates.current.delete(id);
       }
-      setEvents((current) => current.filter((item) => item.id !== id));
+      if (event.source === "google") {
+        setGoogleEvents((current) =>
+          current.filter((item) => item.id !== id),
+        );
+      } else {
+        setNativeEvents((current) =>
+          current.filter((item) => item.id !== id),
+        );
+      }
       setSelectedEventId((current) => (current === id ? null : current));
       if (session) {
         const previous =
@@ -419,71 +926,336 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           pendingCreates.current.get(id) ??
           Promise.resolve();
         const request = previous
-          .then(() =>
-            apiRequest(`/api/calendar-events/${id}`, { method: "DELETE" }),
-          )
+          .then(() => {
+            if (event.source === "google" && event.externalId) {
+              return apiRequest(
+                `/api/calendar-integrations/google/events/${encodeURIComponent(
+                  event.calendarId,
+                )}/${encodeURIComponent(event.externalId)}`,
+                { method: "DELETE" },
+              );
+            }
+            return apiRequest(`/api/calendar-events/${id}`, {
+              method: "DELETE",
+            });
+          })
           .then(() => undefined)
-          .catch(() => recoverRemote(session.user.id))
+          .catch(() => {
+            recoverRemote("The event could not be deleted.");
+            void loadRemote(session.user.id, true).then(() =>
+              loadGoogleEvents(),
+            );
+          })
           .finally(() => pendingDeletes.current.delete(id));
         pendingDeletes.current.set(id, request);
       }
       return event;
     },
-    [events, recoverRemote, session],
+    [
+      findEvent,
+      loadGoogleEvents,
+      loadRemote,
+      recoverRemote,
+      session,
+    ],
   );
 
   const restoreEvent = useCallback(
     (event: CalendarEvent) => {
-      mutationVersion.current += 1;
-      setEvents((current) => [...current, event]);
-      const input = {
+      if (event.readOnly) return null;
+      const restored = addEvent({
         title: event.title,
         startAt: event.startAt,
         endAt: event.endAt,
-        categoryId: event.categoryId,
+        categoryId:
+          event.categoryId || categoriesRef.current[0]?.id || "",
+        calendarId: event.calendarId,
         location: event.location,
         notes: event.notes,
         alertsEnabled: event.alertsEnabled,
-      };
-      const deletion = pendingDeletes.current.get(event.id);
-      if (deletion) {
-        void deletion.then(() => persistNewEvent(event, input));
-      } else {
-        persistNewEvent(event, input);
-      }
+        allDay: event.allDay,
+      });
+      return restored;
     },
-    [persistNewEvent],
+    [addEvent],
   );
 
   const duplicateEvent = useCallback(
     (id: string) => {
-      const source = events.find((event) => event.id === id);
-      if (!source) return null;
-      const duplicate: NewCalendarEvent = {
+      const source = findEvent(id);
+      if (!source || source.readOnly) return null;
+      return addEvent({
         title: source.title,
-        startAt: addMinutes(toCalendarDate(source.startAt), 30).toISOString(),
+        startAt: addMinutes(
+          toCalendarDate(source.startAt),
+          30,
+        ).toISOString(),
         endAt: addMinutes(toCalendarDate(source.endAt), 30).toISOString(),
-        categoryId: source.categoryId,
+        categoryId:
+          source.categoryId || categoriesRef.current[0]?.id || "",
+        calendarId: source.calendarId,
         location: source.location,
         notes: source.notes,
         alertsEnabled: source.alertsEnabled,
-      };
-      return addEvent(duplicate);
+        allDay: source.allDay,
+      });
     },
-    [addEvent, events],
+    [addEvent, findEvent],
+  );
+
+  const setActiveCalendarId = useCallback(
+    (id: string) => {
+      if (calendars.some((calendar) => calendar.id === id && calendar.writable)) {
+        setActiveCalendarIdState(id);
+      }
+    },
+    [calendars],
+  );
+
+  const setVisibleEventRange = useCallback((start: Date, end: Date) => {
+    const next = {
+      timeMin: addDays(start, -35).toISOString(),
+      timeMax: addDays(end, 35).toISOString(),
+    };
+    setVisibleGoogleRange((current) =>
+      current.timeMin === next.timeMin && current.timeMax === next.timeMax
+        ? current
+        : next,
+    );
+  }, []);
+
+  const setCalendarVisibility = useCallback(
+    (id: string, visible: boolean) => {
+      const calendar = calendars.find((item) => item.id === id);
+      if (!calendar) return;
+      mutationVersion.current += 1;
+      if (calendar.source === "lifever") {
+        setNativeCalendars((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, visible } : item,
+          ),
+        );
+        if (session) {
+          void apiRequest(`/api/calendars/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ visible }),
+          }).catch(() => recoverRemote("Calendar visibility was not saved."));
+        }
+      } else if (calendar.source === "google") {
+        setGoogleCalendars((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, visible } : item,
+          ),
+        );
+        if (session) {
+          void apiRequest(
+            `/api/calendar-integrations/google/calendars/${id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ visible }),
+            },
+          )
+            .then(() => loadGoogleEvents())
+            .catch(() =>
+              recoverRemote("Google Calendar visibility was not saved."),
+            );
+        }
+      } else {
+        const nextVisibility = {
+          ...calendarSourceConfiguration.visibility,
+          [id]: visible,
+        };
+        const appSource = appCalendarSources.find((source) => source.id === id);
+        if (visible === appSource?.defaultVisible) delete nextVisibility[id];
+        setCalendarSourceConfiguration({
+          visibility: Object.keys(nextVisibility).length
+            ? nextVisibility
+            : undefined,
+        });
+      }
+    },
+    [
+      appCalendarSources,
+      calendarSourceConfiguration.visibility,
+      calendars,
+      loadGoogleEvents,
+      recoverRemote,
+      session,
+      setCalendarSourceConfiguration,
+    ],
+  );
+
+  const addCalendar = useCallback(
+    (input: Pick<CalendarCollection, "name" | "color">) => {
+      const defaultCategoryId = crypto.randomUUID();
+      const calendar: CalendarCollection = {
+        id: crypto.randomUUID(),
+        name: input.name.trim() || "New calendar",
+        color: input.color,
+        position:
+          nativeCalendars.reduce(
+            (maximum, item) => Math.max(maximum, item.position),
+            -1,
+          ) + 1,
+        visible: true,
+        writable: true,
+        source: "lifever",
+        createdAt: new Date().toISOString(),
+      };
+      mutationVersion.current += 1;
+      setNativeCalendars((current) => [...current, calendar]);
+      setCategories((current) => [
+        ...current,
+        {
+          id: defaultCategoryId,
+          name: "General",
+          color: calendar.color.toLowerCase(),
+          position: 0,
+          calendarId: calendar.id,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setActiveCalendarIdState(calendar.id);
+      if (session) {
+        const request = apiRequest<{
+          calendar: RemoteCalendar;
+          category: CalendarCategory;
+        }>("/api/calendars", {
+          method: "POST",
+          body: JSON.stringify({
+            id: calendar.id,
+            name: calendar.name,
+            color: calendar.color,
+            position: calendar.position,
+            visible: calendar.visible,
+            defaultCategoryId,
+          }),
+        })
+          .then(({ category }) => {
+            setCategories((current) =>
+              current.map((item) =>
+                item.id === defaultCategoryId ? category : item,
+              ),
+            );
+          })
+          .catch(() => {
+            setNativeCalendars((current) =>
+              current.filter((item) => item.id !== calendar.id),
+            );
+            setCategories((current) =>
+              current.filter((item) => item.id !== defaultCategoryId),
+            );
+            recoverRemote("The calendar was not created.");
+          })
+          .finally(() => pendingCalendarCreates.current.delete(calendar.id));
+        pendingCalendarCreates.current.set(calendar.id, request);
+      }
+      return calendar;
+    },
+    [nativeCalendars, recoverRemote, session],
+  );
+
+  const updateCalendar = useCallback(
+    (
+      id: string,
+      patch: Partial<
+        Pick<CalendarCollection, "name" | "color" | "position">
+      >,
+    ) => {
+      const calendar = nativeCalendars.find((item) => item.id === id);
+      if (!calendar) return;
+      mutationVersion.current += 1;
+      setNativeCalendars((current) =>
+        current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      );
+      if (session && Object.keys(patch).length > 0) {
+        const previous =
+          calendarWriteChains.current.get(id) ??
+          pendingCalendarCreates.current.get(id) ??
+          Promise.resolve();
+        const request = previous
+          .then(() =>
+            apiRequest(`/api/calendars/${id}`, {
+              method: "PATCH",
+              body: JSON.stringify(patch),
+            }).then(() => undefined),
+          )
+          .catch(() => recoverRemote("Calendar changes were not saved."));
+        calendarWriteChains.current.set(id, request);
+        void request.finally(() => {
+          if (calendarWriteChains.current.get(id) === request) {
+            calendarWriteChains.current.delete(id);
+          }
+        });
+      }
+    },
+    [nativeCalendars, recoverRemote, session],
+  );
+
+  const removeCalendar = useCallback(
+    (id: string) => {
+      if (nativeCalendars.length <= 1) return false;
+      const target = nativeCalendars.find((calendar) => calendar.id === id);
+      const replacement = nativeCalendars.find(
+        (calendar) => calendar.id !== id,
+      );
+      const replacementCategory = categoriesRef.current.find(
+        (category) => category.calendarId === replacement?.id,
+      );
+      if (!target || !replacement || !replacementCategory) return false;
+      mutationVersion.current += 1;
+      setNativeCalendars((current) =>
+        current.filter((calendar) => calendar.id !== id),
+      );
+      setNativeEvents((current) =>
+        current.map((event) =>
+          event.calendarId === id
+            ? {
+                ...event,
+                calendarId: replacement.id,
+                categoryId: replacementCategory.id,
+              }
+            : event,
+        ),
+      );
+      setCategories((current) =>
+        current.filter((category) => category.calendarId !== id),
+      );
+      setActiveCalendarIdState((current) =>
+        current === id ? replacement.id : current,
+      );
+      if (session) {
+        const previous =
+          calendarWriteChains.current.get(id) ??
+          pendingCalendarCreates.current.get(id) ??
+          Promise.resolve();
+        void previous
+          .then(() =>
+            apiRequest(`/api/calendars/${id}`, { method: "DELETE" }),
+          )
+          .catch(() => recoverRemote("The calendar was not deleted."));
+      }
+      return true;
+    },
+    [nativeCalendars, recoverRemote, session],
   );
 
   const addCategory = useCallback(
-    (input: Pick<CalendarCategory, "name" | "color">) => {
+    (
+      input: Pick<CalendarCategory, "name" | "color" | "calendarId">,
+    ) => {
       const category: CalendarCategory = {
         id: crypto.randomUUID(),
         name: input.name.trim() || "New category",
         color: input.color,
+        calendarId: input.calendarId,
         position:
-          categories.reduce(
+          categories
+            .filter((item) => item.calendarId === input.calendarId)
+            .reduce(
             (maximum, item) => Math.max(maximum, item.position),
             -1,
-          ) + 1,
+            ) + 1,
         createdAt: new Date().toISOString(),
       };
       mutationVersion.current += 1;
@@ -494,7 +1266,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           body: JSON.stringify(category),
         })
           .then(() => undefined)
-          .catch(() => recoverRemote(session.user.id))
+          .catch(() => recoverRemote("The category was not created."))
           .finally(() => pendingCategoryCreates.current.delete(category.id));
         pendingCategoryCreates.current.set(category.id, request);
       }
@@ -506,7 +1278,9 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   const updateCategory = useCallback(
     (
       id: string,
-      patch: Partial<Pick<CalendarCategory, "name" | "color" | "position">>,
+      patch: Partial<
+        Pick<CalendarCategory, "name" | "color" | "position">
+      >,
     ) => {
       mutationVersion.current += 1;
       setCategories((current) =>
@@ -526,7 +1300,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
               body: JSON.stringify(patch),
             }).then(() => undefined),
           )
-          .catch(() => recoverRemote(session.user.id));
+          .catch(() => recoverRemote("Category changes were not saved."));
         categoryWriteChains.current.set(id, request);
         void request.finally(() => {
           if (categoryWriteChains.current.get(id) === request) {
@@ -541,16 +1315,19 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   const removeCategory = useCallback(
     (id: string) => {
       if (categories.length <= 1) return false;
-      const replacement = categories.find((category) => category.id !== id);
-      if (!replacement || !categories.some((category) => category.id === id)) {
+      const target = categories.find((category) => category.id === id);
+      const replacement = categories.find(
+        (category) =>
+          category.id !== id && category.calendarId === target?.calendarId,
+      );
+      if (!target || !replacement) {
         return false;
       }
-
       mutationVersion.current += 1;
       setCategories((current) =>
         current.filter((category) => category.id !== id),
       );
-      setEvents((current) =>
+      setNativeEvents((current) =>
         current.map((event) =>
           event.categoryId === id
             ? { ...event, categoryId: replacement.id }
@@ -568,50 +1345,166 @@ export function CalendarProvider({ children }: PropsWithChildren) {
               method: "DELETE",
             }),
           )
-          .catch(() => recoverRemote(session.user.id));
+          .catch(() => recoverRemote("The category was not deleted."));
       }
       return true;
     },
     [categories, recoverRemote, session],
   );
 
-  const value = useMemo(
+  const refreshGoogle = useCallback(async () => {
+    if (!session) return;
+    setGoogleSyncing(true);
+    try {
+      const response = await apiRequest<{
+        calendars: RemoteGoogleCalendar[];
+        syncedAt: string;
+      }>("/api/calendar-integrations/google/refresh", { method: "POST" });
+      setGoogleCalendars(response.calendars.map(normalizeGoogleCalendar));
+      setGoogleStatus((current) => ({
+        ...current,
+        connected: true,
+        lastSyncedAt: response.syncedAt,
+      }));
+      await loadGoogleEvents();
+    } finally {
+      setGoogleSyncing(false);
+    }
+  }, [loadGoogleEvents, session]);
+
+  const connectGoogle = useCallback(async () => {
+    if (!session) {
+      throw new Error("Sign in to Lifever before connecting Google Calendar.");
+    }
+    const { authorizationUrl } = await apiRequest<{
+      authorizationUrl: string;
+    }>("/api/calendar-integrations/google/authorize", { method: "POST" });
+    const apiOrigin = new URL(apiUrl).origin;
+    await new Promise<void>((resolve, reject) => {
+      let timeout = 0;
+      const finish = () => {
+        window.removeEventListener("message", receive);
+        window.clearTimeout(timeout);
+      };
+      const receive = (message: MessageEvent) => {
+        if (
+          message.origin !== apiOrigin ||
+          message.data?.type !== "lifever:google-calendar"
+        ) {
+          return;
+        }
+        finish();
+        if (message.data.ok) resolve();
+        else reject(new Error(message.data.message || "Connection failed."));
+      };
+      window.addEventListener("message", receive);
+      const popup = window.open(
+        authorizationUrl,
+        "lifever-google-calendar",
+        "popup,width=520,height=720",
+      );
+      if (!popup) {
+        finish();
+        reject(new Error("Allow popups to connect Google Calendar."));
+        return;
+      }
+      timeout = window.setTimeout(() => {
+        finish();
+        reject(new Error("Google Calendar connection timed out."));
+      }, 10 * 60 * 1_000);
+    });
+    await loadGoogleStatus();
+    await loadGoogleEvents();
+  }, [loadGoogleEvents, loadGoogleStatus, session]);
+
+  const disconnectGoogle = useCallback(async () => {
+    if (!session) return;
+    await apiRequest("/api/calendar-integrations/google", {
+      method: "DELETE",
+    });
+    setGoogleCalendars([]);
+    setGoogleEvents([]);
+    setGoogleStatus((current) => ({
+      ...current,
+      connected: false,
+      lastSyncedAt: null,
+    }));
+  }, [session]);
+
+  const value = useMemo<CalendarContextValue>(
     () => ({
-      isReady: hydratedMode !== null && categories.length > 0,
+      isReady:
+        hydratedMode !== null &&
+        categories.length > 0 &&
+        nativeCalendars.length > 0,
       categories,
+      calendars,
       events,
+      nativeEvents,
+      activeCalendarId,
       selectedEventId,
+      google: { ...googleStatus, syncing: googleSyncing },
+      setActiveCalendarId,
+      setVisibleEventRange,
       setSelectedEventId,
+      setCalendarVisibility,
       addEvent,
       updateEvent,
       removeEvent,
       restoreEvent,
       duplicateEvent,
+      addCalendar,
+      updateCalendar,
+      removeCalendar,
+      connectGoogle,
+      disconnectGoogle,
+      refreshGoogle,
       addCategory,
       updateCategory,
       removeCategory,
     }),
     [
-      addEvent,
+      activeCalendarId,
+      addCalendar,
       addCategory,
+      addEvent,
+      calendars,
       categories,
-      hydratedMode,
+      connectGoogle,
+      disconnectGoogle,
       duplicateEvent,
       events,
-      removeEvent,
+      googleStatus,
+      googleSyncing,
+      hydratedMode,
+      nativeCalendars.length,
+      nativeEvents,
+      refreshGoogle,
+      removeCalendar,
       removeCategory,
+      removeEvent,
       restoreEvent,
       selectedEventId,
-      updateEvent,
+      setActiveCalendarId,
+      setVisibleEventRange,
+      setCalendarVisibility,
+      updateCalendar,
       updateCategory,
+      updateEvent,
     ],
   );
 
-  return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
+  return (
+    <CalendarContext.Provider value={value}>
+      {children}
+    </CalendarContext.Provider>
+  );
 }
 
 export function useCalendar() {
   const context = useContext(CalendarContext);
-  if (!context) throw new Error("useCalendar must be used inside CalendarProvider");
+  if (!context) {
+    throw new Error("useCalendar must be used inside CalendarProvider");
+  }
   return context;
 }

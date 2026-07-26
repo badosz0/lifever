@@ -3,6 +3,7 @@ import {
   CalendarRange,
   Clock3,
   Copy,
+  ExternalLink,
   MapPin,
   Trash2,
   X,
@@ -18,6 +19,7 @@ import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
 import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
 import {
+  addDays,
   addMinutes,
   combineDateAndTime,
   dateKey,
@@ -30,7 +32,7 @@ import {
   startOfLocalDay,
   timeInputValue,
 } from "@/features/calendar/lib/dates";
-import { getCalendarCategory } from "@/features/calendar/lib/categories";
+import { getCalendarEventCategory } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { cn } from "@/lib/cn";
@@ -43,6 +45,7 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
   const { dateFormat, timeFormat } = useUserPreferences();
   const {
     duplicateEvent,
+    calendars,
     categories,
     events,
     removeEvent,
@@ -52,6 +55,9 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
     updateEvent,
   } = useCalendar();
   const calendarEvent = events.find((event) => event.id === selectedEventId);
+  const calendar = calendars.find(
+    (item) => item.id === calendarEvent?.calendarId,
+  );
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
@@ -67,7 +73,13 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
     setNotes(calendarEvent.notes);
     setStartDate(dateKey(calendarEvent.startAt));
     setStartTime(timeInputValue(calendarEvent.startAt));
-    setEndDate(dateKey(calendarEvent.endAt));
+    setEndDate(
+      dateKey(
+        calendarEvent.allDay
+          ? addMinutes(new Date(calendarEvent.endAt), -1)
+          : calendarEvent.endAt,
+      ),
+    );
     setEndTime(timeInputValue(calendarEvent.endAt));
   }, [calendarEvent]);
 
@@ -92,21 +104,24 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
     );
   }
 
-  const category = getCalendarCategory(categories, calendarEvent.categoryId);
+  const category = getCalendarEventCategory(categories, calendarEvent);
   const durationMinutes = durationInMinutes(
     calendarEvent.startAt,
     calendarEvent.endAt,
   );
-  const durationLabel = formatDurationMinutes(durationMinutes);
-  const multiDay = !isSameLocalDay(
-    calendarEvent.startAt,
-    calendarEvent.endAt,
+  const calendarDayDistance = daysBetween(
+    startOfLocalDay(new Date(calendarEvent.endAt)),
+    startOfLocalDay(new Date(calendarEvent.startAt)),
   );
-  const dayCount =
-    daysBetween(
-      startOfLocalDay(new Date(calendarEvent.endAt)),
-      startOfLocalDay(new Date(calendarEvent.startAt)),
-    ) + 1;
+  const dayCount = calendarEvent.allDay
+    ? Math.max(1, calendarDayDistance)
+    : calendarDayDistance + 1;
+  const multiDay = calendarEvent.allDay
+    ? dayCount > 1
+    : !isSameLocalDay(calendarEvent.startAt, calendarEvent.endAt);
+  const durationLabel = calendarEvent.allDay
+    ? `${dayCount} ${dayCount === 1 ? "day" : "days"}`
+    : formatDurationMinutes(durationMinutes);
 
   const commitText = (field: "title" | "location" | "notes", value: string) => {
     const cleanValue = value.trim();
@@ -124,7 +139,9 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
     const end = addMinutes(start, Math.max(30, durationMinutes));
     setStartDate(nextDate);
     setStartTime(nextTime);
-    setEndDate(dateKey(end));
+    setEndDate(
+      dateKey(calendarEvent.allDay ? addMinutes(end, -1) : end),
+    );
     setEndTime(timeInputValue(end));
     updateEvent(calendarEvent.id, {
       startAt: start.toISOString(),
@@ -134,7 +151,9 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
 
   const changeEnd = (nextDate: string, nextTime: string) => {
     const start = combineDateAndTime(startDate, startTime);
-    const end = combineDateAndTime(nextDate, nextTime);
+    const end = calendarEvent.allDay
+      ? addDays(combineDateAndTime(nextDate, "00:00"), 1)
+      : combineDateAndTime(nextDate, nextTime);
     if (!isAfterDate(end, start)) return;
     setEndDate(nextDate);
     setEndTime(nextTime);
@@ -211,7 +230,39 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
             }}
             className="min-h-14 border-0 bg-transparent px-0 py-0 text-[18px] leading-6 font-semibold tracking-[-0.02em] shadow-none focus:ring-0"
             aria-label="Event name"
+            readOnly={calendarEvent.readOnly}
           />
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 px-0.5">
+          <span
+            className="size-2.5 rounded-[3px]"
+            style={{ backgroundColor: calendar?.color ?? category.color }}
+          />
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium">
+            {calendar?.name ?? calendarEvent.calendarName ?? "Calendar"}
+          </span>
+          <span className="text-[10px] capitalize text-muted-foreground">
+            {calendarEvent.source === "app"
+              ? "Read only"
+              : calendarEvent.source === "google" && calendarEvent.readOnly
+                ? "Google · read only"
+              : calendarEvent.source}
+          </span>
+          {calendarEvent.htmlLink ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 text-muted-foreground"
+              onClick={() =>
+                window.open(calendarEvent.htmlLink ?? undefined, "_blank")
+              }
+              aria-label="Open original event"
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          ) : null}
         </div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-border/65 bg-background">
@@ -222,7 +273,9 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
               <p className="mt-0.5 text-[13px] font-semibold">{durationLabel}</p>
             </div>
             <span className="text-[11px] font-medium text-muted-foreground">
-              {multiDay ? (
+              {calendarEvent.allDay ? (
+                "All day"
+              ) : multiDay ? (
                 <span className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-foreground">
                   <CalendarRange className="size-3 text-primary" />
                   {dayCount} days
@@ -237,7 +290,14 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
             </span>
           </div>
 
-          <div className="grid grid-cols-[48px_1fr_90px] items-center gap-2 px-3 py-2.5">
+          <div
+            className={cn(
+              "grid items-center gap-2 px-3 py-2.5",
+              calendarEvent.allDay
+                ? "grid-cols-[48px_1fr]"
+                : "grid-cols-[48px_1fr_90px]",
+            )}
+          >
             <span className="text-[11px] font-medium text-muted-foreground">Starts</span>
             <DatePicker
               value={startDate}
@@ -245,17 +305,28 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
               dateFormat={dateFormat}
               className="h-8 px-2 text-[11px]"
               ariaLabel="Start date"
+              disabled={calendarEvent.readOnly}
             />
-            <TimePicker
-              timeFormat={timeFormat}
-              value={startTime}
-              onValueChange={(value) => changeStart(startDate, value)}
-              minuteStep={15}
-              className="h-8 w-[90px] rounded-md border border-input bg-transparent px-2 text-right text-[11px] text-foreground shadow-xs focus:ring-2"
-              ariaLabel="Start time"
-            />
+            {!calendarEvent.allDay ? (
+              <TimePicker
+                timeFormat={timeFormat}
+                value={startTime}
+                onValueChange={(value) => changeStart(startDate, value)}
+                minuteStep={15}
+                className="h-8 w-[90px] rounded-md border border-input bg-transparent px-2 text-right text-[11px] text-foreground shadow-xs focus:ring-2"
+                ariaLabel="Start time"
+                disabled={calendarEvent.readOnly}
+              />
+            ) : null}
           </div>
-          <div className="grid grid-cols-[48px_1fr_90px] items-center gap-2 border-t border-border/45 px-3 py-2.5">
+          <div
+            className={cn(
+              "grid items-center gap-2 border-t border-border/45 px-3 py-2.5",
+              calendarEvent.allDay
+                ? "grid-cols-[48px_1fr]"
+                : "grid-cols-[48px_1fr_90px]",
+            )}
+          >
             <span className="text-[11px] font-medium text-muted-foreground">Ends</span>
             <DatePicker
               value={endDate}
@@ -263,68 +334,91 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
               dateFormat={dateFormat}
               className="h-8 px-2 text-[11px]"
               ariaLabel="End date"
+              disabled={calendarEvent.readOnly}
             />
-            <TimePicker
-              timeFormat={timeFormat}
-              value={endTime}
-              onValueChange={(value) => changeEnd(endDate, value)}
-              minuteStep={15}
-              className="h-8 w-[90px] rounded-md border border-input bg-transparent px-2 text-right text-[11px] text-foreground shadow-xs focus:ring-2"
-              ariaLabel="End time"
-            />
+            {!calendarEvent.allDay ? (
+              <TimePicker
+                timeFormat={timeFormat}
+                value={endTime}
+                onValueChange={(value) => changeEnd(endDate, value)}
+                minuteStep={15}
+                className="h-8 w-[90px] rounded-md border border-input bg-transparent px-2 text-right text-[11px] text-foreground shadow-xs focus:ring-2"
+                ariaLabel="End time"
+                disabled={calendarEvent.readOnly}
+              />
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-4">
+        {calendarEvent.source === "lifever" ? (
+          <div className="mt-4">
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
             Category
           </label>
           <CalendarCategorySelect
+            calendarId={calendarEvent.calendarId}
             value={calendarEvent.categoryId}
             onValueChange={(categoryId) =>
               updateEvent(calendarEvent.id, { categoryId })
             }
           />
-        </div>
+          </div>
+        ) : null}
 
-        <CalendarEventAlertToggle
-          checked={calendarEvent.alertsEnabled}
-          onCheckedChange={(alertsEnabled) =>
-            updateEvent(calendarEvent.id, { alertsEnabled })
-          }
-          className="mt-4"
-        />
+        {calendarEvent.source === "lifever" ? (
+          <CalendarEventAlertToggle
+            checked={calendarEvent.alertsEnabled}
+            onCheckedChange={(alertsEnabled) =>
+              updateEvent(calendarEvent.id, { alertsEnabled })
+            }
+            className="mt-4"
+          />
+        ) : null}
 
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="event-location" className="mb-1.5 block text-xs font-medium text-muted-foreground">Location</label>
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="event-location"
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
-                onBlur={(event) => commitText("location", event.currentTarget.value)}
-                placeholder="Add a location"
-                className="pl-9 text-[13px]"
-              />
-            </div>
+            {calendarEvent.readOnly ? (
+              <div className="flex min-h-9 items-center gap-2.5 px-1 text-[13px]">
+                <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
+                <span>{location || "No location"}</span>
+              </div>
+            ) : (
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="event-location"
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  onBlur={(event) => commitText("location", event.currentTarget.value)}
+                  placeholder="Add a location"
+                  className="pl-9 text-[13px]"
+                />
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="event-notes" className="mb-1.5 block text-xs font-medium text-muted-foreground">Notes</label>
-            <Textarea
-              id="event-notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              onBlur={(event) => commitText("notes", event.currentTarget.value)}
-              placeholder="Add notes"
-              className="min-h-24 text-[13px]"
-            />
+            {calendarEvent.readOnly ? (
+              <p className="min-h-12 whitespace-pre-wrap px-1 text-[13px] leading-5 text-foreground">
+                {notes || "No notes"}
+              </p>
+            ) : (
+              <Textarea
+                id="event-notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                onBlur={(event) => commitText("notes", event.currentTarget.value)}
+                placeholder="Add notes"
+                className="min-h-24 text-[13px]"
+              />
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t border-border/60 px-2 py-1.5">
+      {!calendarEvent.readOnly ? (
+        <div className="flex shrink-0 items-center gap-1 border-t border-border/60 px-2 py-1.5">
         <Button variant="ghost" size="sm" className="h-8 flex-1 justify-start rounded-md px-2 text-[12px] font-medium" onClick={duplicate}>
           <Copy className="size-3.5" strokeWidth={1.9} />
           Duplicate
@@ -338,7 +432,8 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
         >
           <Trash2 className="size-3.5" strokeWidth={1.8} />
         </Button>
-      </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

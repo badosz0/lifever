@@ -9,6 +9,7 @@ import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import { cn } from "@/lib/cn";
 
 type CalendarCategorySelectProps = {
+  calendarId: string;
   value: string;
   onValueChange: (value: string) => void;
   ariaLabel?: string;
@@ -16,13 +17,21 @@ type CalendarCategorySelectProps = {
 };
 
 export function CalendarCategorySelect({
+  calendarId,
   value,
   onValueChange,
   ariaLabel = "Event category",
   className,
 }: CalendarCategorySelectProps) {
   const { categories } = useCalendar();
-  const selectedCategory = getCalendarCategory(categories, value);
+  const calendarCategories = categories.filter(
+    (category) => category.calendarId === calendarId,
+  );
+  const selectedCategory = getCalendarCategory(
+    calendarCategories,
+    value,
+    calendarId,
+  );
 
   return (
     <Select value={selectedCategory.id} onValueChange={onValueChange}>
@@ -38,7 +47,7 @@ export function CalendarCategorySelect({
         </span>
       </SelectTrigger>
       <SelectContent align="start">
-        {categories.map((category) => (
+        {calendarCategories.map((category) => (
           <SelectItem key={category.id} value={category.id}>
             <span className="flex min-w-0 items-center gap-2">
               <span

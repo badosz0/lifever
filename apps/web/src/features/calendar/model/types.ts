@@ -3,7 +3,23 @@ export type CalendarCategory = {
   name: string;
   color: string;
   position: number;
+  calendarId: string;
   createdAt: string;
+};
+
+export type CalendarSourceKind = "lifever" | "google" | "app";
+
+export type CalendarCollection = {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  visible: boolean;
+  writable: boolean;
+  source: CalendarSourceKind;
+  appId?: string;
+  primary?: boolean;
+  createdAt?: string;
 };
 
 export type CalendarEvent = {
@@ -12,9 +28,17 @@ export type CalendarEvent = {
   startAt: string;
   endAt: string;
   categoryId: string;
+  calendarId: string;
+  calendarName?: string;
+  color?: string;
   location: string;
   notes: string;
   alertsEnabled: boolean;
+  allDay: boolean;
+  source: CalendarSourceKind;
+  readOnly: boolean;
+  externalId?: string;
+  htmlLink?: string | null;
   createdAt: string;
 };
 
@@ -24,12 +48,15 @@ export type NewCalendarEvent = Pick<
   | "startAt"
   | "endAt"
   | "categoryId"
+  | "calendarId"
   | "location"
   | "notes"
   | "alertsEnabled"
+  | "allDay"
 >;
 
 export type CalendarEventPreview = {
+  calendarId: string;
   categoryId: string;
   end: Date;
   start: Date;

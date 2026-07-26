@@ -29,6 +29,9 @@ export type FeatureAppDefinition = BaseAppDefinition & {
   HomeWidget: ComponentType;
   Inspector: ComponentType<{ className?: string }>;
   DetailsDialog: ComponentType;
+  calendarSource?: {
+    Connector: ComponentType;
+  };
   detailsPanel: {
     defaultWidth: number;
     minWidth: number;

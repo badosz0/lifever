@@ -29,15 +29,23 @@ export type AppConfiguration = {
   homeOrder?: string[];
 };
 
+export type CalendarSourceConfiguration = {
+  visibility?: Record<string, boolean>;
+};
+
 type UserPreferences = UserFormatPreferences & {
   appConfiguration: AppConfiguration;
   calendarClickToCreate: boolean;
+  calendarSourceConfiguration: CalendarSourceConfiguration;
 };
 
 type UserPreferencesContextValue = UserPreferences & {
   isReady: boolean;
   setAppConfiguration: (configuration: AppConfiguration) => void;
   setCalendarClickToCreate: (enabled: boolean) => void;
+  setCalendarSourceConfiguration: (
+    configuration: CalendarSourceConfiguration,
+  ) => void;
   setDateFormat: (format: DateFormatPreference) => void;
   setTimeFormat: (format: TimeFormatPreference) => void;
 };
@@ -50,6 +58,7 @@ const STORAGE_KEY = "lifever-user-preferences";
 const DEFAULT_PREFERENCES: UserPreferences = {
   appConfiguration: {},
   calendarClickToCreate: true,
+  calendarSourceConfiguration: {},
   dateFormat: "system",
   timeFormat: "system",
 };
@@ -111,6 +120,29 @@ const normalizeAppConfiguration = (value: unknown): AppConfiguration => {
   };
 };
 
+const normalizeCalendarSourceConfiguration = (
+  value: unknown,
+): CalendarSourceConfiguration => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const stored = value as Record<string, unknown>;
+  if (
+    !stored.visibility ||
+    typeof stored.visibility !== "object" ||
+    Array.isArray(stored.visibility)
+  ) {
+    return {};
+  }
+  const visibility = Object.fromEntries(
+    Object.entries(stored.visibility as Record<string, unknown>).flatMap(
+      ([sourceId, visible]) =>
+        sourceId && typeof visible === "boolean"
+          ? [[sourceId, visible] as const]
+          : [],
+    ),
+  );
+  return Object.keys(visibility).length ? { visibility } : {};
+};
+
 const normalizePreferences = (
   stored: Partial<Record<keyof UserPreferences, unknown>> | null,
 ): UserPreferences => ({
@@ -119,6 +151,9 @@ const normalizePreferences = (
     typeof stored?.calendarClickToCreate === "boolean"
       ? stored.calendarClickToCreate
       : DEFAULT_PREFERENCES.calendarClickToCreate,
+  calendarSourceConfiguration: normalizeCalendarSourceConfiguration(
+    stored?.calendarSourceConfiguration,
+  ),
   dateFormat: isDateFormat(stored?.dateFormat)
     ? stored.dateFormat
     : DEFAULT_PREFERENCES.dateFormat,
@@ -238,6 +273,17 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
           calendarClickToCreate,
         }));
         updateRemote({ calendarClickToCreate });
+      },
+      setCalendarSourceConfiguration: (calendarSourceConfiguration) => {
+        mutationVersion.current += 1;
+        const normalized = normalizeCalendarSourceConfiguration(
+          calendarSourceConfiguration,
+        );
+        setPreferences((current) => ({
+          ...current,
+          calendarSourceConfiguration: normalized,
+        }));
+        updateRemote({ calendarSourceConfiguration: normalized });
       },
       setDateFormat: (dateFormat) => {
         mutationVersion.current += 1;

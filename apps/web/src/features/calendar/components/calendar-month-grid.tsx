@@ -29,7 +29,10 @@ import {
   getCalendarEventSegment,
   getCalendarIntervalSegment,
 } from "@/features/calendar/lib/event-segments";
-import { getCalendarCategory } from "@/features/calendar/lib/categories";
+import {
+  getCalendarEventCategory,
+  getCalendarPreviewCategory,
+} from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type {
   CalendarEvent,
@@ -73,7 +76,7 @@ export function CalendarMonthGrid({
   onSelectDay,
   onSelectEvent,
 }: CalendarMonthGridProps) {
-  const { categories } = useCalendar();
+  const { calendars, categories } = useCalendar();
   const { dateFormat } = useUserPreferences();
   const monthGridRef = useRef<HTMLDivElement>(null);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
@@ -163,7 +166,7 @@ export function CalendarMonthGrid({
     if (!payload) return;
     const eventId = payload.eventId;
     const calendarEvent = events.find((event) => event.id === eventId);
-    if (!calendarEvent) return;
+    if (!calendarEvent || calendarEvent.readOnly) return;
 
     const start = toCalendarDate(calendarEvent.startAt);
     const end = toCalendarDate(calendarEvent.endAt);
@@ -280,9 +283,10 @@ export function CalendarMonthGrid({
                     <CalendarMonthEventCard
                       preview
                       title={newEventPreview.title}
-                      category={getCalendarCategory(
+                      category={getCalendarPreviewCategory(
                         categories,
-                        newEventPreview.categoryId,
+                        calendars,
+                        newEventPreview,
                       )}
                       startAt={newEventPreview.start}
                       endAt={newEventPreview.end}
@@ -294,9 +298,9 @@ export function CalendarMonthGrid({
                     <CalendarMonthEventCard
                       key={segment.event.id}
                       title={segment.event.title}
-                      category={getCalendarCategory(
+                      category={getCalendarEventCategory(
                         categories,
-                        segment.event.categoryId,
+                        segment.event,
                       )}
                       startAt={segment.event.startAt}
                       endAt={segment.event.endAt}
@@ -304,8 +308,13 @@ export function CalendarMonthGrid({
                       continuesAfter={segment.continuesAfter}
                       selected={selectedEventId === segment.event.id}
                       dragging={draggingEventId === segment.event.id}
+                      readOnly={segment.event.readOnly}
                       onClick={() => onSelectEvent(segment.event.id)}
                       onDragStart={(dragEvent) => {
+                        if (segment.event.readOnly) {
+                          dragEvent.preventDefault();
+                          return;
+                        }
                         dragEvent.stopPropagation();
                         dragEvent.dataTransfer.effectAllowed = "move";
                         dragEvent.dataTransfer.setData(

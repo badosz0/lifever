@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
+import { CalendarCollectionSelect } from "@/features/calendar/components/calendar-collection-select";
 import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
 import {
   dateKey,
@@ -46,7 +47,7 @@ export function NewCalendarEventDialog({
   initialStart,
   initialEnd,
 }: NewCalendarEventDialogProps) {
-  const { addEvent, categories } = useCalendar();
+  const { activeCalendarId, addEvent, calendars, categories } = useCalendar();
   const { dateFormat, timeFormat } = useUserPreferences();
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState(dateKey(initialStart));
@@ -54,7 +55,17 @@ export function NewCalendarEventDialog({
   const [endDate, setEndDate] = useState(dateKey(initialEnd));
   const [endTime, setEndTime] = useState(timeInputValue(initialEnd));
   const [categoryId, setCategoryId] = useState(
-    getCalendarCategory(categories, null).id,
+    getCalendarCategory(
+      categories,
+      null,
+      activeCalendarId,
+    ).id,
+  );
+  const [calendarId, setCalendarId] = useState(
+    () =>
+      activeCalendarId ??
+      calendars.find((calendar) => calendar.writable)?.id ??
+      "",
   );
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
@@ -75,6 +86,14 @@ export function NewCalendarEventDialog({
       endTime,
     );
   }, [endDate, endTime, startDate, startTime]);
+  const selectedCalendar = calendars.find(
+    (calendar) => calendar.id === calendarId,
+  );
+  const selectedCalendarCategory = getCalendarCategory(
+    categories,
+    categoryId,
+    calendarId,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -82,13 +101,32 @@ export function NewCalendarEventDialog({
     setStartTime(timeInputValue(initialStart));
     setEndDate(dateKey(initialEnd));
     setEndTime(timeInputValue(initialEnd));
-  }, [initialEnd, initialStart, open]);
+    setCalendarId(
+      activeCalendarId ??
+        calendars.find((calendar) => calendar.writable)?.id ??
+        "",
+    );
+  }, [activeCalendarId, calendars, initialEnd, initialStart, open]);
+
+  useEffect(() => {
+    if (!open || selectedCalendar?.source !== "lifever") return;
+    if (selectedCalendarCategory.calendarId === calendarId) {
+      setCategoryId(selectedCalendarCategory.id);
+    }
+  }, [
+    calendarId,
+    open,
+    selectedCalendar?.source,
+    selectedCalendarCategory.calendarId,
+    selectedCalendarCategory.id,
+  ]);
 
   useEffect(() => {
     if (!open) return;
     onDraftChange(
       range.valid
         ? {
+            calendarId,
             categoryId,
             end: range.end,
             start: range.start,
@@ -96,7 +134,7 @@ export function NewCalendarEventDialog({
           }
         : null,
     );
-  }, [categoryId, onDraftChange, open, range, title]);
+  }, [calendarId, categoryId, onDraftChange, open, range, title]);
 
   const submit = (formEvent: FormEvent) => {
     formEvent.preventDefault();
@@ -107,9 +145,11 @@ export function NewCalendarEventDialog({
       startAt: range.start.toISOString(),
       endAt: range.end.toISOString(),
       categoryId,
+      calendarId,
       location: location.trim(),
       notes: notes.trim(),
       alertsEnabled,
+      allDay: false,
     });
     onOpenChange(false);
     toast.success("Event added", { description: event.title });
@@ -240,20 +280,42 @@ export function NewCalendarEventDialog({
 
           <div className="mt-4">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Category
+              Calendar
             </label>
-            <CalendarCategorySelect
-              value={categoryId}
-              onValueChange={setCategoryId}
-              ariaLabel="New event category"
+            <CalendarCollectionSelect
+              value={calendarId}
+              onValueChange={setCalendarId}
+              writableOnly
+              ariaLabel="New event calendar"
             />
           </div>
 
-          <CalendarEventAlertToggle
-            checked={alertsEnabled}
-            onCheckedChange={setAlertsEnabled}
-            className="mt-4"
-          />
+          {selectedCalendar?.source === "lifever" ? (
+            <>
+              <div className="mt-4">
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Category
+                </label>
+                <CalendarCategorySelect
+                  calendarId={calendarId}
+                  value={categoryId}
+                  onValueChange={setCategoryId}
+                  ariaLabel="New event category"
+                />
+              </div>
+
+              <CalendarEventAlertToggle
+                checked={alertsEnabled}
+                onCheckedChange={setAlertsEnabled}
+                className="mt-4"
+              />
+            </>
+          ) : selectedCalendar?.source === "google" ? (
+            <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
+              This event will be created in Google Calendar and use that
+              calendar’s color.
+            </p>
+          ) : null}
 
           <div className="mt-4">
             <label htmlFor={locationId} className="mb-1.5 block text-xs font-medium text-muted-foreground">

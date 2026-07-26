@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   type MouseEvent,
   type PointerEvent,
@@ -37,7 +38,12 @@ import {
   minuteAtCalendarPosition,
 } from "@/features/calendar/lib/draft-range";
 import { layoutOverlappingEvents } from "@/features/calendar/lib/layout-events";
-import { getCalendarCategory } from "@/features/calendar/lib/categories";
+import {
+  getCalendarCategory,
+  getCalendarCategoryStyle,
+  getCalendarEventCategory,
+  getCalendarPreviewCategory,
+} from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type {
   CalendarEvent,
@@ -65,6 +71,9 @@ const hours = Array.from(
   (_, index) => HOUR_START + index,
 );
 const DAY_HEADER_HEIGHT = 54;
+const ALL_DAY_EVENT_HEIGHT = 20;
+const ALL_DAY_EVENT_GAP = 2;
+const MAX_ALL_DAY_ROWS = 3;
 const HOUR_COUNT = HOUR_END - HOUR_START;
 const DEFAULT_VISIBLE_START_HOUR = 8;
 const DEFAULT_VISIBLE_END_HOUR = 19;
@@ -121,7 +130,7 @@ export function CalendarGrid({
   onCreateAt,
   onSelectDay,
 }: CalendarGridProps) {
-  const { categories } = useCalendar();
+  const { activeCalendarId, calendars, categories } = useCalendar();
   const { dateFormat, timeFormat } = useUserPreferences();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const draftSelectionRef = useRef<DraftSelection | null>(null);
@@ -147,6 +156,37 @@ export function CalendarGrid({
     MAX_DEFAULT_EVENT_DURATION_MINUTES,
   );
   const now = useCurrentTime();
+  const allDayEventsByDay = useMemo(() => {
+    const map = new Map<
+      string,
+      NonNullable<ReturnType<typeof getCalendarEventSegment>>[]
+    >();
+    for (const day of days) {
+      const segments = events
+        .filter((event) => event.allDay)
+        .map((event) => getCalendarEventSegment(event, day))
+        .filter(
+          (
+            segment,
+          ): segment is NonNullable<
+            ReturnType<typeof getCalendarEventSegment>
+          > => Boolean(segment),
+        );
+      if (segments.length) map.set(dateKey(day), segments);
+    }
+    return map;
+  }, [days, events]);
+  const allDayRowCount = Math.min(
+    MAX_ALL_DAY_ROWS,
+    Math.max(0, ...[...allDayEventsByDay.values()].map((items) => items.length)),
+  );
+  const allDayHeight =
+    allDayRowCount > 0
+      ? allDayRowCount * ALL_DAY_EVENT_HEIGHT +
+        (allDayRowCount - 1) * ALL_DAY_EVENT_GAP +
+        8
+      : 0;
+  const stickyChromeHeight = DAY_HEADER_HEIGHT + allDayHeight;
   const eventSegmentsByDay = useMemo(() => {
     const map = new Map<
       string,
@@ -154,6 +194,7 @@ export function CalendarGrid({
     >();
     for (const day of days) {
       const segments = events
+        .filter((event) => !event.allDay)
         .map((event) => getCalendarEventSegment(event, day))
         .filter(
           (
@@ -181,11 +222,11 @@ export function CalendarGrid({
 
       const anchoredViewportY = clamp(
         viewportY,
-        DAY_HEADER_HEIGHT,
+        stickyChromeHeight,
         scrollArea.clientHeight,
       );
       const focalHour = clamp(
-        (scrollArea.scrollTop + anchoredViewportY - DAY_HEADER_HEIGHT) /
+        (scrollArea.scrollTop + anchoredViewportY - stickyChromeHeight) /
           renderedHourHeightRef.current,
         0,
         HOUR_COUNT,
@@ -199,7 +240,7 @@ export function CalendarGrid({
       targetHourHeightRef.current = nextHourHeight;
       setHourHeight(nextHourHeight);
     },
-    [],
+    [stickyChromeHeight],
   );
 
   useLayoutEffect(() => {
@@ -216,7 +257,7 @@ export function CalendarGrid({
 
     const nextScrollTop =
       pendingZoom.focalHour * hourHeight +
-      DAY_HEADER_HEIGHT -
+      stickyChromeHeight -
       pendingZoom.viewportY;
     scrollArea.scrollTop = clamp(
       nextScrollTop,
@@ -224,7 +265,7 @@ export function CalendarGrid({
       Math.max(0, scrollArea.scrollHeight - scrollArea.clientHeight),
     );
     pendingZoomRef.current = null;
-  }, [hourHeight]);
+  }, [hourHeight, stickyChromeHeight]);
 
   useLayoutEffect(() => {
     const scrollArea = scrollAreaRef.current;
@@ -234,7 +275,7 @@ export function CalendarGrid({
       const previousMinimum = minimumHourHeightRef.current;
       const nextMinimum = Math.max(
         MIN_RENDERED_HOUR_HEIGHT,
-        (scrollArea.clientHeight - DAY_HEADER_HEIGHT - LAYOUT_SAFETY_PX) /
+        (scrollArea.clientHeight - stickyChromeHeight - LAYOUT_SAFETY_PX) /
           HOUR_COUNT,
       );
       const maximum = Math.max(nextMinimum, MAX_HOUR_HEIGHT);
@@ -261,7 +302,7 @@ export function CalendarGrid({
           pendingZoomRef.current = {
             focalHour: initialFocalHour,
             hourHeight: initialHourHeight,
-            viewportY: DAY_HEADER_HEIGHT,
+            viewportY: stickyChromeHeight,
           };
           setHourHeight(initialHourHeight);
         }
@@ -284,7 +325,7 @@ export function CalendarGrid({
     const observer = new ResizeObserver(updateMinimumScale);
     observer.observe(scrollArea);
     return () => observer.disconnect();
-  }, [setZoomedHourHeight, storedZoomScale]);
+  }, [setZoomedHourHeight, stickyChromeHeight, storedZoomScale]);
 
   useEffect(() => {
     if (
@@ -506,6 +547,70 @@ export function CalendarGrid({
         })}
       </div>
 
+      {allDayHeight > 0 ? (
+        <div
+          className="sticky z-[29] grid min-w-max border-b border-border/70 bg-background/96 backdrop-blur-xl"
+          style={{
+            gridTemplateColumns: gridColumns,
+            height: allDayHeight,
+            top: DAY_HEADER_HEIGHT,
+          }}
+        >
+          <div className="sticky left-0 z-20 flex items-start justify-end bg-background/96 px-2 pt-1.5 text-[8px] font-medium text-muted-foreground">
+            all-day
+          </div>
+          {days.map((day) => {
+            const items = allDayEventsByDay.get(dateKey(day)) ?? [];
+            const visible =
+              items.length > MAX_ALL_DAY_ROWS
+                ? items.slice(0, MAX_ALL_DAY_ROWS - 1)
+                : items;
+            const hiddenCount = items.length - visible.length;
+            return (
+              <div
+                key={dateKey(day)}
+                className="min-w-0 space-y-0.5 border-l border-border/60 px-1 py-1"
+              >
+                {visible.map((segment) => {
+                  const category = getCalendarEventCategory(
+                    categories,
+                    segment.event,
+                  );
+                  return (
+                    <button
+                      key={segment.event.id}
+                      type="button"
+                      onClick={() => onSelectEvent(segment.event.id)}
+                      className="flex h-5 w-full min-w-0 items-center gap-1 rounded border border-[var(--category-border)] bg-[var(--category-surface)] px-1 text-left text-[9px] font-semibold text-[var(--category-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--category-color)]"
+                      style={getCalendarCategoryStyle(category)}
+                    >
+                      {segment.continuesBefore ? (
+                        <ChevronLeft className="size-2.5 shrink-0 opacity-65" />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">
+                        {segment.event.title}
+                      </span>
+                      {segment.continuesAfter ? (
+                        <ChevronRight className="size-2.5 shrink-0 opacity-65" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+                {hiddenCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectDay?.(day)}
+                    className="block h-5 w-full truncate px-1 text-left text-[9px] font-semibold text-muted-foreground hover:text-foreground"
+                  >
+                    +{hiddenCount} more
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div
         data-calendar-grid
         className="relative grid min-w-max overflow-clip"
@@ -633,7 +738,22 @@ export function CalendarGrid({
 
               {draftRange ? (
                 <CalendarEventDraft
-                  category={getCalendarCategory(categories, null)}
+                  category={getCalendarPreviewCategory(
+                    categories,
+                    calendars,
+                    {
+                      calendarId:
+                        activeCalendarId ??
+                        calendars.find((calendar) => calendar.writable)?.id ??
+                        "",
+                      categoryId: getCalendarCategory(
+                        categories,
+                        null,
+                        activeCalendarId ??
+                          calendars.find((calendar) => calendar.writable)?.id,
+                      ).id,
+                    },
+                  )}
                   title=""
                   durationMinutes={
                     draftRange.endMinute - draftRange.startMinute
@@ -660,9 +780,10 @@ export function CalendarGrid({
               {newEventPreview && composerSegment ? (
                 <CalendarEventDraft
                   title={newEventPreview.title}
-                  category={getCalendarCategory(
+                  category={getCalendarPreviewCategory(
                     categories,
-                    newEventPreview.categoryId,
+                    calendars,
+                    newEventPreview,
                   )}
                   continuesBefore={composerSegment.continuesBefore}
                   continuesAfter={composerSegment.continuesAfter}

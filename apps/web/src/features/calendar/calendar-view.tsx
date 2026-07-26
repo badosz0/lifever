@@ -1,11 +1,16 @@
-import { CalendarPlus, ChevronLeft, ChevronRight, Menu, PanelLeft } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
 import { CalendarMonthGrid } from "@/features/calendar/components/calendar-month-grid";
+import { CalendarPicker } from "@/features/calendar/components/calendar-picker";
 import { CalendarSettingsDialog } from "@/features/calendar/components/calendar-settings-dialog";
 import { CalendarYearGrid } from "@/features/calendar/components/calendar-year-grid";
 import { NewCalendarEventDialog } from "@/features/calendar/components/new-calendar-event-dialog";
@@ -63,11 +68,14 @@ export function CalendarView({
   onToggleSidebar,
 }: CalendarViewProps) {
   const {
+    activeCalendarId,
+    calendars,
     categories,
     events,
     isReady,
     selectedEventId,
     setSelectedEventId,
+    setVisibleEventRange,
     updateEvent,
   } = useCalendar();
   const { calendarClickToCreate, dateFormat } = useUserPreferences();
@@ -87,7 +95,7 @@ export function CalendarView({
     const monday = startOfWeek(selectedDate);
     return Array.from({ length: 7 }, (_, index) => addDays(monday, index));
   }, [selectedDate, viewMode]);
-  const visibleEventCount = useMemo(() => {
+  const visibleRange = useMemo(() => {
     const rangeStart =
       viewMode === "year"
         ? startOfLocalYear(selectedDate)
@@ -103,15 +111,22 @@ export function CalendarView({
           ? addMonths(rangeStart, 1)
           : addDays(rangeStart, viewMode === "week" ? 7 : 1);
 
+    return { start: rangeStart, end: rangeEnd };
+  }, [selectedDate, viewMode]);
+  const visibleEventCount = useMemo(() => {
     return events.filter((event) =>
       intervalOverlapsRange(
         event.startAt,
         event.endAt,
-        rangeStart,
-        rangeEnd,
+        visibleRange.start,
+        visibleRange.end,
       ),
     ).length;
-  }, [events, selectedDate, viewMode]);
+  }, [events, visibleRange]);
+
+  useEffect(() => {
+    setVisibleEventRange(visibleRange.start, visibleRange.end);
+  }, [setVisibleEventRange, visibleRange]);
 
   const openComposer = useCallback(
     (start?: Date, end?: Date) => {
@@ -125,9 +140,18 @@ export function CalendarView({
           : setCalendarTime(selectedDate, 9);
         nextRange = getDefaultEventRange(base);
       }
+      const destinationCalendarId =
+        activeCalendarId ??
+        calendars.find((calendar) => calendar.writable)?.id ??
+        "";
       setDraftRange(nextRange);
       setEventPreview({
-        categoryId: getCalendarCategory(categories, null).id,
+        calendarId: destinationCalendarId,
+        categoryId: getCalendarCategory(
+          categories,
+          null,
+          destinationCalendarId,
+        ).id,
         end: nextRange.end,
         start: nextRange.start,
         title: "",
@@ -136,7 +160,15 @@ export function CalendarView({
       setSelectedEventId(null);
       setComposerOpen(true);
     },
-    [categories, isReady, selectedDate, selectedEventId, setSelectedEventId],
+    [
+      activeCalendarId,
+      calendars,
+      categories,
+      isReady,
+      selectedDate,
+      selectedEventId,
+      setSelectedEventId,
+    ],
   );
 
   useEffect(() => {
@@ -206,29 +238,12 @@ export function CalendarView({
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="scroll-edge relative z-40 shrink-0 bg-background/86 px-4 pt-3 pb-3 backdrop-blur-xl sm:px-6 sm:pt-5 sm:pb-4">
-        <div className="flex min-h-9 items-center gap-1.5">
-          <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={onToggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </ShortcutTooltip>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
-
+      <AppHeader elevated>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
+          <CalendarPicker onManage={() => setSettingsOpen(true)} />
           <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px]" onClick={() => setSelectedDate(startOfLocalDay(new Date()))}>
             Today
           </Button>
@@ -275,7 +290,7 @@ export function CalendarView({
               <CalendarPlus className="size-3.5" strokeWidth={2.4} />
             </Button>
           </ShortcutTooltip>
-        </div>
+        </AppHeaderToolbar>
 
         <div className="mt-5 flex items-end gap-3 px-1 sm:mt-6">
           <div className="min-w-0 flex-1">
@@ -293,7 +308,7 @@ export function CalendarView({
             </p>
           </div>
         </div>
-      </header>
+      </AppHeader>
 
       {viewMode === "year" ? (
         <CalendarYearGrid

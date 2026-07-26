@@ -1,6 +1,11 @@
 import type { CSSProperties } from "react";
 
-import type { CalendarCategory } from "@/features/calendar/model/types";
+import type {
+  CalendarCategory,
+  CalendarCollection,
+  CalendarEvent,
+  CalendarEventPreview,
+} from "@/features/calendar/model/types";
 
 export type CalendarColorPreset = {
   color: string;
@@ -40,6 +45,7 @@ export const defaultCalendarCategories: CalendarCategory[] =
     name: category.name,
     color: category.color,
     position,
+    calendarId: "local-personal",
     createdAt: new Date(2026, 0, 1, 0, position).toISOString(),
   }));
 
@@ -55,10 +61,59 @@ export const categoryIdForLegacyColor = (color: unknown) => {
 export const getCalendarCategory = (
   categories: CalendarCategory[],
   categoryId: string | null | undefined,
+  calendarId?: string | null,
 ): CalendarCategory =>
-  categories.find((category) => category.id === categoryId) ??
-  categories[0] ??
-  defaultCalendarCategory;
+  categories.find(
+    (category) =>
+      category.id === categoryId &&
+      (!calendarId || category.calendarId === calendarId),
+  ) ??
+  (calendarId
+    ? categories.find((category) => category.calendarId === calendarId)
+    : categories[0]) ??
+  (calendarId
+    ? { ...defaultCalendarCategory, calendarId }
+    : defaultCalendarCategory);
+
+export const getCalendarEventCategory = (
+  categories: CalendarCategory[],
+  event: Pick<
+    CalendarEvent,
+    "calendarName" | "categoryId" | "color" | "source"
+  >,
+): CalendarCategory =>
+  event.source !== "lifever" && event.color
+    ? {
+        id: `source-${event.color}`,
+        name: event.calendarName ?? "Calendar",
+        color: event.color,
+        position: 0,
+        calendarId: "",
+        createdAt: new Date(0).toISOString(),
+      }
+    : getCalendarCategory(categories, event.categoryId);
+
+export const getCalendarPreviewCategory = (
+  categories: CalendarCategory[],
+  calendars: CalendarCollection[],
+  preview: Pick<CalendarEventPreview, "calendarId" | "categoryId">,
+): CalendarCategory => {
+  const calendar = calendars.find((item) => item.id === preview.calendarId);
+  return calendar && calendar.source !== "lifever"
+    ? {
+        id: `source-${calendar.id}`,
+        name: calendar.name,
+        color: calendar.color,
+        position: 0,
+        calendarId: calendar.id,
+        createdAt: new Date(0).toISOString(),
+      }
+    : getCalendarCategory(
+        categories,
+        preview.categoryId,
+        preview.calendarId,
+      );
+};
 
 type CalendarCategoryProperties = CSSProperties & {
   "--category-border": string;

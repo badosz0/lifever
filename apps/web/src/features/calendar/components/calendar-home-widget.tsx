@@ -1,7 +1,7 @@
 import { MapPin } from "lucide-react";
 import { useMemo } from "react";
 
-import { getCalendarCategory } from "@/features/calendar/lib/categories";
+import { getCalendarEventCategory } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { formatUserTime } from "@/lib/date-time-format";
@@ -34,7 +34,7 @@ export function CalendarHomeWidget() {
 
       <div className="mt-5 space-y-1">
         {upcoming.map((event) => {
-          const category = getCalendarCategory(categories, event.categoryId);
+          const category = getCalendarEventCategory(categories, event);
           return (
             <div
               key={event.id}

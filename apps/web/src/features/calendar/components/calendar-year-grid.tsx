@@ -18,7 +18,10 @@ import {
   getCalendarIntervalSegment,
   intervalOverlapsRange,
 } from "@/features/calendar/lib/event-segments";
-import { getCalendarCategory } from "@/features/calendar/lib/categories";
+import {
+  getCalendarEventCategory,
+  getCalendarPreviewCategory,
+} from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type {
   CalendarEvent,
@@ -40,7 +43,7 @@ const DAYS_IN_MONTH_GRID = 42;
 const MAX_EVENT_DOTS = 3;
 
 type DayEvents = {
-  categoryIds: string[];
+  colors: string[];
   count: number;
 };
 
@@ -52,7 +55,7 @@ export function CalendarYearGrid({
   onSelectDay,
   onSelectMonth,
 }: CalendarYearGridProps) {
-  const { categories } = useCalendar();
+  const { calendars, categories } = useCalendar();
   const { dateFormat } = useUserPreferences();
   const months = useMemo(() => {
     const firstMonth = startOfLocalYear(year);
@@ -151,9 +154,20 @@ export function CalendarYearGrid({
                       ? newEventPreview
                       : null;
                   const dayEvents: DayEvents = {
-                    categoryIds: [
-                      ...(previewOnDay ? [previewOnDay.categoryId] : []),
-                      ...savedEvents.map((event) => event.categoryId),
+                    colors: [
+                      ...(previewOnDay
+                        ? [
+                            getCalendarPreviewCategory(
+                              categories,
+                              calendars,
+                              previewOnDay,
+                            ).color,
+                          ]
+                        : []),
+                      ...savedEvents.map(
+                        (event) =>
+                          getCalendarEventCategory(categories, event).color,
+                      ),
                     ].slice(0, MAX_EVENT_DOTS),
                     count: savedEvents.length + (previewOnDay ? 1 : 0),
                   };
@@ -185,20 +199,17 @@ export function CalendarYearGrid({
                       >
                         {formatDayOfMonth(day)}
                       </span>
-                      {dayEvents.categoryIds.length > 0 ? (
+                      {dayEvents.colors.length > 0 ? (
                         <span className="absolute bottom-0.5 flex items-center gap-px" aria-hidden="true">
-                          {dayEvents.categoryIds.map((categoryId, index) => (
+                          {dayEvents.colors.map((color, index) => (
                             <span
-                              key={`${categoryId}-${index}`}
+                              key={`${color}-${index}`}
                               className={cn(
                                 "size-1 rounded-full",
                                 previewOnDay && index === 0 && "opacity-55",
                               )}
                               style={{
-                                backgroundColor: getCalendarCategory(
-                                  categories,
-                                  categoryId,
-                                ).color,
+                                backgroundColor: color,
                               }}
                             />
                           ))}

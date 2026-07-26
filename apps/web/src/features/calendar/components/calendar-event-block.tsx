@@ -23,7 +23,7 @@ import {
   toCalendarDate,
 } from "@/features/calendar/lib/dates";
 import {
-  getCalendarCategory,
+  getCalendarEventCategory,
   getCalendarCategoryStyle,
 } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
@@ -91,7 +91,7 @@ export function CalendarEventBlock({
 }: CalendarEventBlockProps) {
   const { categories } = useCalendar();
   const { timeFormat } = useUserPreferences();
-  const category = getCalendarCategory(categories, event.categoryId);
+  const category = getCalendarEventCategory(categories, event);
   const pointer = useRef<{
     id: number;
     startX: number;
@@ -228,7 +228,7 @@ export function CalendarEventBlock({
     pointerEvent: PointerEvent<HTMLElement>,
     mode: PointerMode,
   ) => {
-    if (pointer.current || pointerEvent.button !== 0) return;
+    if (event.readOnly || pointer.current || pointerEvent.button !== 0) return;
     const columnWidth = pointerEvent.currentTarget
       .closest('[role="gridcell"]')
       ?.getBoundingClientRect().width;
@@ -293,7 +293,7 @@ export function CalendarEventBlock({
   };
 
   const handleKeyDown = (keyboardEvent: KeyboardEvent<HTMLButtonElement>) => {
-    if (!keyboardEvent.altKey) return;
+    if (event.readOnly || !keyboardEvent.altKey) return;
 
     if (
       keyboardEvent.shiftKey &&
@@ -394,10 +394,10 @@ export function CalendarEventBlock({
           : undefined,
         willChange: preview.active ? "transform, top, height" : undefined,
       }}
-      aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}. Drag to reschedule${resizeInstruction}, or use Alt and arrow keys.`}
+      aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${event.readOnly ? " Read only." : ` Drag to reschedule${resizeInstruction}, or use Alt and arrow keys.`}`}
       aria-pressed={selected}
     >
-      {!continuesBefore ? (
+      {!event.readOnly && !continuesBefore ? (
         <CalendarEventResizeHandle
           edge="start"
           onPointerDown={(pointerEvent) => {
@@ -440,7 +440,7 @@ export function CalendarEventBlock({
           <span className="truncate">{event.location}</span>
         </span>
       ) : null}
-      {!continuesAfter ? (
+      {!event.readOnly && !continuesAfter ? (
         <CalendarEventResizeHandle
           edge="end"
           onPointerDown={(pointerEvent) => {

@@ -18,6 +18,7 @@ type CalendarMonthEventCardProps = {
   dragging?: boolean;
   endAt: Date | string;
   preview?: boolean;
+  readOnly?: boolean;
   selected?: boolean;
   startAt: Date | string;
   title: string;
@@ -33,6 +34,7 @@ export function CalendarMonthEventCard({
   dragging,
   endAt,
   preview,
+  readOnly,
   selected,
   startAt,
   title,
@@ -98,7 +100,7 @@ export function CalendarMonthEventCard({
   return (
     <button
       type="button"
-      draggable
+      draggable={!readOnly}
       className={cn(className, "cursor-pointer")}
       style={getCalendarCategoryStyle(category)}
       onClick={(event) => {
@@ -107,7 +109,7 @@ export function CalendarMonthEventCard({
       }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      aria-label={`${title}, ${formatEventRange(startAt, endAt, timeFormat)}, ${durationLabel}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}. Drag to move to another day.`}
+      aria-label={`${title}, ${formatEventRange(startAt, endAt, timeFormat)}, ${durationLabel}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${readOnly ? " Read only." : " Drag to move to another day."}`}
       aria-pressed={selected}
     >
       {content}

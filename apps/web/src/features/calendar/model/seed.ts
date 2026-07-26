@@ -2,11 +2,25 @@ import {
   addDays,
   addMinutes,
   setCalendarTime,
+  startOfLocalDay,
   startOfWeek,
   subDays,
 } from "../lib/dates";
 import { categoryIdForLegacyColor } from "../lib/categories";
-import type { CalendarEvent } from "./types";
+import type { CalendarCollection, CalendarEvent } from "./types";
+
+export const defaultLocalCalendars: CalendarCollection[] = [
+  {
+    id: "local-personal",
+    name: "Personal",
+    color: "#3B82F6",
+    position: 0,
+    visible: true,
+    writable: true,
+    source: "lifever",
+    createdAt: new Date(0).toISOString(),
+  },
+];
 
 const makeEvent = (
   id: string,
@@ -27,9 +41,40 @@ const makeEvent = (
     startAt: start.toISOString(),
     endAt: end.toISOString(),
     categoryId: categoryIdForLegacyColor(legacyColor),
+    calendarId: defaultLocalCalendars[0]!.id,
     location,
     notes,
     alertsEnabled: true,
+    allDay: false,
+    source: "lifever",
+    readOnly: false,
+    createdAt: subDays(start, 1).toISOString(),
+  };
+};
+
+const makeAllDayEvent = (
+  id: string,
+  title: string,
+  date: Date,
+  durationDays: number,
+  legacyColor: "blue" | "violet" | "orange" | "green" | "pink" | "red",
+  notes = "",
+): CalendarEvent => {
+  const start = startOfLocalDay(date);
+  const end = addDays(start, durationDays);
+  return {
+    id,
+    title,
+    startAt: start.toISOString(),
+    endAt: end.toISOString(),
+    categoryId: categoryIdForLegacyColor(legacyColor),
+    calendarId: defaultLocalCalendars[0]!.id,
+    location: "",
+    notes,
+    alertsEnabled: true,
+    allDay: true,
+    source: "lifever",
+    readOnly: false,
     createdAt: subDays(start, 1).toISOString(),
   };
 };
@@ -39,6 +84,14 @@ const monday = startOfWeek(today);
 const day = (index: number) => addDays(monday, index);
 
 export const initialCalendarEvents: CalendarEvent[] = [
+  makeAllDayEvent(
+    "launch-week",
+    "Launch week",
+    day(1),
+    3,
+    "pink",
+    "Keep the release checklist moving across design, engineering, and launch.",
+  ),
   makeEvent(
     "morning-walk",
     "Morning walk",
