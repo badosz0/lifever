@@ -1,6 +1,7 @@
 import { AccountMenu } from "@/components/app-shell/account-menu";
 import { homeApp } from "@/features/apps/app-registry";
 import { useApps } from "@/features/apps/model/apps-provider";
+import { ReleaseUpdateNotice } from "@/features/updates/components/release-update-notice";
 import { cn } from "@/lib/cn";
 
 type SidebarProps = {
@@ -79,7 +80,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         })}
       </nav>
 
-      <div className="mt-2 border-t border-border/55 pt-2">
+      <ReleaseUpdateNotice />
+
+      <div className="mt-1 border-t border-border/55 pt-2">
         <AccountMenu />
       </div>
     </div>
