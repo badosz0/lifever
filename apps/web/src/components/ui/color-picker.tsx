@@ -15,6 +15,7 @@ type ColorPickerProps = {
   onValueChange: (value: string) => void;
   presets: ColorPickerPreset[];
   ariaLabel?: string;
+  disabled?: boolean;
 };
 
 const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value);
@@ -24,6 +25,7 @@ export function ColorPicker({
   onValueChange,
   presets,
   ariaLabel = "Choose color",
+  disabled = false,
 }: ColorPickerProps) {
   const [customColor, setCustomColor] = useState(value);
   const [hexInput, setHexInput] = useState(value.toUpperCase());
@@ -46,7 +48,8 @@ export function ColorPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-input bg-background outline-none transition-[border-color,box-shadow,transform] duration-150 hover:border-foreground/25 active:scale-[.94] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+          disabled={disabled}
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-input bg-background outline-none transition-[border-color,box-shadow,transform] duration-150 hover:border-foreground/25 active:scale-[.94] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-55 motion-reduce:transition-none"
           aria-label={ariaLabel}
         >
           <span

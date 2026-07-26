@@ -1,3 +1,5 @@
+import type { SharedResourceAccess } from "@/features/sharing/model/types";
+
 export type Note = {
   id: string;
   title: string;
@@ -6,12 +8,14 @@ export type Note = {
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+  access?: SharedResourceAccess;
 };
 
 export type NoteCategory = {
   id: string;
   name: string;
   color: string;
+  owned?: boolean;
 };
 
 export type NotesFilter = "all" | "pinned" | `category:${string}`;

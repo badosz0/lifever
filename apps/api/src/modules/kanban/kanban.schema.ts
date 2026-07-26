@@ -90,5 +90,7 @@ export const kanbanStateSchema = z
 
 export const updateKanbanWorkspaceSchema = z.object({
   state: kanbanStateSchema,
-  baseUpdatedAt: z.string().datetime(),
+  baseUpdatedAt: z.string().datetime().optional(),
+  baseProjectVersions: z.record(z.string(), z.string().datetime()).default({}),
+  deletedProjectIds: z.array(idSchema).max(100).default([]),
 });

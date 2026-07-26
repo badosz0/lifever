@@ -16,6 +16,7 @@ type KanbanLabelPickerProps = {
   value: string[];
   onValueChange: (value: string[]) => void;
   compact?: boolean;
+  disabled?: boolean;
 };
 
 export function KanbanLabelPicker({
@@ -23,6 +24,7 @@ export function KanbanLabelPicker({
   value,
   onValueChange,
   compact,
+  disabled = false,
 }: KanbanLabelPickerProps) {
   return (
     <DropdownMenu>
@@ -31,6 +33,7 @@ export function KanbanLabelPicker({
           type="button"
           variant="outline"
           size="sm"
+          disabled={disabled}
           className={
             compact
               ? "h-9 w-full justify-start bg-background px-2.5 font-normal"

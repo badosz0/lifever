@@ -1,4 +1,4 @@
-import { ChevronDown, LogIn, LogOut, Settings2 } from "lucide-react";
+import { Bell, ChevronDown, LogIn, LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,12 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
+import { InvitationsDialog } from "@/features/sharing/components/invitations-dialog";
+import { useSharing } from "@/features/sharing/model/sharing-provider";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { clearDesktopAuthToken } from "@/lib/auth-token";
 
 export function AccountMenu() {
   const { data: session, isPending } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [invitationsOpen, setInvitationsOpen] = useState(false);
+  const { invites } = useSharing();
   const name = session?.user.name ?? "Local profile";
   const initial = name.charAt(0).toUpperCase();
 
@@ -73,6 +77,17 @@ export function AccountMenu() {
             <Settings2 className="size-4" />
             Settings
           </DropdownMenuItem>
+          {session ? (
+            <DropdownMenuItem onSelect={() => setInvitationsOpen(true)}>
+              <Bell className="size-4" />
+              <span className="flex-1">Invitations</span>
+              {invites.length > 0 ? (
+                <span className="flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">
+                  {invites.length}
+                </span>
+              ) : null}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {session ? (
@@ -90,6 +105,10 @@ export function AccountMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <InvitationsDialog
+        open={invitationsOpen}
+        onOpenChange={setInvitationsOpen}
+      />
     </>
   );
 }

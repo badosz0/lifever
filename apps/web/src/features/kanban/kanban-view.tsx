@@ -52,6 +52,7 @@ export function KanbanView({
   const {
     activeProjectId,
     cards,
+    canEditProject,
     columns,
     labels,
     projects,
@@ -69,6 +70,7 @@ export function KanbanView({
   const mobileSearchRef = useRef<HTMLInputElement>(null);
 
   const project = projects.find((item) => item.id === activeProjectId);
+  const canEdit = canEditProject(activeProjectId);
   const projectColumns = useMemo(
     () =>
       columns
@@ -130,11 +132,12 @@ export function KanbanView({
 
   const openCardComposer = useCallback(
     (columnId?: string) => {
+      if (!canEdit) return;
       setSelectedCardId(null);
       setNewCardColumnId(columnId ?? projectColumns[0]?.id ?? null);
       setNewCardOpen(true);
     },
-    [projectColumns, setSelectedCardId],
+    [canEdit, projectColumns, setSelectedCardId],
   );
 
   useEffect(() => {
@@ -268,6 +271,7 @@ export function KanbanView({
               size="icon-sm"
               className="size-8 rounded-full"
               onClick={() => openCardComposer()}
+              disabled={!canEdit}
               aria-label="New card"
             >
               <Plus className="size-3.5" strokeWidth={2.5} />
@@ -308,6 +312,7 @@ export function KanbanView({
           labels={projectLabels}
           onAddCard={openCardComposer}
           onManageWorkflow={() => setSettingsOpen(true)}
+          readOnly={!canEdit}
         />
       </div>
 

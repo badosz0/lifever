@@ -32,6 +32,7 @@ type KanbanInspectorProps = {
 export function KanbanInspector({ className }: KanbanInspectorProps) {
   const {
     cards,
+    canEditProject,
     columns,
     duplicateCard,
     labels,
@@ -84,6 +85,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
   }
 
   const currentColumn = columns.find((column) => column.id === card.columnId);
+  const canEdit = canEditProject(card.projectId);
 
   const deleteCard = () => {
     deleteKanbanCard(card.id);
@@ -122,6 +124,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
           onChange={(event) => updateCard(card.id, { title: event.target.value })}
           className="min-h-16 border-0 bg-transparent px-0 py-1 text-[17px] leading-6 font-semibold tracking-[-0.015em] shadow-none focus:ring-0"
           aria-label="Card title"
+          readOnly={!canEdit}
         />
 
         <div className="mt-4 space-y-3">
@@ -136,6 +139,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
               }
               placeholder="Add context, links, or the next step"
               className="min-h-28"
+              readOnly={!canEdit}
             />
           </div>
 
@@ -146,6 +150,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
               </span>
               <Select
                 value={card.columnId}
+                disabled={!canEdit}
                 onValueChange={(columnId) => {
                   const count = cards.filter(
                     (item) => item.columnId === columnId,
@@ -183,6 +188,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
               <KanbanPrioritySelect
                 value={card.priority}
                 onValueChange={(priority) => updateCard(card.id, { priority })}
+                disabled={!canEdit}
               />
 
               <span className="text-xs font-medium text-muted-foreground">
@@ -194,8 +200,9 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
                   dateFormat={dateFormat}
                   value={card.dueDate ?? ""}
                   onValueChange={(dueDate) => updateCard(card.id, { dueDate })}
+                  disabled={!canEdit}
                 />
-                {card.dueDate ? (
+                {card.dueDate && canEdit ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -216,6 +223,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
                 value={card.labelIds}
                 onValueChange={(labelIds) => updateCard(card.id, { labelIds })}
                 compact
+                disabled={!canEdit}
               />
             </div>
           </div>
@@ -236,6 +244,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
           size="sm"
           className="h-7 justify-start rounded-md px-2 text-[12px] font-normal text-muted-foreground"
           onClick={() => duplicateCard(card.id)}
+          disabled={!canEdit}
         >
           <Copy className="size-3.5" strokeWidth={1.8} />
           Duplicate
@@ -246,6 +255,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
           size="sm"
           className="h-7 justify-start rounded-md px-2 text-[12px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={deleteCard}
+          disabled={!canEdit}
         >
           <Trash2 className="size-3.5" strokeWidth={1.8} />
           Delete

@@ -3,6 +3,12 @@ import { Hono } from "hono";
 import type { AuthenticatedEnv } from "../auth/session.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
+  canWriteResource,
+  deleteResourceSharing,
+  getResourceAccess,
+  serializeResourceAccess,
+} from "../sharing/sharing.service.js";
+import {
   createNoteCategorySchema,
   createNoteSchema,
   updateNoteCategorySchema,
@@ -24,6 +30,10 @@ const noteSelect = {
   pinned: true,
   createdAt: true,
   updatedAt: true,
+  userId: true,
+  user: {
+    select: { id: true, name: true, email: true, image: true },
+  },
 } as const;
 
 const categorySelect = {
@@ -96,16 +106,66 @@ export const createNotesRoutes = ({
 
   notesRoutes.get("/", async (context) => {
     const userId = context.get("session").user.id;
-    const [{ categories, settings }, notes] = await Promise.all([
+    const [{ categories: ownCategories, settings }, shares] = await Promise.all([
       ensureNotesConfiguration(userId),
-      prisma.note.findMany({
-        where: { userId },
-        select: noteSelect,
-        orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+      prisma.resourceShare.findMany({
+        where: { userId, resourceType: "note" },
+        select: { id: true, resourceId: true, permission: true },
       }),
     ]);
+    const shareByNote = new Map(shares.map((share) => [share.resourceId, share]));
+    const notes = await prisma.note.findMany({
+      where: {
+        OR: [
+          { userId },
+          { id: { in: shares.map((share) => share.resourceId) } },
+        ],
+      },
+      select: noteSelect,
+      orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+    });
+    const sharedCategoryIds = notes
+      .filter((note) => note.userId !== userId)
+      .map((note) => note.categoryId);
+    const sharedCategories =
+      sharedCategoryIds.length > 0
+        ? await prisma.noteCategory.findMany({
+            where: { id: { in: sharedCategoryIds } },
+            select: categorySelect,
+          })
+        : [];
+    const categoryMap = new Map<
+      string,
+      (typeof ownCategories)[number] & { owned: boolean }
+    >([
+      ...ownCategories.map((category) => [
+        category.id,
+        { ...category, owned: true },
+      ] as const),
+      ...sharedCategories.map((category) => [
+        category.id,
+        { ...category, owned: false },
+      ] as const),
+    ]);
 
-    return context.json({ notes, categories, settings });
+    return context.json({
+      notes: notes.map(({ userId: ownerId, user, ...note }) => {
+        const own = ownerId === userId;
+        const share = shareByNote.get(note.id);
+        return {
+          ...note,
+          access: {
+            role: own ? "owner" : "collaborator",
+            permission:
+              own || share?.permission === "write" ? "write" : "read",
+            shareId: own ? null : share?.id ?? null,
+            owner: user,
+          },
+        };
+      }),
+      categories: [...categoryMap.values()],
+      settings,
+    });
   });
 
   notesRoutes.post("/categories", async (context) => {
@@ -241,7 +301,21 @@ export const createNotesRoutes = ({
       data: { ...parsed.data, userId },
       select: noteSelect,
     });
-    return context.json({ note }, 201);
+    const { userId: _ownerId, user, ...createdNote } = note;
+    return context.json(
+      {
+        note: {
+          ...createdNote,
+          access: {
+            role: "owner",
+            permission: "write",
+            shareId: null,
+            owner: user,
+          },
+        },
+      },
+      201,
+    );
   });
 
   notesRoutes.patch("/:id", async (context) => {
@@ -253,36 +327,69 @@ export const createNotesRoutes = ({
         400,
       );
     }
-    const existing = await prisma.note.findFirst({
-      where: { id: context.req.param("id"), userId },
-      select: { id: true },
-    });
+    const access = await getResourceAccess(
+      prisma,
+      userId,
+      "note",
+      context.req.param("id"),
+    );
+    const existing = access
+      ? await prisma.note.findUnique({
+          where: { id: context.req.param("id") },
+          select: { id: true, userId: true, updatedAt: true },
+        })
+      : null;
     if (!existing) return context.json({ error: "Note not found" }, 404);
+    if (!canWriteResource(access)) {
+      return context.json({ error: "You only have read access." }, 403);
+    }
 
     if (parsed.data.categoryId) {
       const category = await prisma.noteCategory.findFirst({
-        where: { id: parsed.data.categoryId, userId },
+        where: { id: parsed.data.categoryId, userId: existing.userId },
         select: { id: true },
       });
       if (!category)
         return context.json({ error: "Note category not found" }, 400);
     }
 
+    const { baseUpdatedAt, ...patch } = parsed.data;
+    if (
+      baseUpdatedAt &&
+      existing.updatedAt.toISOString() !== baseUpdatedAt
+    ) {
+      const latest = await prisma.note.findUnique({
+        where: { id: existing.id },
+        select: noteSelect,
+      });
+      return context.json({ error: "Note changed", note: latest }, 409);
+    }
     const note = await prisma.note.update({
       where: { id: existing.id },
-      data: parsed.data,
+      data: patch,
       select: noteSelect,
     });
-    return context.json({ note });
+    const { userId: _ownerId, user, ...updatedNote } = note;
+    return context.json({
+      note: {
+        ...updatedNote,
+        access: serializeResourceAccess(access!),
+      },
+    });
   });
 
   notesRoutes.delete("/:id", async (context) => {
     const userId = context.get("session").user.id;
-    const result = await prisma.note.deleteMany({
+    const note = await prisma.note.findFirst({
       where: { id: context.req.param("id"), userId },
+      select: { id: true },
     });
-    if (result.count === 0)
+    if (!note)
       return context.json({ error: "Note not found" }, 404);
+    await prisma.$transaction([
+      ...deleteResourceSharing(prisma, "note", note.id),
+      prisma.note.delete({ where: { id: note.id } }),
+    ]);
     return context.body(null, 204);
   });
 

@@ -11,9 +11,11 @@ import {
 import { toast } from "sonner";
 
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { mergeKanbanStates } from "@/features/kanban/lib/merge-state";
+import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
-import { apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 
 import { readKanbanState, writeKanbanState } from "./storage";
 import { initialKanbanState } from "./seed";
@@ -22,6 +24,7 @@ import type {
   KanbanColumn,
   KanbanLabel,
   KanbanProject,
+  KanbanProjectAccessMap,
   KanbanState,
   NewKanbanCard,
   NewKanbanProject,
@@ -41,6 +44,8 @@ type KanbanWorkspacePayload = {
   workspace: {
     state: KanbanState;
     updatedAt: string;
+    projectVersions: Record<string, string>;
+    projectAccess: KanbanProjectAccessMap;
   };
 };
 
@@ -77,6 +82,9 @@ type KanbanContextValue = KanbanState & {
   restoreCard: (card: KanbanCard) => void;
   duplicateCard: (id: string) => KanbanCard | null;
   moveCard: (id: string, columnId: string, destinationIndex: number) => void;
+  projectAccess: KanbanProjectAccessMap;
+  canEditProject: (id: string) => boolean;
+  isProjectOwner: (id: string) => boolean;
 };
 
 const KanbanContext = createContext<KanbanContextValue | null>(null);
@@ -135,12 +143,14 @@ export function KanbanProvider({ children }: PropsWithChildren) {
   const [activeProjectId, setActiveProjectIdState] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [hydratedMode, setHydratedMode] = useState<string | null>(null);
+  const [projectAccess, setProjectAccess] = useState<KanbanProjectAccessMap>({});
   const modeRef = useRef<string | null>(null);
   const mutationVersion = useRef(0);
   const applyingRemoteState = useRef(false);
   const lastRemoteSnapshot = useRef("");
   const lastRemoteState = useRef<KanbanState | null>(null);
   const lastRemoteUpdatedAt = useRef("");
+  const lastRemoteProjectVersions = useRef<Record<string, string>>({});
   const pendingRemoteSave = useRef<number | null>(null);
   const remoteSaveChain = useRef(Promise.resolve());
   const remoteSaveCount = useRef(0);
@@ -150,6 +160,14 @@ export function KanbanProvider({ children }: PropsWithChildren) {
   stateRef.current = state;
   activeProjectIdRef.current = activeProjectId;
   sessionRef.current = session;
+  const canEditProject = useCallback(
+    (id: string) => projectAccess[id]?.permission !== "read",
+    [projectAccess],
+  );
+  const isProjectOwner = useCallback(
+    (id: string) => projectAccess[id]?.role !== "collaborator",
+    [projectAccess],
+  );
 
   const loadRemote = useCallback(
     async (userId: string, preserveSelection = false) => {
@@ -169,6 +187,8 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         lastRemoteSnapshot.current = snapshot;
         lastRemoteState.current = workspace.state;
         lastRemoteUpdatedAt.current = workspace.updatedAt;
+        lastRemoteProjectVersions.current = workspace.projectVersions;
+        setProjectAccess(workspace.projectAccess);
         setState(workspace.state);
         setActiveProjectIdState((current) =>
           workspace.state.projects.some((project) => project.id === current)
@@ -203,6 +223,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     }
     if (userId) {
       setState(emptyKanbanState);
+      setProjectAccess({});
       setActiveProjectIdState("");
       void loadRemote(userId);
     } else {
@@ -246,12 +267,23 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     pendingRemoteSave.current = window.setTimeout(() => {
       pendingRemoteSave.current = null;
       remoteSaveCount.current += 1;
+      const baseState = lastRemoteState.current;
+      const deletedProjectIds =
+        baseState?.projects
+          .filter(
+            (project) =>
+              projectAccess[project.id]?.role === "owner" &&
+              !state.projects.some((item) => item.id === project.id),
+          )
+          .map((project) => project.id) ?? [];
       const request = remoteSaveChain.current.then(() =>
         apiRequest<KanbanWorkspacePayload>("/api/kanban", {
           method: "PUT",
           body: JSON.stringify({
             state,
             baseUpdatedAt: lastRemoteUpdatedAt.current,
+            baseProjectVersions: lastRemoteProjectVersions.current,
+            deletedProjectIds,
           }),
           keepalive: true,
         }),
@@ -265,8 +297,38 @@ export function KanbanProvider({ children }: PropsWithChildren) {
           lastRemoteSnapshot.current = snapshot;
           lastRemoteState.current = state;
           lastRemoteUpdatedAt.current = workspace.updatedAt;
+          lastRemoteProjectVersions.current = workspace.projectVersions;
+          setProjectAccess(workspace.projectAccess);
         },
-        () => {
+        (error) => {
+          if (
+            error instanceof ApiRequestError &&
+            error.status === 409 &&
+            error.payload &&
+            typeof error.payload === "object" &&
+            "workspace" in error.payload &&
+            baseState
+          ) {
+            const workspace = error.payload
+              .workspace as KanbanWorkspacePayload["workspace"];
+            const merged = mergeKanbanStates(
+              baseState,
+              state,
+              workspace.state,
+            );
+            lastRemoteSnapshot.current = JSON.stringify(workspace.state);
+            lastRemoteState.current = workspace.state;
+            lastRemoteUpdatedAt.current = workspace.updatedAt;
+            lastRemoteProjectVersions.current = workspace.projectVersions;
+            setProjectAccess(workspace.projectAccess);
+            setState(merged);
+            toast("Combined concurrent project changes", {
+              id: "kanban-sync-merged",
+              description:
+                "Lifever kept edits from both collaborators and is syncing the result.",
+            });
+            return;
+          }
           const remoteState = lastRemoteState.current;
           if (remoteState) {
             applyingRemoteState.current = true;
@@ -299,7 +361,13 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         pendingRemoteSave.current = null;
       }
     };
-  }, [hydratedMode, loadRemote, session?.user.id, state]);
+  }, [
+    hydratedMode,
+    loadRemote,
+    projectAccess,
+    session?.user.id,
+    state,
+  ]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
@@ -311,6 +379,27 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       void loadRemote(userId, true);
     }
   }, Boolean(session?.user.id));
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => {
+      if (
+        pendingRemoteSave.current === null &&
+        remoteSaveCount.current === 0
+      ) {
+        void loadRemote(userId, true);
+      }
+    };
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 5_000);
+    window.addEventListener(SHARING_CHANGED_EVENT, refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
+    };
+  }, [loadRemote, session?.user.id]);
 
   useEffect(() => {
     const flush = () => {
@@ -337,6 +426,17 @@ export function KanbanProvider({ children }: PropsWithChildren) {
           body: JSON.stringify({
             state: stateRef.current,
             baseUpdatedAt: lastRemoteUpdatedAt.current,
+            baseProjectVersions: lastRemoteProjectVersions.current,
+            deletedProjectIds:
+              lastRemoteState.current?.projects
+                .filter(
+                  (project) =>
+                    projectAccess[project.id]?.role === "owner" &&
+                    !stateRef.current.projects.some(
+                      (item) => item.id === project.id,
+                    ),
+                )
+                .map((project) => project.id) ?? [],
           }),
           keepalive: true,
         }),
@@ -344,7 +444,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     };
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
-  }, []);
+  }, [projectAccess]);
 
   useEffect(() => {
     const reset = () => {
@@ -402,6 +502,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
 
   const updateProject = useCallback(
     (id: string, patch: Partial<NewKanbanProject>) => {
+      if (!canEditProject(id)) return;
       setState((current) => ({
         ...current,
         projects: current.projects.map((project) =>
@@ -411,12 +512,19 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         ),
       }));
     },
-    [],
+    [canEditProject],
   );
 
   const removeProject = useCallback(
     (id: string) => {
-      if (state.projects.length <= 1 || !state.projects.some((item) => item.id === id)) {
+      if (!isProjectOwner(id)) return false;
+      const ownedProjects = state.projects.filter((item) =>
+        isProjectOwner(item.id),
+      );
+      if (
+        ownedProjects.length <= 1 ||
+        !ownedProjects.some((item) => item.id === id)
+      ) {
         return false;
       }
       const nextProject = [...state.projects]
@@ -433,7 +541,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       setSelectedCardId(null);
       return true;
     },
-    [activeProjectId, state.projects],
+    [activeProjectId, isProjectOwner, state.projects],
   );
 
   const addColumn = useCallback(
@@ -443,6 +551,9 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         Pick<KanbanColumn, "name" | "color" | "wipLimit" | "isDone">
       > = {},
     ) => {
+      if (!canEditProject(projectId)) {
+        throw new Error("You only have read access to this project.");
+      }
       const projectColumns = state.columns.filter(
         (column) => column.projectId === projectId,
       );
@@ -461,7 +572,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       }));
       return column;
     },
-    [state.columns],
+    [canEditProject, state.columns],
   );
 
   const updateColumn = useCallback(
@@ -471,6 +582,10 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         Pick<KanbanColumn, "name" | "color" | "wipLimit" | "isDone">
       >,
     ) => {
+      const projectId = stateRef.current.columns.find(
+        (column) => column.id === id,
+      )?.projectId;
+      if (!projectId || !canEditProject(projectId)) return;
       setState((current) => ({
         ...current,
         columns: current.columns.map((column) =>
@@ -478,13 +593,14 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         ),
       }));
     },
-    [],
+    [canEditProject],
   );
 
   const removeColumn = useCallback(
     (id: string) => {
       const column = state.columns.find((item) => item.id === id);
       if (!column) return false;
+      if (!canEditProject(column.projectId)) return false;
       const siblings = state.columns
         .filter((item) => item.projectId === column.projectId && item.id !== id)
         .sort((a, b) => a.position - b.position);
@@ -514,7 +630,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       }));
       return true;
     },
-    [state.cards, state.columns],
+    [canEditProject, state.cards, state.columns],
   );
 
   const moveColumn = useCallback(
@@ -522,6 +638,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       setState((current) => {
         const column = current.columns.find((item) => item.id === id);
         if (!column) return current;
+        if (!canEditProject(column.projectId)) return current;
         const siblings = current.columns
           .filter((item) => item.projectId === column.projectId)
           .sort((a, b) => a.position - b.position);
@@ -548,7 +665,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         };
       });
     },
-    [],
+    [canEditProject],
   );
 
   const addLabel = useCallback(
@@ -556,6 +673,9 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       projectId: string,
       input: Partial<Pick<KanbanLabel, "name" | "color">> = {},
     ) => {
+      if (!canEditProject(projectId)) {
+        throw new Error("You only have read access to this project.");
+      }
       const projectLabels = state.labels.filter(
         (label) => label.projectId === projectId,
       );
@@ -572,11 +692,15 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       }));
       return label;
     },
-    [state.labels],
+    [canEditProject, state.labels],
   );
 
   const updateLabel = useCallback(
     (id: string, patch: Partial<Pick<KanbanLabel, "name" | "color">>) => {
+      const projectId = stateRef.current.labels.find(
+        (label) => label.id === id,
+      )?.projectId;
+      if (!projectId || !canEditProject(projectId)) return;
       setState((current) => ({
         ...current,
         labels: current.labels.map((label) =>
@@ -584,10 +708,14 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         ),
       }));
     },
-    [],
+    [canEditProject],
   );
 
   const removeLabel = useCallback((id: string) => {
+    const projectId = stateRef.current.labels.find(
+      (label) => label.id === id,
+    )?.projectId;
+    if (!projectId || !canEditProject(projectId)) return;
     setState((current) => ({
       ...current,
       labels: current.labels.filter((label) => label.id !== id),
@@ -597,10 +725,13 @@ export function KanbanProvider({ children }: PropsWithChildren) {
           : card,
       ),
     }));
-  }, []);
+  }, [canEditProject]);
 
   const addCard = useCallback(
     (input: NewKanbanCard) => {
+      if (!canEditProject(input.projectId)) {
+        throw new Error("You only have read access to this project.");
+      }
       const timestamp = new Date().toISOString();
       const columnCards = state.cards.filter(
         (card) => card.columnId === input.columnId,
@@ -618,10 +749,14 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       setSelectedCardId(card.id);
       return card;
     },
-    [state.cards],
+    [canEditProject, state.cards],
   );
 
   const updateCard = useCallback((id: string, patch: Partial<KanbanCard>) => {
+    const projectId = stateRef.current.cards.find(
+      (card) => card.id === id,
+    )?.projectId;
+    if (!projectId || !canEditProject(projectId)) return;
     setState((current) => ({
       ...current,
       cards: current.cards.map((card) =>
@@ -630,11 +765,12 @@ export function KanbanProvider({ children }: PropsWithChildren) {
           : card,
       ),
     }));
-  }, []);
+  }, [canEditProject]);
 
   const removeCard = useCallback(
     (id: string) => {
       const card = state.cards.find((item) => item.id === id) ?? null;
+      if (card && !canEditProject(card.projectId)) return null;
       setState((current) => ({
         ...current,
         cards: current.cards.filter((item) => item.id !== id),
@@ -642,20 +778,22 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       setSelectedCardId((current) => (current === id ? null : current));
       return card;
     },
-    [state.cards],
+    [canEditProject, state.cards],
   );
 
   const restoreCard = useCallback((card: KanbanCard) => {
+    if (!canEditProject(card.projectId)) return;
     setState((current) => {
       if (current.cards.some((item) => item.id === card.id)) return current;
       return { ...current, cards: [...current.cards, card] };
     });
-  }, []);
+  }, [canEditProject]);
 
   const duplicateCard = useCallback(
     (id: string) => {
       const source = state.cards.find((card) => card.id === id);
       if (!source) return null;
+      if (!canEditProject(source.projectId)) return null;
       return addCard({
         projectId: source.projectId,
         columnId: source.columnId,
@@ -666,7 +804,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         labelIds: source.labelIds,
       });
     },
-    [addCard, state.cards],
+    [addCard, canEditProject, state.cards],
   );
 
   const moveCard = useCallback(
@@ -679,6 +817,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         if (!card || !destinationColumn || card.projectId !== destinationColumn.projectId) {
           return current;
         }
+        if (!canEditProject(card.projectId)) return current;
 
         const sourceCards = current.cards
           .filter((item) => item.columnId === card.columnId && item.id !== id)
@@ -728,7 +867,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         };
       });
     },
-    [],
+    [canEditProject],
   );
 
   const value = useMemo(
@@ -754,6 +893,9 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       restoreCard,
       duplicateCard,
       moveCard,
+      projectAccess,
+      canEditProject,
+      isProjectOwner,
     }),
     [
       activeProjectId,
@@ -764,6 +906,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       duplicateCard,
       moveCard,
       moveColumn,
+      projectAccess,
       removeCard,
       removeColumn,
       removeLabel,
@@ -776,6 +919,8 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       updateColumn,
       updateLabel,
       updateProject,
+      canEditProject,
+      isProjectOwner,
     ],
   );
 

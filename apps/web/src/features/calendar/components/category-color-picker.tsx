@@ -7,6 +7,7 @@ type CategoryColorPickerProps = {
   onValueChange: (value: string) => void;
   ariaLabel?: string;
   presets?: ColorPickerPreset[];
+  disabled?: boolean;
 };
 
 export function CategoryColorPicker({
@@ -14,6 +15,7 @@ export function CategoryColorPicker({
   onValueChange,
   ariaLabel = "Choose category color",
   presets = calendarColorPresets,
+  disabled = false,
 }: CategoryColorPickerProps) {
   return (
     <ColorPicker
@@ -21,6 +23,7 @@ export function CategoryColorPicker({
       onValueChange={onValueChange}
       presets={presets}
       ariaLabel={ariaLabel}
+      disabled={disabled}
     />
   );
 }

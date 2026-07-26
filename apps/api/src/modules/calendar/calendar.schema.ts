@@ -36,6 +36,7 @@ export const updateCalendarEventSchema = z
     color: calendarEventFields.color,
     alertsEnabled: calendarEventFields.alertsEnabled.optional(),
     allDay: calendarEventFields.allDay.optional(),
+    baseUpdatedAt: z.string().datetime().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required.",

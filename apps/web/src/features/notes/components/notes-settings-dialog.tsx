@@ -164,12 +164,15 @@ export function NotesSettingsDialog({
     updateSettings,
   } = useNotes();
   const [newCategoryId, setNewCategoryId] = useState<string | null>(null);
+  const editableCategories = categories.filter(
+    (category) => category.owned !== false,
+  );
 
   const addNewCategory = () => {
     const unusedColor =
       noteColorPresets.find(
         (preset) =>
-          !categories.some(
+          !editableCategories.some(
             (category) =>
               category.color.toLowerCase() === preset.color.toLowerCase(),
           ),
@@ -278,7 +281,7 @@ export function NotesSettingsDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category) => (
+                  {editableCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
                     </SelectItem>
@@ -319,14 +322,14 @@ export function NotesSettingsDialog({
             </Button>
           </div>
           <div className="mt-2 space-y-2">
-            {categories.map((category) => (
+            {editableCategories.map((category) => (
               <CategoryRow
                 key={category.id}
                 category={category}
                 noteCount={
                   notes.filter((note) => note.categoryId === category.id).length
                 }
-                canDelete={categories.length > 1}
+                canDelete={editableCategories.length > 1}
                 autoFocus={newCategoryId === category.id}
                 onNameChange={(name) => {
                   updateCategory(category.id, { name });

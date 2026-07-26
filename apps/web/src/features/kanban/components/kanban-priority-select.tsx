@@ -14,11 +14,13 @@ import type { KanbanPriority } from "@/features/kanban/model/types";
 type KanbanPrioritySelectProps = {
   value: KanbanPriority;
   onValueChange: (value: KanbanPriority) => void;
+  disabled?: boolean;
 };
 
 export function KanbanPrioritySelect({
   value,
   onValueChange,
+  disabled = false,
 }: KanbanPrioritySelectProps) {
   const current = getKanbanPriority(value);
   const CurrentIcon = current.Icon;
@@ -26,6 +28,7 @@ export function KanbanPrioritySelect({
   return (
     <Select
       value={value}
+      disabled={disabled}
       onValueChange={(nextValue) => onValueChange(nextValue as KanbanPriority)}
     >
       <SelectTrigger aria-label="Priority">

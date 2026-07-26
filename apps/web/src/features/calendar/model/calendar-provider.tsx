@@ -29,9 +29,10 @@ import type {
   NewCalendarEvent,
 } from "@/features/calendar/model/types";
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
-import { apiRequest, apiUrl } from "@/lib/api";
+import { ApiRequestError, apiRequest, apiUrl } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 
 type GoogleCalendarStatus = {
@@ -100,6 +101,7 @@ type CalendarEventPatch = Partial<
 
 type PendingEventUpdate = {
   body: CalendarEventPatch;
+  baseUpdatedAt?: string;
   timeout: number;
 };
 
@@ -128,6 +130,8 @@ type RemoteCalendar = {
   position: number;
   visible: boolean;
   createdAt: string;
+  writable?: boolean;
+  access?: CalendarCollection["access"];
 };
 
 type RemoteGoogleCalendar = RemoteCalendar & {
@@ -189,7 +193,7 @@ const normalizeNativeCalendar = (
 ): CalendarCollection => ({
   ...calendar,
   source: "lifever",
-  writable: true,
+  writable: calendar.writable !== false,
 });
 
 const normalizeGoogleCalendar = (
@@ -676,6 +680,33 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   }, Boolean(session?.user.id));
 
   useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => {
+      if (
+        pendingCreates.current.size === 0 &&
+        pendingDeletes.current.size === 0 &&
+        eventWriteChains.current.size === 0 &&
+        pendingCategoryCreates.current.size === 0 &&
+        categoryWriteChains.current.size === 0 &&
+        pendingCalendarCreates.current.size === 0 &&
+        calendarWriteChains.current.size === 0 &&
+        pendingEventUpdates.current.size === 0
+      ) {
+        void loadRemote(userId, true).then(() => loadGoogleEvents());
+      }
+    };
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 5_000);
+    window.addEventListener(SHARING_CHANGED_EVENT, refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
+    };
+  }, [loadGoogleEvents, loadRemote, session?.user.id]);
+
+  useEffect(() => {
     const reset = () => {
       if (modeRef.current !== "local") return;
       const resetCalendars = defaultLocalCalendars.map((calendar) => ({
@@ -741,7 +772,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   );
 
   const sendEventUpdate = useCallback(
-    (id: string, body: CalendarEventPatch) => {
+    (id: string, body: CalendarEventPatch, baseUpdatedAt?: string) => {
       const event = findEvent(id);
       if (!session || !event || event.readOnly) return;
       const create = pendingCreates.current.get(id);
@@ -770,10 +801,47 @@ export function CalendarProvider({ children }: PropsWithChildren) {
             );
             return;
           }
-          await apiRequest(`/api/calendar-events/${id}`, {
-            method: "PATCH",
-            body: JSON.stringify(body),
-          });
+          const save = (version?: string) =>
+            apiRequest<{ event: CalendarEvent }>(
+              `/api/calendar-events/${id}`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  ...body,
+                  ...(version ? { baseUpdatedAt: version } : {}),
+                }),
+              },
+            );
+          try {
+            const { event: savedEvent } = await save(baseUpdatedAt);
+            setNativeEvents((current) =>
+              current.map((item) =>
+                item.id === id
+                  ? { ...item, updatedAt: savedEvent.updatedAt }
+                  : item,
+              ),
+            );
+          } catch (error) {
+            if (
+              error instanceof ApiRequestError &&
+              error.status === 409 &&
+              error.payload &&
+              typeof error.payload === "object" &&
+              "event" in error.payload
+            ) {
+              const latest = error.payload.event as CalendarEvent;
+              const { event: savedEvent } = await save(latest.updatedAt);
+              setNativeEvents((current) =>
+                current.map((item) =>
+                  item.id === id
+                    ? { ...item, updatedAt: savedEvent.updatedAt }
+                    : item,
+                ),
+              );
+              return;
+            }
+            throw error;
+          }
         })
         .catch(() => {
           recoverRemote("Lifever is refreshing your latest synced copy.");
@@ -802,26 +870,39 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       if (!pending) return;
       window.clearTimeout(pending.timeout);
       pendingEventUpdates.current.delete(id);
-      sendEventUpdate(id, pending.body);
+      sendEventUpdate(id, pending.body, pending.baseUpdatedAt);
     },
     [sendEventUpdate],
   );
 
   const queueEventUpdate = useCallback(
-    (id: string, body: CalendarEventPatch, deferred: boolean) => {
+    (
+      id: string,
+      body: CalendarEventPatch,
+      deferred: boolean,
+      baseUpdatedAt?: string,
+    ) => {
       const pending = pendingEventUpdates.current.get(id);
       if (pending) window.clearTimeout(pending.timeout);
       const merged = { ...pending?.body, ...body };
       if (!deferred) {
         pendingEventUpdates.current.delete(id);
-        sendEventUpdate(id, merged);
+        sendEventUpdate(
+          id,
+          merged,
+          pending?.baseUpdatedAt ?? baseUpdatedAt,
+        );
         return;
       }
       const timeout = window.setTimeout(
         () => flushEventUpdate(id),
         REMOTE_WRITE_DELAY,
       );
-      pendingEventUpdates.current.set(id, { body: merged, timeout });
+      pendingEventUpdates.current.set(id, {
+        body: merged,
+        baseUpdatedAt: pending?.baseUpdatedAt ?? baseUpdatedAt,
+        timeout,
+      });
     },
     [flushEventUpdate, sendEventUpdate],
   );
@@ -876,7 +957,15 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           : apiRequest<{ event: CalendarEvent }>("/api/calendar-events", {
               method: "POST",
               body: JSON.stringify({ id: optimisticEvent.id, ...input }),
-            }).then(() => undefined);
+            }).then(({ event }) => {
+              setNativeEvents((current) =>
+                current.map((item) =>
+                  item.id === optimisticEvent.id
+                    ? { ...item, updatedAt: event.updatedAt }
+                    : item,
+                ),
+              );
+            });
       const tracked = request
         .catch(() => {
           if (optimisticEvent.source === "google") {
@@ -980,7 +1069,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           const textOnly = Object.keys(allowedPatch).every(
             (key) => key === "title" || key === "location" || key === "notes",
           );
-          queueEventUpdate(id, allowedPatch, textOnly);
+          queueEventUpdate(id, allowedPatch, textOnly, event.updatedAt);
         }
       }
     },
@@ -1276,7 +1365,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       >,
     ) => {
       const calendar = nativeCalendars.find((item) => item.id === id);
-      if (!calendar) return;
+      if (!calendar || !calendar.writable) return;
       mutationVersion.current += 1;
       setNativeCalendars((current) =>
         current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -1315,7 +1404,14 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       const replacementCategory = categoriesRef.current.find(
         (category) => category.calendarId === replacement?.id,
       );
-      if (!target || !replacement || !replacementCategory) return false;
+      if (
+        !target ||
+        target.access?.role === "collaborator" ||
+        !replacement ||
+        !replacementCategory
+      ) {
+        return false;
+      }
       mutationVersion.current += 1;
       setNativeCalendars((current) =>
         current.filter((calendar) => calendar.id !== id),
@@ -1357,6 +1453,12 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     (
       input: Pick<CalendarCategory, "name" | "color" | "calendarId">,
     ) => {
+      const calendar = nativeCalendars.find(
+        (item) => item.id === input.calendarId,
+      );
+      if (!calendar?.writable) {
+        throw new Error("You only have read access to this calendar.");
+      }
       const category: CalendarCategory = {
         id: crypto.randomUUID(),
         name: input.name.trim() || "New category",
@@ -1385,7 +1487,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       }
       return category;
     },
-    [categories, recoverRemote, session],
+    [categories, nativeCalendars, recoverRemote, session],
   );
 
   const updateCategory = useCallback(
@@ -1395,6 +1497,17 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         Pick<CalendarCategory, "name" | "color" | "position">
       >,
     ) => {
+      const calendarId = categoriesRef.current.find(
+        (category) => category.id === id,
+      )?.calendarId;
+      if (
+        !calendarId ||
+        !nativeCalendarsRef.current.find(
+          (calendar) => calendar.id === calendarId,
+        )?.writable
+      ) {
+        return;
+      }
       mutationVersion.current += 1;
       setCategories((current) =>
         current.map((category) =>
@@ -1429,11 +1542,19 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     (id: string) => {
       if (categories.length <= 1) return false;
       const target = categories.find((category) => category.id === id);
+      if (
+        !target ||
+        !nativeCalendars.find(
+          (calendar) => calendar.id === target.calendarId,
+        )?.writable
+      ) {
+        return false;
+      }
       const replacement = categories.find(
         (category) =>
           category.id !== id && category.calendarId === target?.calendarId,
       );
-      if (!target || !replacement) {
+      if (!replacement) {
         return false;
       }
       mutationVersion.current += 1;
@@ -1462,7 +1583,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       }
       return true;
     },
-    [categories, recoverRemote, session],
+    [categories, nativeCalendars, recoverRemote, session],
   );
 
   const refreshGoogle = useCallback(async () => {

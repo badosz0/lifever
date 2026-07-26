@@ -124,6 +124,7 @@ export function KanbanCardSurface({
 
 type KanbanSortableCardProps = KanbanCardSurfaceProps & {
   onSelect: (id: string) => void;
+  readOnly?: boolean;
 };
 
 export function KanbanSortableCard({
@@ -132,6 +133,7 @@ export function KanbanSortableCard({
   completed,
   selected,
   onSelect,
+  readOnly = false,
 }: KanbanSortableCardProps) {
   const {
     attributes,
@@ -143,10 +145,11 @@ export function KanbanSortableCard({
   } = useSortable({
     id: `card:${card.id}`,
     data: { type: "card", cardId: card.id, columnId: card.columnId },
+    disabled: readOnly,
   });
 
   return (
-    <KanbanCardContextMenu card={card}>
+    <KanbanCardContextMenu card={card} disabled={readOnly}>
       <button
         ref={setNodeRef}
         type="button"
@@ -159,9 +162,13 @@ export function KanbanSortableCard({
           transform: CSS.Transform.toString(transform),
           transition,
         }}
-        aria-label={`${card.title}. Drag to reorder or move to another status.`}
-        {...attributes}
-        {...listeners}
+        aria-label={
+          readOnly
+            ? card.title
+            : `${card.title}. Drag to reorder or move to another status.`
+        }
+        {...(readOnly ? {} : attributes)}
+        {...(readOnly ? {} : listeners)}
       >
         <KanbanCardSurface
           card={card}

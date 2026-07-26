@@ -49,6 +49,8 @@ export type KanbanState = {
   cards: KanbanCard[];
 };
 
+export type KanbanProjectAccessMap = Record<string, SharedResourceAccess>;
+
 export type NewKanbanProject = Pick<
   KanbanProject,
   "name" | "description" | "color"
@@ -64,3 +66,4 @@ export type NewKanbanCard = Pick<
   | "dueDate"
   | "labelIds"
 >;
+import type { SharedResourceAccess } from "@/features/sharing/model/types";

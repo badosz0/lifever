@@ -13,13 +13,17 @@ import { useKanbanCardActions } from "@/features/kanban/model/use-kanban-card-ac
 type KanbanCardContextMenuProps = {
   card: KanbanCard;
   children: ReactElement;
+  disabled?: boolean;
 };
 
 export function KanbanCardContextMenu({
   card,
   children,
+  disabled = false,
 }: KanbanCardContextMenuProps) {
   const { deleteKanbanCard } = useKanbanCardActions();
+
+  if (disabled) return children;
 
   return (
     <ContextMenu>

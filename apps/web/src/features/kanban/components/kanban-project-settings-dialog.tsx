@@ -4,6 +4,7 @@ import {
   Check,
   CircleCheck,
   Plus,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { kanbanColorPresets } from "@/features/kanban/lib/properties";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
+import { ShareDialog } from "@/features/sharing/components/share-dialog";
 import { cn } from "@/lib/cn";
 
 type KanbanProjectSettingsDialogProps = {
@@ -36,10 +38,13 @@ export function KanbanProjectSettingsDialog({
     activeProjectId,
     addColumn,
     addLabel,
+    canEditProject,
     columns,
     labels,
+    projectAccess,
     projects,
     moveColumn,
+    isProjectOwner,
     removeColumn,
     removeLabel,
     removeProject,
@@ -48,6 +53,7 @@ export function KanbanProjectSettingsDialog({
     updateProject,
   } = useKanban();
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const project = projects.find((item) => item.id === activeProjectId);
   const projectColumns = useMemo(
     () =>
@@ -65,6 +71,11 @@ export function KanbanProjectSettingsDialog({
   );
 
   if (!project) return null;
+  const canEdit = canEditProject(project.id);
+  const isOwner = isProjectOwner(project.id);
+  const ownedProjectCount = projects.filter((item) =>
+    isProjectOwner(item.id),
+  ).length;
 
   const deleteColumn = (id: string) => {
     if (!removeColumn(id)) {
@@ -85,53 +96,79 @@ export function KanbanProjectSettingsDialog({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto border-y border-border/65 px-5 py-5">
-            <section>
-              <div className="mb-3">
-                <h3 className="text-[13px] font-semibold">General</h3>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  A distinct name and color make projects easy to spot.
-                </p>
-              </div>
-              <div className="max-w-xl space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    Name
-                  </label>
-                  <div className="flex gap-2">
-                    <ColorPicker
-                      value={project.color}
-                      onValueChange={(color) =>
-                        updateProject(project.id, { color })
-                      }
-                      presets={kanbanColorPresets}
-                      ariaLabel="Choose project color"
-                    />
-                    <Input
-                      value={project.name}
+            <fieldset disabled={!canEdit} className="contents">
+              <section>
+                <div className="mb-3">
+                  <h3 className="text-[13px] font-semibold">General</h3>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    A distinct name and color make projects easy to spot.
+                  </p>
+                </div>
+                <div className="max-w-xl space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Name
+                    </label>
+                    <div className="flex gap-2">
+                      <ColorPicker
+                        value={project.color}
+                        onValueChange={(color) =>
+                          updateProject(project.id, { color })
+                        }
+                        presets={kanbanColorPresets}
+                        ariaLabel="Choose project color"
+                      />
+                      <Input
+                        value={project.name}
+                        onChange={(event) =>
+                          updateProject(project.id, {
+                            name: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Description
+                    </label>
+                    <Textarea
+                      value={project.description}
                       onChange={(event) =>
-                        updateProject(project.id, { name: event.target.value })
+                        updateProject(project.id, {
+                          description: event.target.value,
+                        })
                       }
+                      className="min-h-20"
+                      placeholder="What is this project for?"
                     />
                   </div>
                 </div>
+              </section>
+            </fieldset>
+
+            <section className="mt-7 border-t border-border/65 pt-6">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    Description
-                  </label>
-                  <Textarea
-                    value={project.description}
-                    onChange={(event) =>
-                      updateProject(project.id, {
-                        description: event.target.value,
-                      })
-                    }
-                    className="min-h-20"
-                    placeholder="What is this project for?"
-                  />
+                  <h3 className="text-[13px] font-semibold">Collaboration</h3>
+                  <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                    {isOwner
+                      ? "Invite people to view or edit this project."
+                      : `Shared by ${projectAccess[project.id]?.owner.name ?? "the owner"}.`}
+                  </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <Share2 className="size-3.5" />
+                  Manage access
+                </Button>
               </div>
             </section>
 
+            <fieldset disabled={!canEdit} className="contents">
             <section className="mt-7 border-t border-border/65 pt-6">
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
@@ -311,7 +348,9 @@ export function KanbanProjectSettingsDialog({
                 </button>
               )}
             </section>
+            </fieldset>
 
+            {isOwner ? (
             <section className="mt-7 border-t border-border/65 pt-6">
               <h3 className="text-[13px] font-semibold text-destructive">
                 Delete project
@@ -324,18 +363,19 @@ export function KanbanProjectSettingsDialog({
                 variant="ghost"
                 size="sm"
                 className="mt-2 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                disabled={projects.length <= 1}
+                disabled={ownedProjectCount <= 1}
                 onClick={() => setDeleteProjectOpen(true)}
               >
                 <Trash2 className="size-3.5" />
                 Delete project…
               </Button>
-              {projects.length <= 1 ? (
+              {ownedProjectCount <= 1 ? (
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   Create another project before deleting this one.
                 </p>
               ) : null}
             </section>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 justify-end px-5 py-3">
@@ -343,6 +383,15 @@ export function KanbanProjectSettingsDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        resourceType="kanbanProject"
+        resourceId={project.id}
+        resourceName={project.name}
+        onLeft={() => onOpenChange(false)}
+      />
 
       <Dialog open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
         <DialogContent className="max-w-sm">

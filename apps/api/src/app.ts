@@ -14,6 +14,7 @@ import { createKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { createNotesRoutes } from "./modules/notes/notes.routes.js";
 import { createPreferencesRoutes } from "./modules/preferences/preferences.routes.js";
 import { createRemindersRoutes } from "./modules/reminders/reminders.routes.js";
+import { createSharingRoutes } from "./modules/sharing/sharing.routes.js";
 
 type ApiDependencies = {
   config: ApiConfig;
@@ -72,6 +73,7 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
   app.route("/api/kanban", createKanbanRoutes(routeDependencies));
   app.route("/api/notes", createNotesRoutes(routeDependencies));
   app.route("/api/preferences", createPreferencesRoutes(routeDependencies));
+  app.route("/api/sharing", createSharingRoutes(routeDependencies));
 
   app.notFound((context) => context.json({ error: "Not found" }, 404));
 

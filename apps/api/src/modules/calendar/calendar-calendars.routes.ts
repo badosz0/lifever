@@ -3,6 +3,12 @@ import { Hono } from "hono";
 import type { AuthenticatedEnv } from "../auth/session.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
+  canWriteResource,
+  deleteResourceSharing,
+  getResourceAccess,
+  serializeResourceAccess,
+} from "../sharing/sharing.service.js";
+import {
   createLifeverCalendarSchema,
   updateLifeverCalendarSchema,
 } from "./calendar-calendars.schema.js";
@@ -48,12 +54,55 @@ export const createCalendarCalendarsRoutes = ({
   routes.get("/", async (context) => {
     const userId = context.get("session").user.id;
     await ensureDefaultCalendar(prisma, userId);
+    const shares = await prisma.resourceShare.findMany({
+      where: { userId, resourceType: "calendar" },
+      select: {
+        id: true,
+        resourceId: true,
+        permission: true,
+        visible: true,
+        owner: {
+          select: { id: true, name: true, email: true, image: true },
+        },
+      },
+    });
+    const shareByCalendar = new Map(
+      shares.map((share) => [share.resourceId, share]),
+    );
     const calendars = await prisma.lifeverCalendar.findMany({
-      where: { userId },
-      select: calendarSelect,
+      where: {
+        OR: [
+          { userId },
+          { id: { in: shares.map((share) => share.resourceId) } },
+        ],
+      },
+      select: {
+        ...calendarSelect,
+        userId: true,
+        user: {
+          select: { id: true, name: true, email: true, image: true },
+        },
+      },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
-    return context.json({ calendars });
+    return context.json({
+      calendars: calendars.map(({ userId: ownerId, user, ...calendar }) => {
+        const own = ownerId === userId;
+        const share = shareByCalendar.get(calendar.id);
+        return {
+          ...calendar,
+          visible: own ? calendar.visible : share?.visible !== false,
+          writable: own || share?.permission === "write",
+          access: {
+            role: own ? "owner" : "collaborator",
+            permission:
+              own || share?.permission === "write" ? "write" : "read",
+            shareId: own ? null : share?.id ?? null,
+            owner: user,
+          },
+        };
+      }),
+    });
   });
 
   routes.post("/", async (context) => {
@@ -108,18 +157,60 @@ export const createCalendarCalendarsRoutes = ({
       );
     }
 
-    const existing = await prisma.lifeverCalendar.findFirst({
-      where: { id: context.req.param("id"), userId },
-      select: { id: true },
-    });
+    const access = await getResourceAccess(
+      prisma,
+      userId,
+      "calendar",
+      context.req.param("id"),
+    );
+    const existing = access
+      ? await prisma.lifeverCalendar.findUnique({
+          where: { id: context.req.param("id") },
+          select: { id: true },
+        })
+      : null;
     if (!existing) return context.json({ error: "Calendar not found" }, 404);
+    if (!canWriteResource(access)) {
+      const { visible } = parsed.data;
+      if (visible === undefined || Object.keys(parsed.data).length !== 1) {
+        return context.json({ error: "You only have read access." }, 403);
+      }
+    }
 
-    const calendar = await prisma.lifeverCalendar.update({
-      where: { id: existing.id },
-      data: parsed.data,
-      select: calendarSelect,
+    if (access!.role === "collaborator" && parsed.data.visible !== undefined) {
+      await prisma.resourceShare.update({
+        where: { id: access!.shareId! },
+        data: { visible: parsed.data.visible },
+      });
+    }
+    const { visible: requestedVisibility, ...sharedPatch } = parsed.data;
+    const ownerPatch =
+      access!.role === "owner"
+        ? parsed.data
+        : sharedPatch;
+
+    const calendar =
+      Object.keys(ownerPatch).length > 0
+        ? await prisma.lifeverCalendar.update({
+            where: { id: existing.id },
+            data: ownerPatch,
+            select: calendarSelect,
+          })
+        : await prisma.lifeverCalendar.findUniqueOrThrow({
+            where: { id: existing.id },
+            select: calendarSelect,
+          });
+    return context.json({
+      calendar: {
+        ...calendar,
+        ...(access!.role === "collaborator" &&
+        requestedVisibility !== undefined
+          ? { visible: requestedVisibility }
+          : {}),
+        writable: canWriteResource(access),
+        access: serializeResourceAccess(access!),
+      },
     });
-    return context.json({ calendar });
   });
 
   routes.delete("/:id", async (context) => {
@@ -161,6 +252,7 @@ export const createCalendarCalendarsRoutes = ({
           categoryId: replacementCategory.id,
         },
       }),
+      ...deleteResourceSharing(prisma, "calendar", target.id),
       prisma.lifeverCalendar.delete({ where: { id: target.id } }),
     ]);
     return context.json({ replacementCalendarId: replacement.id });

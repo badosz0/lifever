@@ -29,6 +29,11 @@ model User {
   noteCategories           NoteCategory[]
   notesSettings            NotesSettings?
   kanbanWorkspace          KanbanWorkspace?
+  kanbanProjects           KanbanProject[]
+  ownedResourceShares      ResourceShare[]          @relation("ResourceShareOwner")
+  resourceShares           ResourceShare[]          @relation("ResourceShareMember")
+  sentResourceInvites      ResourceInvite[]         @relation("ResourceInviteOwner")
+  receivedResourceInvites  ResourceInvite[]         @relation("ResourceInviteRecipient")
   preferences              UserPreferences?
 
   @@map("user")
@@ -260,6 +265,58 @@ model KanbanWorkspace {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("kanban_workspace")
+}
+
+model KanbanProject {
+  id        String   @id
+  state     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt])
+  @@map("kanban_project")
+}
+
+model ResourceShare {
+  id           String   @id @default(cuid())
+  resourceType String
+  resourceId   String
+  permission   String
+  visible      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  ownerId      String
+  owner        User     @relation("ResourceShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation("ResourceShareMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceType, resourceId, userId])
+  @@index([ownerId, resourceType])
+  @@index([userId, resourceType])
+  @@map("resource_share")
+}
+
+model ResourceInvite {
+  id           String    @id @default(cuid())
+  resourceType String
+  resourceId   String
+  resourceName String
+  email        String
+  permission   String
+  status       String    @default("pending")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  ownerId      String
+  owner        User      @relation("ResourceInviteOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  recipientId  String?
+  recipient    User?     @relation("ResourceInviteRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@unique([resourceType, resourceId, email])
+  @@index([email, status, createdAt])
+  @@index([ownerId, resourceType, resourceId])
+  @@map("resource_invite")
 }
 
 model UserPreferences {

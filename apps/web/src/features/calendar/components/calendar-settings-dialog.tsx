@@ -3,6 +3,7 @@ import {
   MousePointerClick,
   Plus,
   RefreshCw,
+  Share2,
   Settings2,
   Trash2,
   Unplug,
@@ -33,6 +34,7 @@ import type {
   CalendarCollection,
 } from "@/features/calendar/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
+import { ShareDialog } from "@/features/sharing/components/share-dialog";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
 
@@ -53,6 +55,8 @@ type EditableRowProps = {
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
   };
+  editable?: boolean;
+  onShare?: () => void;
 };
 
 function EditableRow({
@@ -64,6 +68,8 @@ function EditableRow({
   onColorChange,
   onDelete,
   visibility,
+  editable = true,
+  onShare,
 }: EditableRowProps) {
   const [name, setName] = useState(item.name);
 
@@ -82,8 +88,11 @@ function EditableRow({
     <div className="flex min-h-12 items-center gap-2 border-b border-border/55 px-1 last:border-b-0">
       <CategoryColorPicker
         value={item.color}
-        onValueChange={onColorChange}
+        onValueChange={(color) => {
+          if (editable) onColorChange(color);
+        }}
         ariaLabel={`Choose color for ${item.name}`}
+        disabled={!editable}
       />
       <Input
         value={name}
@@ -100,6 +109,7 @@ function EditableRow({
         maxLength={40}
         className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[13px] font-medium shadow-none focus:ring-0"
         aria-label={`${item.name} name`}
+        disabled={!editable}
       />
       <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">
         {countLabel}
@@ -111,13 +121,25 @@ function EditableRow({
           aria-label={`Show ${item.name}`}
         />
       ) : null}
+      {onShare ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-8 shrink-0 text-muted-foreground"
+          onClick={onShare}
+          aria-label={`Share ${item.name}`}
+        >
+          <Share2 className="size-3.5" />
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
         className="size-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         onClick={onDelete}
-        disabled={!canDelete}
+        disabled={!canDelete || !editable}
         aria-label={`Delete ${item.name}`}
       >
         <Trash2 className="size-3.5" />
@@ -210,9 +232,15 @@ export function CalendarSettingsDialog({
   const [categoryCalendarId, setCategoryCalendarId] = useState<string | null>(
     null,
   );
+  const [sharingCalendarId, setSharingCalendarId] = useState<string | null>(
+    null,
+  );
   const previousOpen = useRef(open);
   const nativeCalendars = calendars.filter(
     (calendar) => calendar.source === "lifever",
+  );
+  const ownedNativeCalendars = nativeCalendars.filter(
+    (calendar) => calendar.access?.role !== "collaborator",
   );
   const googleCalendars = calendars.filter(
     (calendar) => calendar.source === "google",
@@ -301,8 +329,9 @@ export function CalendarSettingsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[580px] overflow-visible bg-popover p-0">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[580px] overflow-visible bg-popover p-0">
         <div className="px-5 pt-5 pb-3">
           <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Settings2 className="size-[18px]" />
@@ -376,7 +405,12 @@ export function CalendarSettingsDialog({
                     key={calendar.id}
                     item={calendar}
                     countLabel={`${nativeEvents.filter((event) => event.calendarId === calendar.id).length}`}
-                    canDelete={nativeCalendars.length > 1}
+                    canDelete={
+                      calendar.access?.role !== "collaborator" &&
+                      ownedNativeCalendars.length > 1
+                    }
+                    editable={calendar.writable}
+                    onShare={() => setSharingCalendarId(calendar.id)}
                     autoFocus={newCalendarId === calendar.id}
                     visibility={{
                       checked: calendar.visible,
@@ -554,6 +588,7 @@ export function CalendarSettingsDialog({
                     item={category}
                     countLabel={`${nativeEvents.filter((event) => event.categoryId === category.id).length}`}
                     canDelete={calendarCategories.length > 1}
+                    editable={categoryCalendar?.writable !== false}
                     autoFocus={newCategoryId === category.id}
                     onCommitName={(name) => {
                       updateCategory(category.id, { name });
@@ -577,7 +612,7 @@ export function CalendarSettingsDialog({
                 variant="ghost"
                 className="mt-1 h-8 px-1 text-[12px] text-muted-foreground"
                 onClick={addNewCategory}
-                disabled={!categoryCalendar}
+                disabled={!categoryCalendar || !categoryCalendar.writable}
               >
                 <Plus className="size-3.5" />
                 Add category
@@ -591,7 +626,24 @@ export function CalendarSettingsDialog({
             Done
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      {sharingCalendarId ? (
+        <ShareDialog
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setSharingCalendarId(null);
+          }}
+          resourceType="calendar"
+          resourceId={sharingCalendarId}
+          resourceName={
+            nativeCalendars.find(
+              (calendar) => calendar.id === sharingCalendarId,
+            )?.name ?? "Calendar"
+          }
+          onLeft={() => setSharingCalendarId(null)}
+        />
+      ) : null}
+    </>
   );
 }

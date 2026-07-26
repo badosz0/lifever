@@ -5,6 +5,18 @@ import {
 
 export const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
+export class ApiRequestError<T = unknown> extends Error {
+  status: number;
+  payload: T | null;
+
+  constructor(status: number, message: string, payload: T | null) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   const authToken = getDesktopAuthToken();
@@ -25,9 +37,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     if (response.status === 401 && authToken) clearDesktopAuthToken();
 
     const payload = (await response.json().catch(() => null)) as
-      | { error?: string }
+      | ({ error?: string } & Record<string, unknown>)
       | null;
-    throw new Error(payload?.error ?? `Request failed with status ${response.status}`);
+    throw new ApiRequestError(
+      response.status,
+      payload?.error ?? `Request failed with status ${response.status}`,
+      payload,
+    );
   }
 
   if (response.status === 204) return undefined as T;

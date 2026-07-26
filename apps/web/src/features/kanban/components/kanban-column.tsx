@@ -29,6 +29,7 @@ type KanbanColumnProps = {
   onSelectCard: (id: string) => void;
   onAddCard: (columnId: string) => void;
   onManageWorkflow: () => void;
+  readOnly?: boolean;
 };
 
 export function KanbanColumn({
@@ -40,6 +41,7 @@ export function KanbanColumn({
   onSelectCard,
   onAddCard,
   onManageWorkflow,
+  readOnly = false,
 }: KanbanColumnProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `column:${column.id}`,
@@ -122,6 +124,7 @@ export function KanbanColumn({
                 completed={column.isDone}
                 selected={selectedCardId === card.id}
                 onSelect={onSelectCard}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -150,6 +153,7 @@ export function KanbanColumn({
           size="sm"
           className="h-8 w-full justify-start px-2 text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={() => onAddCard(column.id)}
+          disabled={readOnly}
         >
           <Plus className="size-3.5" />
           Add card

@@ -11,9 +11,10 @@ import {
 import { toast } from "sonner";
 
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
+import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
-import { apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 
 import {
   initialNoteCategories,
@@ -46,6 +47,8 @@ type NotesContextValue = {
   updateCategory: (id: string, patch: Partial<NoteCategory>) => void;
   removeCategory: (id: string) => boolean;
   updateSettings: (patch: Partial<NotesSettings>) => void;
+  canEditNote: (id: string) => boolean;
+  isNoteOwner: (id: string) => boolean;
 };
 
 type StoredNotesState = {
@@ -74,6 +77,7 @@ type NotePatch = Partial<
 
 type PendingNoteUpdate = {
   body: NotePatch;
+  baseUpdatedAt: string;
   timeout: number;
 };
 
@@ -166,6 +170,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const pendingCategoryCreates = useRef(new Map<string, Promise<void>>());
   const categoryWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingUpdates = useRef(new Map<string, PendingNoteUpdate>());
+  const noteVersions = useRef(new Map<string, string>());
   const settingsTimeout = useRef<number | null>(null);
   const pendingSettingsPatch = useRef<Partial<NotesSettings>>({});
   const settingsWriteChain = useRef(Promise.resolve());
@@ -194,10 +199,31 @@ export function NotesProvider({ children }: PropsWithChildren) {
           return;
         }
         setNotes(payload.notes);
+        noteVersions.current = new Map(
+          payload.notes.map((note) => [note.id, note.updatedAt]),
+        );
         setCategories(payload.categories);
         setSettings(payload.settings);
-        setActiveFilter("all");
-        if (!preserveSelection) setSelectedNoteId(null);
+        setActiveFilter((current) => {
+          if (!preserveSelection) return "all";
+          if (
+            current.startsWith("category:") &&
+            !payload.categories.some(
+              (category) =>
+                category.id === current.slice("category:".length),
+            )
+          ) {
+            return "all";
+          }
+          return current;
+        });
+        setSelectedNoteId((current) =>
+          preserveSelection &&
+          current &&
+          payload.notes.some((note) => note.id === current)
+            ? current
+            : null,
+        );
         setHydratedMode(requestedMode);
       } catch {
         if (modeRef.current === requestedMode) {
@@ -289,6 +315,32 @@ export function NotesProvider({ children }: PropsWithChildren) {
   }, Boolean(session?.user.id));
 
   useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    const refresh = () => void loadRemote(userId, true);
+    const interval = window.setInterval(() => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingCreates.current.size === 0 &&
+        pendingDeletes.current.size === 0 &&
+        noteWriteChains.current.size === 0 &&
+        pendingCategoryCreates.current.size === 0 &&
+        categoryWriteChains.current.size === 0 &&
+        pendingUpdates.current.size === 0 &&
+        settingsTimeout.current === null &&
+        settingsWriteCount.current === 0
+      ) {
+        refresh();
+      }
+    }, 5_000);
+    window.addEventListener(SHARING_CHANGED_EVENT, refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
+    };
+  }, [loadRemote, session?.user.id]);
+
+  useEffect(() => {
     const reset = () => {
       if (modeRef.current !== "local") return;
       const demo = cloneDemoState();
@@ -303,17 +355,41 @@ export function NotesProvider({ children }: PropsWithChildren) {
   }, []);
 
   const sendNoteUpdate = useCallback(
-    (id: string, body: NotePatch) => {
+    (id: string, body: NotePatch, baseUpdatedAt: string) => {
       const create = pendingCreates.current.get(id);
       const previous =
         noteWriteChains.current.get(id) ?? create ?? Promise.resolve();
-      const request = previous
-        .then(() =>
-          apiRequest(`/api/notes/${id}`, {
+      const save = (version: string) =>
+        apiRequest<{ note: Note }>(`/api/notes/${id}`, {
             method: "PATCH",
-            body: JSON.stringify(body),
-          }).then(() => undefined),
-        )
+            body: JSON.stringify({ ...body, baseUpdatedAt: version }),
+          });
+      const request = previous
+        .then(async () => {
+          try {
+            return await save(baseUpdatedAt);
+          } catch (error) {
+            if (
+              error instanceof ApiRequestError &&
+              error.status === 409 &&
+              error.payload &&
+              typeof error.payload === "object" &&
+              "note" in error.payload
+            ) {
+              const latest = error.payload.note as Note;
+              return save(latest.updatedAt);
+            }
+            throw error;
+          }
+        })
+        .then(({ note }) => {
+          noteVersions.current.set(id, note.updatedAt);
+          setNotes((current) =>
+            current.map((item) =>
+              item.id === id ? { ...item, updatedAt: note.updatedAt } : item,
+            ),
+          );
+        })
         .catch(() => {
           const userId = session?.user.id;
           if (userId) recoverRemote(userId);
@@ -334,26 +410,35 @@ export function NotesProvider({ children }: PropsWithChildren) {
       if (!pending) return;
       window.clearTimeout(pending.timeout);
       pendingUpdates.current.delete(id);
-      sendNoteUpdate(id, pending.body);
+      sendNoteUpdate(id, pending.body, pending.baseUpdatedAt);
     },
     [sendNoteUpdate],
   );
 
   const queueNoteUpdate = useCallback(
-    (id: string, body: NotePatch, deferred: boolean) => {
+    (
+      id: string,
+      body: NotePatch,
+      deferred: boolean,
+      baseUpdatedAt: string,
+    ) => {
       const pending = pendingUpdates.current.get(id);
       if (pending) window.clearTimeout(pending.timeout);
       const merged = { ...pending?.body, ...body };
       if (!deferred) {
         pendingUpdates.current.delete(id);
-        sendNoteUpdate(id, merged);
+        sendNoteUpdate(id, merged, pending?.baseUpdatedAt ?? baseUpdatedAt);
         return;
       }
       const timeout = window.setTimeout(
         () => flushNoteUpdate(id),
         REMOTE_WRITE_DELAY,
       );
-      pendingUpdates.current.set(id, { body: merged, timeout });
+      pendingUpdates.current.set(id, {
+        body: merged,
+        baseUpdatedAt: pending?.baseUpdatedAt ?? baseUpdatedAt,
+        timeout,
+      });
     },
     [flushNoteUpdate, sendNoteUpdate],
   );
@@ -422,6 +507,21 @@ export function NotesProvider({ children }: PropsWithChildren) {
       pinned: false,
       createdAt: now,
       updatedAt: now,
+      ...(session
+        ? {
+            access: {
+              role: "owner" as const,
+              permission: "write" as const,
+              shareId: null,
+              owner: {
+                id: session.user.id,
+                name: session.user.name,
+                email: session.user.email,
+                image: session.user.image ?? null,
+              },
+            },
+          }
+        : {}),
     };
     mutationVersion.current += 1;
     setNotes((current) => [note, ...current]);
@@ -439,7 +539,9 @@ export function NotesProvider({ children }: PropsWithChildren) {
           pinned: note.pinned,
         }),
       })
-        .then(() => undefined)
+        .then(({ note: savedNote }) => {
+          noteVersions.current.set(note.id, savedNote.updatedAt);
+        })
         .catch(() => recoverRemote(session.user.id))
         .finally(() => {
           pendingCreates.current.delete(note.id);
@@ -451,6 +553,8 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   const updateNote = useCallback(
     (id: string, patch: Partial<Note>) => {
+      const existing = notesRef.current.find((note) => note.id === id);
+      if (!existing || existing.access?.permission === "read") return;
       const updatedAt = new Date().toISOString();
       mutationVersion.current += 1;
       setNotes((current) =>
@@ -470,7 +574,12 @@ export function NotesProvider({ children }: PropsWithChildren) {
         const textOnly = Object.keys(body).every(
           (key) => key === "title" || key === "body",
         );
-        queueNoteUpdate(id, body, textOnly);
+        queueNoteUpdate(
+          id,
+          body,
+          textOnly,
+          noteVersions.current.get(id) ?? existing.updatedAt,
+        );
       }
     },
     [queueNoteUpdate, session],
@@ -480,6 +589,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
     (id: string) => {
       const removed = notes.find((note) => note.id === id) ?? null;
       if (!removed) return null;
+      if (removed.access?.role === "collaborator") return null;
       const nextNote = notes.find((note) => note.id !== id) ?? null;
       mutationVersion.current += 1;
       const pending = pendingUpdates.current.get(id);
@@ -562,6 +672,8 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   const updateCategory = useCallback(
     (id: string, patch: Partial<NoteCategory>) => {
+      const category = categoriesRef.current.find((item) => item.id === id);
+      if (!category || category.owned === false) return;
       mutationVersion.current += 1;
       setCategories((current) =>
         current.map((category) =>
@@ -600,8 +712,16 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   const removeCategory = useCallback(
     (id: string) => {
-      if (categories.length <= 1) return false;
-      const fallback = categories.find((category) => category.id !== id);
+      const ownedCategories = categories.filter(
+        (category) => category.owned !== false,
+      );
+      if (
+        ownedCategories.length <= 1 ||
+        !ownedCategories.some((category) => category.id === id)
+      ) {
+        return false;
+      }
+      const fallback = ownedCategories.find((category) => category.id !== id);
       if (!fallback) return false;
       mutationVersion.current += 1;
       setCategories((current) =>
@@ -699,6 +819,10 @@ export function NotesProvider({ children }: PropsWithChildren) {
       updateCategory,
       removeCategory,
       updateSettings,
+      canEditNote: (id) =>
+        notes.find((note) => note.id === id)?.access?.permission !== "read",
+      isNoteOwner: (id) =>
+        notes.find((note) => note.id === id)?.access?.role !== "collaborator",
     }),
     [
       activeFilter,

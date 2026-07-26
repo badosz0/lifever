@@ -18,6 +18,7 @@ export const createNoteSchema = z.object({
 export const updateNoteSchema = createNoteSchema
   .omit({ id: true })
   .partial()
+  .extend({ baseUpdatedAt: z.string().datetime().optional() })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required.",
   });

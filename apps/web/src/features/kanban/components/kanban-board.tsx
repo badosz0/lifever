@@ -34,6 +34,7 @@ type KanbanBoardProps = {
   labels: KanbanLabel[];
   onAddCard: (columnId: string) => void;
   onManageWorkflow: () => void;
+  readOnly?: boolean;
 };
 
 const collisionDetection: CollisionDetection = (args) => {
@@ -51,6 +52,7 @@ export function KanbanBoard({
   labels,
   onAddCard,
   onManageWorkflow,
+  readOnly = false,
 }: KanbanBoardProps) {
   const { moveCard, selectedCardId, setSelectedCardId } = useKanban();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -110,11 +112,13 @@ export function KanbanBoard({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (readOnly) return;
     const cardId = event.active.data.current?.cardId;
     if (typeof cardId === "string") setActiveCardId(cardId);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (readOnly) return;
     const cardId = event.active.data.current?.cardId;
     if (typeof cardId !== "string") return;
     const card = allCards.find((item) => item.id === cardId);
@@ -124,6 +128,7 @@ export function KanbanBoard({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (readOnly) return;
     const cardId = event.active.data.current?.cardId;
     const destination = getDestination(event);
     setActiveCardId(null);
@@ -161,6 +166,7 @@ export function KanbanBoard({
             onSelectCard={setSelectedCardId}
             onAddCard={onAddCard}
             onManageWorkflow={onManageWorkflow}
+            readOnly={readOnly}
           />
         ))}
       </div>
