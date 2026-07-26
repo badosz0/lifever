@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { Formula1Countdown } from "@/features/formula1/components/formula1-countdown";
 import { Formula1Flag } from "@/features/formula1/components/formula1-flag";
-import { Formula1RaceCard } from "@/features/formula1/components/formula1-race-card";
+import { Formula1RaceRow } from "@/features/formula1/components/formula1-race-row";
 import {
   Formula1ConstructorStandings,
   Formula1DriverStandings,
@@ -192,7 +192,7 @@ export function Formula1View({
                     <button
                       type="button"
                       onClick={() => setSelectedRaceRound(spotlightRace.round)}
-                      className="w-full overflow-hidden rounded-[22px] border border-border bg-card p-5 text-left shadow-sm outline-none transition-[border-color,box-shadow,transform] hover:border-foreground/20 hover:shadow-md active:scale-[.996] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100 sm:p-6"
+                      className="w-full border-b border-border/65 px-1 pt-2 pb-6 text-left outline-none transition-[background-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:bg-muted/35 active:scale-[.996] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100 sm:px-2 sm:pt-3"
                     >
                       <div className="flex flex-col items-start gap-5 sm:flex-row sm:gap-6">
                         <div className="min-w-0 flex-1">
@@ -218,7 +218,7 @@ export function Formula1View({
                           </div>
                         </div>
 
-                        <div className="w-full shrink-0 rounded-2xl bg-muted px-4 py-3.5 text-left sm:w-auto sm:min-w-[210px] sm:text-right">
+                        <div className="w-full shrink-0 border-l-2 border-red-500 py-1 pl-4 text-left sm:w-auto sm:min-w-[210px] sm:text-right">
                           <p className="text-[9px] font-bold tracking-[0.08em] text-red-600 uppercase">
                             Your local time
                           </p>
@@ -264,9 +264,9 @@ export function Formula1View({
                           Times shown locally
                         </span>
                       </div>
-                      <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="grid lg:grid-cols-2 lg:gap-x-6">
                         {upcomingRaces.map((race) => (
-                          <Formula1RaceCard
+                          <Formula1RaceRow
                             key={race.round}
                             race={race}
                             selected={selectedRaceRound === race.round}
@@ -288,9 +288,9 @@ export function Formula1View({
                           Most recent first
                         </span>
                       </div>
-                      <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="grid lg:grid-cols-2 lg:gap-x-6">
                         {completedRaces.map((race) => (
-                          <Formula1RaceCard
+                          <Formula1RaceRow
                             key={race.round}
                             race={race}
                             winner={snapshot.winnersByRound[race.round]}

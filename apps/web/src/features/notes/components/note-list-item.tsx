@@ -38,15 +38,13 @@ export function NoteListItem({
       type="button"
       onClick={onSelect}
       className={cn(
-        "group w-full rounded-xl border border-border/65 bg-card px-3.5 py-3 text-left shadow-[0_1px_2px_rgb(0_0_0/.025)] outline-none transition-[border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] active:scale-[.992] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100",
-        !selected && "hover:border-border hover:shadow-sm",
+        "group w-full px-3 py-3.5 text-left outline-none transition-[background-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] active:scale-[.992] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100",
+        !selected && "hover:bg-muted/45",
       )}
       style={
         selected
           ? {
-              backgroundColor: `color-mix(in srgb, ${category.color} 12%, var(--card))`,
-              borderColor: `color-mix(in srgb, ${category.color} 34%, var(--border))`,
-              boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${category.color} 9%, transparent), 0 1px 2px rgb(0 0 0 / .025)`,
+              backgroundColor: `color-mix(in srgb, ${category.color} 9%, transparent)`,
             }
           : undefined
       }

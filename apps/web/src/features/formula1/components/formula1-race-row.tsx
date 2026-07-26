@@ -10,7 +10,7 @@ import { useUserPreferences } from "@/features/settings/model/user-preferences-p
 import { cn } from "@/lib/cn";
 import { formatUserDate, formatUserTime } from "@/lib/date-time-format";
 
-type Formula1RaceCardProps = {
+type Formula1RaceRowProps = {
   race: Formula1Race;
   winner?: Formula1Winner;
   selected: boolean;
@@ -18,13 +18,13 @@ type Formula1RaceCardProps = {
   onSelect: () => void;
 };
 
-export function Formula1RaceCard({
+export function Formula1RaceRow({
   race,
   winner,
   selected,
   now,
   onSelect,
-}: Formula1RaceCardProps) {
+}: Formula1RaceRowProps) {
   const { dateFormat, timeFormat } = useUserPreferences();
   const raceState = getRaceState(race, now);
   const start = raceStartDate(race);
@@ -34,9 +34,9 @@ export function Formula1RaceCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "group w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_1px_2px_rgb(0_0_0/0.025)] outline-none transition-[border-color,box-shadow,transform] duration-150 ease-out hover:border-foreground/18 hover:shadow-sm active:scale-[.993] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100",
+        "group w-full border-b border-border/55 px-2 py-4 text-left outline-none transition-[background-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:bg-muted/45 active:scale-[.993] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100",
         selected &&
-          "border-red-500/40 ring-2 ring-red-500/10 hover:border-red-500/50",
+          "bg-red-500/[.055] hover:bg-red-500/[.075]",
       )}
       aria-label={`Open ${race.name} details`}
     >
@@ -73,10 +73,8 @@ export function Formula1RaceCard({
       </div>
 
       {winner ? (
-        <div className="mt-3 flex items-center gap-2.5 rounded-xl bg-muted px-3 py-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background text-amber-500 shadow-xs">
-            <Trophy className="size-3.5" />
-          </span>
+        <div className="mt-3 ml-9 flex items-center gap-2.5 border-t border-border/45 pt-2.5">
+          <Trophy className="size-3.5 shrink-0 text-amber-500" />
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
               Winner

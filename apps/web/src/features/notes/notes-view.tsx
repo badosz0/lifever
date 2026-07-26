@@ -195,7 +195,7 @@ export function NotesView({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 sm:px-6">
         <div className="mx-auto max-w-3xl pt-2">
           {visibleNotes.length ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-border/55">
               {visibleNotes.map((note) => {
                 const category =
                   categories.find((item) => item.id === note.categoryId) ??
