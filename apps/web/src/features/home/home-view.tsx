@@ -103,7 +103,7 @@ export function HomeView({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 sm:px-7">
-        <div className="mx-auto max-w-[1040px]">
+        <div className="mx-auto max-w-[980px]">
           {homeApps.length ? (
             <DndContext
               sensors={sensors}
@@ -114,18 +114,20 @@ export function HomeView({
                 items={homeApps.map((app) => app.id)}
                 strategy={rectSortingStrategy}
               >
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {homeApps.map((app) => (
-                    <SortableHomeWidget key={app.id} app={app} />
+                <div className="grid grid-cols-1 border-t border-border/55 lg:grid-cols-2">
+                  {homeApps.map((app, index) => (
+                    <SortableHomeWidget
+                      key={app.id}
+                      app={app}
+                      index={index}
+                    />
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
           ) : (
-            <div className="flex min-h-[260px] flex-col items-start justify-center rounded-2xl border border-dashed border-border bg-card px-6">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <Settings2 className="size-[18px]" />
-              </div>
+            <div className="flex min-h-[260px] flex-col items-start justify-center border-y border-border/55 bg-background px-1 sm:px-5">
+              <Settings2 className="size-[18px] text-muted-foreground" />
               <h2 className="mt-4 text-[15px] font-semibold">
                 Make Home yours
               </h2>
