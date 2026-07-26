@@ -4,7 +4,12 @@ import {
   ShieldCheck,
   TerminalSquare,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   AppHeader,
@@ -437,16 +442,103 @@ function AIUnavailableState({ message }: { message?: string | null }) {
 
 function AILoadingState() {
   return (
-    <div className="animate-pulse">
+    <div
+      className="animate-pulse"
+      role="status"
+      aria-label="Loading AI usage"
+    >
       <div className="grid border-y border-border/60 md:grid-cols-2 md:divide-x md:divide-border/60">
-        <div className="h-[126px] bg-muted/65" />
-        <div className="h-[126px] bg-muted/65" />
+        <LoadingLimit />
+        <LoadingLimit compact />
       </div>
-      <div className="mt-7 h-[80px] border-y border-border/60 bg-muted/65" />
+
+      <div className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 px-1 sm:grid-cols-4 sm:gap-x-8">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item}>
+            <LoadingBar className="h-1.5 w-12" />
+            <LoadingBar
+              className={cn(
+                "mt-3 h-5",
+                item % 2 === 0 ? "w-16" : "w-10",
+              )}
+              strong
+            />
+          </div>
+        ))}
+      </div>
+
       <div className="mt-8 grid border-y border-border/60 lg:grid-cols-[1.65fr_.75fr] lg:divide-x lg:divide-border/60">
-        <div className="h-[330px] bg-muted/65" />
-        <div className="h-[330px] bg-muted/65" />
+        <div className="min-h-[330px] px-1 py-6 sm:px-5 lg:pr-7">
+          <LoadingBar className="h-2.5 w-24" strong />
+          <LoadingBar className="mt-2.5 h-1.5 w-36" />
+          <div className="mt-10 flex h-48 items-end gap-2 border-b border-border/45 px-1">
+            {[34, 48, 28, 62, 45, 72, 52, 82, 58, 68, 88, 74].map(
+              (height, index) => (
+                <span
+                  key={index}
+                  className="min-w-1 flex-1 rounded-t-[3px] bg-[#5B8CFF]/10"
+                  style={{ height: `${height}%` }}
+                />
+              ),
+            )}
+          </div>
+        </div>
+        <div className="min-h-[330px] border-t border-border/60 px-1 py-6 sm:px-5 lg:border-t-0 lg:pl-7">
+          <LoadingBar className="h-2.5 w-16" strong />
+          <LoadingBar className="mt-2.5 h-1.5 w-40 max-w-full" />
+          <div className="mt-8 space-y-6">
+            {[72, 54, 63, 42].map((width, index) => (
+              <div key={index}>
+                <div className="flex items-center justify-between gap-5">
+                  <LoadingBar
+                    className="h-2"
+                    style={{ width: `${width}%` }}
+                    strong
+                  />
+                  <LoadingBar className="h-1.5 w-9 shrink-0" />
+                </div>
+                <LoadingBar className="mt-2.5 h-1 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+      <span className="sr-only">Loading AI usage…</span>
     </div>
+  );
+}
+
+function LoadingLimit({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="min-h-[126px] px-1 py-5 sm:px-5">
+      <LoadingBar className="h-2 w-20" strong />
+      <LoadingBar
+        className={cn("mt-4 h-5", compact ? "w-14" : "w-24")}
+        strong
+      />
+      <LoadingBar className="mt-4 h-1.5 w-full" />
+      <LoadingBar className="mt-2.5 h-1.5 w-2/3" />
+    </div>
+  );
+}
+
+function LoadingBar({
+  className,
+  strong = false,
+  style,
+}: {
+  className?: string;
+  strong?: boolean;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      className={cn(
+        "block rounded-full",
+        strong ? "bg-[#5B8CFF]/12" : "bg-[#5B8CFF]/[.07]",
+        className,
+      )}
+      style={style}
+    />
   );
 }
