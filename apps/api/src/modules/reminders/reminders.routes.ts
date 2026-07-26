@@ -89,6 +89,17 @@ export const createRemindersRoutes = ({
       );
     }
 
+    if (parsed.data.listId) {
+      const list = await prisma.reminderList.findFirst({
+        where: { id: parsed.data.listId, userId: session.user.id },
+        select: { id: true },
+      });
+
+      if (!list) {
+        return context.json({ error: "List not found" }, 404);
+      }
+    }
+
     const { completed, dueAt, ...data } = parsed.data;
     const reminder = await prisma.reminder.update({
       where: { id: existing.id },

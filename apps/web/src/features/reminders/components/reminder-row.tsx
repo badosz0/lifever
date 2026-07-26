@@ -95,6 +95,7 @@ function InlineReminderText({
       ref={textareaRef}
       rows={1}
       value={draft}
+      maxLength={variant === "title" ? 240 : 10_000}
       placeholder={placeholder}
       aria-label={ariaLabel}
       spellCheck

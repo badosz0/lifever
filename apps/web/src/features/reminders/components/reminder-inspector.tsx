@@ -5,6 +5,11 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +26,59 @@ import { cn } from "@/lib/cn";
 type ReminderInspectorProps = {
   className?: string;
 };
+
+type ReminderTitleFieldProps = {
+  reminderId: string;
+  title: string;
+  onCommit: (id: string, patch: { title: string }) => void;
+};
+
+function ReminderTitleField({
+  reminderId,
+  title,
+  onCommit,
+}: ReminderTitleFieldProps) {
+  const [draft, setDraft] = useState(title);
+
+  useEffect(() => setDraft(title), [reminderId, title]);
+
+  const commit = (rawValue: string) => {
+    const nextTitle = rawValue.trim();
+    if (!nextTitle) {
+      setDraft(title);
+      return;
+    }
+
+    setDraft(nextTitle);
+    if (nextTitle !== title) onCommit(reminderId, { title: nextTitle });
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDraft(title);
+      event.currentTarget.value = title;
+      event.currentTarget.blur();
+    }
+  };
+
+  return (
+    <Textarea
+      value={draft}
+      maxLength={240}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.currentTarget.value)}
+      onKeyDown={handleKeyDown}
+      className="min-h-20 border-0 bg-transparent px-0 text-base leading-6 font-semibold shadow-none focus:ring-0"
+      aria-label="Reminder title"
+    />
+  );
+}
 
 export function ReminderInspector({ className }: ReminderInspectorProps) {
   const {
@@ -121,11 +179,10 @@ export function ReminderInspector({ className }: ReminderInspectorProps) {
           >
             {completed ? <Check className="size-3" strokeWidth={3} /> : null}
           </button>
-          <Textarea
-            value={reminder.title}
-            onChange={(event) => updateReminder(reminder.id, { title: event.target.value })}
-            className="min-h-20 border-0 bg-transparent px-0 text-base leading-6 font-semibold shadow-none focus:ring-0"
-            aria-label="Reminder title"
+          <ReminderTitleField
+            reminderId={reminder.id}
+            title={reminder.title}
+            onCommit={updateReminder}
           />
         </div>
 
@@ -137,6 +194,7 @@ export function ReminderInspector({ className }: ReminderInspectorProps) {
             <Textarea
               id="reminder-notes"
               value={reminder.notes}
+              maxLength={10_000}
               onChange={(event) => updateReminder(reminder.id, { notes: event.target.value })}
               placeholder="Add a note"
             />
