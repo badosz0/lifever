@@ -75,7 +75,7 @@ export function AIInspector({ className }: { className?: string }) {
         <div className="mt-6 flex items-start gap-2.5 border-t border-border/60 pt-4">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           <p className="text-[10px] leading-4 text-muted-foreground">
-            Aggregation happens on this Mac. Lifever reuses Codex’s saved
+            Aggregation happens on this device. Lifever reuses Codex’s saved
             sign-in in memory and never stores or displays credentials.
           </p>
         </div>

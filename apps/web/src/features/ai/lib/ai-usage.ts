@@ -36,7 +36,7 @@ const makeBrowserDashboard = (): AIUsageDashboard => ({
     historyIsLocal: true,
   },
   warning:
-    "Live Codex usage is available in the Lifever desktop app, where it can connect to Codex on this Mac.",
+    "Live Codex usage is available in the Lifever desktop app, where it can connect to Codex on this device.",
 });
 
 const makeDemoDashboard = (): AIUsageDashboard => {

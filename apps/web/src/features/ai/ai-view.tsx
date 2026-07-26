@@ -139,7 +139,7 @@ export function AIView({
                 Codex usage
               </h2>
               <p className="mt-1.5 text-[12px] text-muted-foreground">
-                Live OpenAI limits and private token history from this Mac
+                Live OpenAI limits and private token history from this device
               </p>
             </div>
             {dashboard?.source.codexConnected ? (

@@ -24,6 +24,7 @@ import {
   releaseRepository,
   renderHomebrewCask,
   sourceRepository,
+  windowsReleaseAssetName,
 } from "./lib/release-config.mjs";
 
 const desktopRoot = path.join(projectRoot, "apps/desktop/src-tauri");
@@ -40,6 +41,7 @@ const releaseAssetsDirectory = path.join(
   desktopRoot,
   "target/release-assets",
 );
+const windowsReleaseWorkflow = "windows-release.yml";
 
 function printHelp() {
   console.log(`Usage: pnpm release -- [options]
@@ -51,6 +53,7 @@ Options:
   --notes <path>      Markdown release notes to use instead of generated notes
   --allow-ad-hoc      Publish without Developer ID signing (not recommended)
   --skip-deploy       Skip D1 migrations and Worker deployment (recovery only)
+  --skip-windows-wait Publish without waiting for the Windows installer
   --dry-run           Build and validate without publishing or deploying
   --yes               Skip the interactive production confirmation
   -h, --help          Show this help
@@ -69,6 +72,7 @@ function parseArguments(argv) {
     dryRun: false,
     notesPath: undefined,
     skipDeploy: false,
+    skipWindowsWait: false,
     yes: false,
   };
 
@@ -84,6 +88,8 @@ function parseArguments(argv) {
       if (!options.notesPath) throw new Error("--notes requires a path.");
     } else if (argument === "--skip-deploy") {
       options.skipDeploy = true;
+    } else if (argument === "--skip-windows-wait") {
+      options.skipWindowsWait = true;
     } else if (argument === "--dry-run") {
       options.dryRun = true;
     } else if (argument === "--yes") {
@@ -435,8 +441,14 @@ brew trust --cask badosz0/lifever/lifever
 brew install lifever
 \`\`\`
 
-Universal macOS build for Apple silicon and Intel. Requires macOS 12 or newer.
+### macOS
+
+Universal build for Apple silicon and Intel. Requires macOS 12 or newer.
 ${signingNote}
+### Windows
+
+[Download the Windows 10/11 x64 installer](https://github.com/${releaseRepository}/releases/latest/download/${windowsReleaseAssetName}). The installer is built from this release tag by GitHub Actions and may take a few minutes to appear.
+
 ## Changes
 
 ${changes}
@@ -536,6 +548,40 @@ async function updateHomebrewCask({ sha256, version }) {
   await run("git", ["push", "origin", "main"]);
 }
 
+async function waitForWindowsInstaller(tag) {
+  const timeoutAt = Date.now() + 30 * 60 * 1_000;
+  const actionsUrl = `https://github.com/${releaseRepository}/actions/workflows/${windowsReleaseWorkflow}`;
+  console.log("\nWaiting for the Windows installer built by GitHub Actions...");
+
+  while (Date.now() < timeoutAt) {
+    const assets = await run(
+      "gh",
+      [
+        "release",
+        "view",
+        tag,
+        "--repo",
+        releaseRepository,
+        "--json",
+        "assets",
+        "--jq",
+        ".assets[].name",
+      ],
+      { allowFailure: true, capture: true },
+    );
+    if (assets.stdout.split("\n").includes(windowsReleaseAssetName)) {
+      console.log(`Windows release asset: ${windowsReleaseAssetName}`);
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+  }
+
+  throw new Error(
+    `The Windows installer did not appear within 30 minutes. Check ${actionsUrl}, then rerun the workflow for ${tag}.`,
+  );
+}
+
 async function main() {
   if (process.platform !== "darwin") {
     throw new Error("Lifever macOS releases must be built on macOS.");
@@ -597,6 +643,9 @@ async function main() {
     tag: repository.tag,
     version,
   });
+  if (!options.skipWindowsWait) {
+    await waitForWindowsInstaller(repository.tag);
+  }
   await updateHomebrewCask({
     sha256: artifact.sha256,
     version,

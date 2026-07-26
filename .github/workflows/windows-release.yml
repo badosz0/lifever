@@ -1,0 +1,94 @@
+name: Windows release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Lifever release tag (for example, v0.1.6)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Windows x64 installer
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      VITE_API_URL: https://lifever-api.badoszk.workers.dev
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.17.0 --activate
+          pnpm --version
+
+      - name: Set up Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal --no-self-update
+          rustup default 1.88.0
+          rustc --version
+
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the NSIS installer
+        shell: pwsh
+        run: pnpm --filter @lifever/desktop tauri build --bundles nsis --ci
+
+      - name: Prepare release assets
+        id: assets
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") {
+            throw "Release tag $env:RELEASE_TAG does not match app version $version."
+          }
+
+          $installer = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw "Tauri did not produce an NSIS installer."
+          }
+
+          $asset = Join-Path $env:RUNNER_TEMP "Lifever-Windows-x64-setup.exe"
+          $checksum = "$asset.sha256"
+          Copy-Item $installer.FullName $asset
+          $digest = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  Lifever-Windows-x64-setup.exe" | Set-Content $checksum -NoNewline
+
+          "installer=$asset" >> $env:GITHUB_OUTPUT
+          "checksum=$checksum" >> $env:GITHUB_OUTPUT
+
+      - name: Upload installer to the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload $env:RELEASE_TAG `
+            "${{ steps.assets.outputs.installer }}" `
+            "${{ steps.assets.outputs.checksum }}" `
+            --clobber `
+            --repo $env:GITHUB_REPOSITORY

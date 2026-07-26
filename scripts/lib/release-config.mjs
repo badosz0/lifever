@@ -6,6 +6,8 @@ export const homebrewTapUrl = `https://github.com/${sourceRepository}`;
 export const releaseAssetName = (version) =>
   `Lifever-${version}-macOS-universal.dmg`;
 
+export const windowsReleaseAssetName = "Lifever-Windows-x64-setup.exe";
+
 export const renderHomebrewCask = ({ sha256, version }) => `cask "lifever" do
   version "${version}"
   sha256 "${sha256}"

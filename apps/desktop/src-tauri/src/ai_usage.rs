@@ -206,8 +206,14 @@ pub fn collect_dashboard() -> AiUsageDashboard {
 fn codex_home() -> PathBuf {
     env::var_os("CODEX_HOME")
         .map(PathBuf::from)
-        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".codex")))
+        .or_else(|| home_directory().map(|home| home.join(".codex")))
         .unwrap_or_else(|| PathBuf::from(".codex"))
+}
+
+fn home_directory() -> Option<PathBuf> {
+    env::var_os("HOME")
+        .or_else(|| env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 fn resolve_codex_cli() -> Option<PathBuf> {
@@ -217,7 +223,7 @@ fn resolve_codex_cli() -> Option<PathBuf> {
         }
     }
 
-    let home = env::var_os("HOME").map(PathBuf::from);
+    let home = home_directory();
     let mut candidates = vec![
         PathBuf::from("/Applications/Codex.app/Contents/Resources/codex"),
         PathBuf::from("/opt/homebrew/bin/codex"),
@@ -226,19 +232,17 @@ fn resolve_codex_cli() -> Option<PathBuf> {
     if let Some(home) = home.as_ref() {
         candidates.push(home.join(".local/bin/codex"));
         candidates.push(home.join(".npm-global/bin/codex"));
+        candidates.push(home.join("AppData/Roaming/npm/codex.cmd"));
+        candidates.push(home.join("AppData/Local/Programs/codex/codex.exe"));
     }
     if let Some(path) = candidates.into_iter().find(|path| is_executable_file(path)) {
         return Some(path);
     }
 
-    let output = Command::new("/bin/zsh")
-        .args(["-lc", "command -v codex"])
-        .output()
-        .ok();
+    let output = platform_path_lookup("codex");
     if let Some(output) = output.filter(|output| output.status.success()) {
         if let Some(path) = String::from_utf8_lossy(&output.stdout)
             .lines()
-            .rev()
             .map(str::trim)
             .filter(|line| !line.is_empty())
             .map(PathBuf::from)
@@ -259,6 +263,19 @@ fn resolve_codex_cli() -> Option<PathBuf> {
     nvm_candidates.sort();
     nvm_candidates.reverse();
     nvm_candidates.into_iter().next()
+}
+
+#[cfg(target_os = "windows")]
+fn platform_path_lookup(binary: &str) -> Option<std::process::Output> {
+    Command::new("where.exe").arg(binary).output().ok()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn platform_path_lookup(binary: &str) -> Option<std::process::Output> {
+    Command::new("/bin/sh")
+        .args(["-lc", &format!("command -v {binary}")])
+        .output()
+        .ok()
 }
 
 fn is_executable_file(path: &Path) -> bool {
@@ -313,14 +330,16 @@ fn collect_live_usage_from_auth(auth_path: &Path) -> Result<CodexLiveUsage, Stri
 }
 
 fn collect_live_usage_from_cli(codex_path: &Path) -> Result<CodexLiveUsage, String> {
-    let mut command = Command::new(codex_path);
+    let mut command = codex_command(codex_path);
     command.args(["-s", "read-only", "-a", "untrusted", "app-server"]);
     if let Some(parent) = codex_path.parent() {
-        let inherited_path = env::var("PATH").unwrap_or_default();
-        command.env(
-            "PATH",
-            format!("{}:{inherited_path}", parent.to_string_lossy()),
-        );
+        let mut paths = vec![parent.to_path_buf()];
+        if let Some(inherited_path) = env::var_os("PATH") {
+            paths.extend(env::split_paths(&inherited_path));
+        }
+        if let Ok(path) = env::join_paths(paths) {
+            command.env("PATH", path);
+        }
     }
     let mut child = command
         .stdin(Stdio::piped())
@@ -363,6 +382,26 @@ fn collect_live_usage_from_cli(codex_path: &Path) -> Result<CodexLiveUsage, Stri
 
     stop_child(&mut child);
     result
+}
+
+#[cfg(target_os = "windows")]
+fn codex_command(codex_path: &Path) -> Command {
+    let is_script = codex_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "cmd" | "bat"));
+    if is_script {
+        let mut command = Command::new("cmd.exe");
+        command.args(["/D", "/C"]).arg(codex_path);
+        command
+    } else {
+        Command::new(codex_path)
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn codex_command(codex_path: &Path) -> Command {
+    Command::new(codex_path)
 }
 
 fn send_rpc(stdin: &mut ChildStdin, id: u64, method: &str, params: Value) -> Result<(), String> {
