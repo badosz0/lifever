@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  ChartNoAxesCombined,
   Columns3,
   FileText,
   FlagTriangleRight,
@@ -90,6 +91,19 @@ const products: Product[] = [
     accent: "#af52de",
     points: ["Multiple projects", "Custom properties", "Fluid drag and drop"],
     Icon: Columns3,
+  },
+  {
+    id: "ai",
+    label: "AI",
+    shortLabel: "AI",
+    title: "Know what your Codex work is using.",
+    description:
+      "See account limits, daily token volume, and model breakdowns from your local Codex history in one restrained dashboard.",
+    image: "/screenshots/ai-usage.jpg",
+    alt: "Lifever AI dashboard showing Codex limits and token history",
+    accent: "#5856d6",
+    points: ["Account limits", "Token history", "Model breakdown"],
+    Icon: ChartNoAxesCombined,
   },
   {
     id: "formula-1",

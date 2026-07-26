@@ -13,6 +13,7 @@ import { ProductShowcase } from "@/components/product-showcase";
 
 const githubUrl = "https://github.com/badosz0/lifever";
 const releaseUrl = `${githubUrl}/releases/latest`;
+const windowsDownloadUrl = `${releaseUrl}/download/Lifever-Windows-x64-setup.exe`;
 
 const faqs = [
   {
@@ -24,6 +25,11 @@ const faqs = [
     question: "Where is my data stored?",
     answer:
       "Local-profile data stays on the device. Signed-in data lives in the configured Lifever API and is scoped to your authenticated account.",
+  },
+  {
+    question: "Which systems does Lifever support?",
+    answer:
+      "The desktop app supports macOS 12 or newer on Apple silicon and Intel, plus Windows 10 and 11 on x64. The local web app works in a modern browser.",
   },
   {
     question: "Can I self-host it?",
@@ -71,7 +77,7 @@ export default function Home() {
           <div className="hero-copy">
             <a className="announcement" href={releaseUrl}>
               <span>Open source</span>
-              Available for macOS and the web
+              Available for macOS, Windows, and the web
               <ArrowRight size={14} aria-hidden="true" />
             </a>
             <h1>
@@ -84,7 +90,7 @@ export default function Home() {
             <div className="hero-actions">
               <a className="button" href={releaseUrl}>
                 <Download size={17} aria-hidden="true" />
-                Download for macOS
+                Download Lifever
               </a>
               <a className="button button-secondary" href={githubUrl}>
                 <Github size={16} aria-hidden="true" />
@@ -134,14 +140,14 @@ export default function Home() {
               width={58}
               height={58}
             />
-            <p className="eyebrow">The macOS app</p>
+            <p className="eyebrow">The desktop app</p>
             <h2>Install it once. Keep using it.</h2>
             <p>
-              A lightweight Tauri app with native notifications, signed
-              releases, and a quiet notice when a newer version is ready.
+              A lightweight native shell for macOS and Windows, with a quiet
+              notice when a newer version is ready.
             </p>
-            <a className="text-link" href={releaseUrl}>
-              Prefer a direct download?
+            <a className="text-link" href={windowsDownloadUrl}>
+              Download for Windows
               <ArrowRight size={15} aria-hidden="true" />
             </a>
           </div>
@@ -218,7 +224,7 @@ export default function Home() {
           </div>
           <span className="footer-platform">
             <Laptop size={14} aria-hidden="true" />
-            macOS and web
+            macOS, Windows, and web
           </span>
         </div>
       </footer>
