@@ -7,8 +7,7 @@ fn is_allowed_oauth_popup(url: &tauri::Url) -> bool {
     let lifever_popup = url.path() == "/api/auth/oauth-popup/start"
         && (matches!(
             (url.scheme(), url.host_str()),
-            ("https", Some("lifever-api.badoszk.workers.dev"))
-                | ("https", Some("api.lifever.app"))
+            ("https", Some("api.lifever.app"))
         ) || matches!(
             (url.scheme(), url.host_str(), url.port_or_known_default()),
             ("http", Some("localhost" | "127.0.0.1"), Some(8787))

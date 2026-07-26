@@ -23,7 +23,7 @@ jobs:
     runs-on: windows-latest
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      VITE_API_URL: https://lifever-api.badoszk.workers.dev
+      VITE_API_URL: https://api.lifever.app
 
     steps:
       - name: Check out the release

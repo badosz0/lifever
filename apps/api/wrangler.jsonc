@@ -6,6 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
   "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "api.lifever.app",
+      "custom_domain": true,
+    },
+  ],
   "preview_urls": false,
   "placement": {
     "mode": "smart",
