@@ -89,6 +89,7 @@ export function NewReminderComposer({ open, onOpenChange }: NewReminderComposerP
         <NaturalDateInput
           ref={inputRef}
           value={title}
+          maxLength={240}
           suggestion={suggestion}
           onChange={(event) => setTitle(event.target.value)}
           onKeyDown={(event) => {

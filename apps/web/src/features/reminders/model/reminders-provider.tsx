@@ -386,7 +386,6 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     if (completedIds.size === 0) return 0;
 
     mutationVersion.current += 1;
-    for (const id of completedIds) cancelApiUpdate(id);
     setReminders((current) =>
       current.filter((reminder) => !completedIds.has(reminder.id)),
     );
@@ -395,10 +394,15 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     );
 
     if (session) {
-      const creates = [...completedIds]
-        .map((id) => pendingCreates.current.get(id))
+      for (const id of completedIds) flushApiUpdate(id);
+      const pendingWrites = [...completedIds]
+        .map(
+          (id) =>
+            apiWriteChains.current.get(id) ??
+            pendingCreates.current.get(id),
+        )
         .filter((request): request is Promise<void> => Boolean(request));
-      void Promise.all(creates)
+      void Promise.all(pendingWrites)
         .then(() =>
           apiRequest("/api/reminders/completed", { method: "DELETE" }),
         )
@@ -406,7 +410,7 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     }
 
     return completedIds.size;
-  }, [cancelApiUpdate, recoverRemote, reminders, session]);
+  }, [flushApiUpdate, recoverRemote, reminders, session]);
 
   const restoreReminder = useCallback((reminder: Reminder) => {
     mutationVersion.current += 1;
