@@ -1,3 +1,4 @@
+import { aiApp } from "@/features/ai/app";
 import { calendarApp } from "@/features/calendar/app";
 import { formula1App } from "@/features/formula1/app";
 import { kanbanApp } from "@/features/kanban/app";
@@ -12,6 +13,7 @@ export const lifeverFeatureApps = [
   notesApp,
   kanbanApp,
   formula1App,
+  aiApp,
 ] satisfies FeatureAppDefinition[];
 
 export const lifeverFeatureAppsById = new Map(

@@ -1,3 +1,4 @@
+mod ai_usage;
 mod notifications;
 
 use tauri::Manager;
@@ -25,6 +26,13 @@ fn close_oauth_window(app: tauri::AppHandle) -> Result<(), String> {
         window.close().map_err(|error| error.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+async fn get_ai_usage_dashboard() -> Result<ai_usage::AiUsageDashboard, String> {
+    tauri::async_runtime::spawn_blocking(ai_usage::collect_dashboard)
+        .await
+        .map_err(|error| format!("AI usage collection failed: {error}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -89,6 +97,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             close_oauth_window,
+            get_ai_usage_dashboard,
             notifications::sync_native_notifications
         ])
         .build(tauri::generate_context!())
