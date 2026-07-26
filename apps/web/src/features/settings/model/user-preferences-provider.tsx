@@ -19,11 +19,24 @@ import type {
   UserFormatPreferences,
 } from "@/lib/date-time-format";
 
+export type AppPreferenceOverride = {
+  enabled?: boolean;
+  showOnHome?: boolean;
+};
+
+export type AppConfiguration = {
+  apps?: Record<string, AppPreferenceOverride>;
+  homeOrder?: string[];
+};
+
 type UserPreferences = UserFormatPreferences & {
+  appConfiguration: AppConfiguration;
   calendarClickToCreate: boolean;
 };
 
 type UserPreferencesContextValue = UserPreferences & {
+  isReady: boolean;
+  setAppConfiguration: (configuration: AppConfiguration) => void;
   setCalendarClickToCreate: (enabled: boolean) => void;
   setDateFormat: (format: DateFormatPreference) => void;
   setTimeFormat: (format: TimeFormatPreference) => void;
@@ -35,6 +48,7 @@ type PreferencesPayload = {
 
 const STORAGE_KEY = "lifever-user-preferences";
 const DEFAULT_PREFERENCES: UserPreferences = {
+  appConfiguration: {},
   calendarClickToCreate: true,
   dateFormat: "system",
   timeFormat: "system",
@@ -49,9 +63,58 @@ const isDateFormat = (value: unknown): value is DateFormatPreference =>
 const isTimeFormat = (value: unknown): value is TimeFormatPreference =>
   value === "system" || value === "12-hour" || value === "24-hour";
 
+const normalizeAppConfiguration = (value: unknown): AppConfiguration => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const stored = value as Record<string, unknown>;
+  const apps =
+    stored.apps && typeof stored.apps === "object" && !Array.isArray(stored.apps)
+      ? Object.fromEntries(
+          Object.entries(stored.apps as Record<string, unknown>).flatMap(
+            ([appId, preference]) => {
+              if (
+                !appId ||
+                !preference ||
+                typeof preference !== "object" ||
+                Array.isArray(preference)
+              ) {
+                return [];
+              }
+              const raw = preference as Record<string, unknown>;
+              const normalized: AppPreferenceOverride = {};
+              if (typeof raw.enabled === "boolean") {
+                normalized.enabled = raw.enabled;
+              }
+              if (typeof raw.showOnHome === "boolean") {
+                normalized.showOnHome = raw.showOnHome;
+              }
+              return Object.keys(normalized).length
+                ? [[appId, normalized] as const]
+                : [];
+            },
+          ),
+        )
+      : undefined;
+  const homeOrder = Array.isArray(stored.homeOrder)
+    ? [
+        ...new Set(
+          stored.homeOrder.filter(
+            (appId): appId is string =>
+              typeof appId === "string" && appId.length > 0,
+          ),
+        ),
+      ]
+    : undefined;
+
+  return {
+    ...(apps && Object.keys(apps).length ? { apps } : {}),
+    ...(homeOrder?.length ? { homeOrder } : {}),
+  };
+};
+
 const normalizePreferences = (
   stored: Partial<Record<keyof UserPreferences, unknown>> | null,
 ): UserPreferences => ({
+  appConfiguration: normalizeAppConfiguration(stored?.appConfiguration),
   calendarClickToCreate:
     typeof stored?.calendarClickToCreate === "boolean"
       ? stored.calendarClickToCreate
@@ -158,6 +221,16 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
   const value = useMemo<UserPreferencesContextValue>(
     () => ({
       ...preferences,
+      isReady: hydratedMode !== null,
+      setAppConfiguration: (appConfiguration) => {
+        mutationVersion.current += 1;
+        const normalized = normalizeAppConfiguration(appConfiguration);
+        setPreferences((current) => ({
+          ...current,
+          appConfiguration: normalized,
+        }));
+        updateRemote({ appConfiguration: normalized });
+      },
       setCalendarClickToCreate: (calendarClickToCreate) => {
         mutationVersion.current += 1;
         setPreferences((current) => ({
@@ -177,7 +250,7 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
         updateRemote({ timeFormat });
       },
     }),
-    [preferences, updateRemote],
+    [hydratedMode, preferences, updateRemote],
   );
 
   return (

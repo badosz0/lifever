@@ -213,6 +213,7 @@ model UserPreferences {
   timeFormat            String   @default("system")
   dateFormat            String   @default("system")
   calendarClickToCreate Boolean  @default(true)
+  appConfiguration      Json     @default("{}")
   favoriteDriverId      String?
   favoriteConstructorId String?
   updatedAt             DateTime @updatedAt
