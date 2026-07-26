@@ -22,10 +22,9 @@ const APPS_PANEL = {
 
 export function AppShell() {
   const { activeApp } = useApps();
-  const app = lifeverAppsById[activeApp];
+  const app = lifeverAppsById.get(activeApp) ?? lifeverAppsById.get("home")!;
   const ActiveView = app.View;
-  const ActiveInspector = app.Inspector;
-  const ActiveDetailsDialog = app.DetailsDialog;
+  const featureApp = app.kind === "feature" ? app : null;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("lifever-sidebar-collapsed") === "true",
   );
@@ -37,7 +36,11 @@ export function AppShell() {
   });
   const detailsPanel = usePersistentPanelWidth({
     storageKey: `lifever-${activeApp}-details-panel-width`,
-    ...app.detailsPanel,
+    ...(featureApp?.detailsPanel ?? {
+      defaultWidth: 360,
+      minWidth: 320,
+      maxWidth: 500,
+    }),
   });
 
   useEffect(() => {
@@ -92,25 +95,27 @@ export function AppShell() {
           onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         />
 
-        <div
-          className="relative hidden h-full shrink-0 xl:block"
-          style={{ width: detailsPanel.width }}
-        >
-          <ActiveInspector className="h-full w-full" />
-          <PanelResizeHandle
-            edge="left"
-            label="Resize Details sidebar"
-            width={detailsPanel.width}
-            minWidth={app.detailsPanel.minWidth}
-            maxWidth={app.detailsPanel.maxWidth}
-            onResize={detailsPanel.setWidth}
-            onResizeEnd={detailsPanel.persistWidth}
-            onReset={detailsPanel.resetWidth}
-            onResizingChange={(resizing) =>
-              setResizingPanel(resizing ? "details" : null)
-            }
-          />
-        </div>
+        {featureApp ? (
+          <div
+            className="relative hidden h-full shrink-0 xl:block"
+            style={{ width: detailsPanel.width }}
+          >
+            <featureApp.Inspector className="h-full w-full" />
+            <PanelResizeHandle
+              edge="left"
+              label="Resize Details sidebar"
+              width={detailsPanel.width}
+              minWidth={featureApp.detailsPanel.minWidth}
+              maxWidth={featureApp.detailsPanel.maxWidth}
+              onResize={detailsPanel.setWidth}
+              onResizeEnd={detailsPanel.persistWidth}
+              onReset={detailsPanel.resetWidth}
+              onResizingChange={(resizing) =>
+                setResizingPanel(resizing ? "details" : null)
+              }
+            />
+          </div>
+        ) : null}
       </div>
 
       <Dialog open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
@@ -124,7 +129,7 @@ export function AppShell() {
         </DialogContent>
       </Dialog>
 
-      <ActiveDetailsDialog />
+      {featureApp ? <featureApp.DetailsDialog /> : null}
     </div>
   );
 }

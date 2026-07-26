@@ -1,18 +1,32 @@
-import type { ComponentType } from "react";
+import type { ComponentType, PropsWithChildren } from "react";
 import type { LucideIcon } from "lucide-react";
 
-export type AppId = "reminders" | "calendar" | "notes" | "kanban" | "formula1";
+export type FeatureAppId = string;
+export type AppId = "home" | FeatureAppId;
 
 export type AppViewProps = {
   onOpenMobileSidebar: () => void;
   onToggleSidebar: () => void;
 };
 
-export type LifeverAppDefinition = {
-  id: AppId;
+type BaseAppDefinition = {
   label: string;
   icon: LucideIcon;
   View: ComponentType<AppViewProps>;
+};
+
+export type HomeAppDefinition = BaseAppDefinition & {
+  id: "home";
+  kind: "home";
+};
+
+export type FeatureAppDefinition = BaseAppDefinition & {
+  id: FeatureAppId;
+  kind: "feature";
+  defaultEnabled: boolean;
+  defaultOnHome: boolean;
+  Provider: ComponentType<PropsWithChildren>;
+  HomeWidget: ComponentType;
   Inspector: ComponentType<{ className?: string }>;
   DetailsDialog: ComponentType;
   detailsPanel: {
@@ -21,3 +35,11 @@ export type LifeverAppDefinition = {
     maxWidth: number;
   };
 };
+
+export type LifeverAppDefinition =
+  | HomeAppDefinition
+  | FeatureAppDefinition;
+
+export const defineFeatureApp = <T extends FeatureAppDefinition>(
+  definition: T,
+) => definition;
