@@ -19,6 +19,8 @@ Start from [.env.example](.env.example). These are the important values:
 | `WEB_URL` | Public frontend origin allowed by CORS |
 | `DISCORD_CLIENT_ID` | Discord OAuth application ID |
 | `DISCORD_CLIENT_SECRET` | Discord OAuth secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth application ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret |
 | `VITE_API_URL` | API origin embedded into the frontend build |
 | `DATABASE_URL` | PostgreSQL connection string for the Node runtime |
 | `PORT` | Optional Node API port; defaults to `8787` |
@@ -29,10 +31,11 @@ Generate the auth secret with:
 openssl rand -base64 32
 ```
 
-The Discord redirect URI is always:
+Register these redirect URIs for the providers you configure:
 
 ```text
 https://YOUR_API_ORIGIN/api/auth/callback/discord
+https://YOUR_API_ORIGIN/api/auth/callback/google
 ```
 
 Never place database credentials, auth secrets, or OAuth secrets in
@@ -55,6 +58,8 @@ pnpm --dir apps/api exec wrangler secret put BETTER_AUTH_SECRET
 pnpm --dir apps/api exec wrangler secret put WEB_URL
 pnpm --dir apps/api exec wrangler secret put DISCORD_CLIENT_ID
 pnpm --dir apps/api exec wrangler secret put DISCORD_CLIENT_SECRET
+pnpm --dir apps/api exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm --dir apps/api exec wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
 `BETTER_AUTH_URL` is optional for Workers because Lifever derives it from the
@@ -110,6 +115,8 @@ BETTER_AUTH_URL="https://api.example.com"
 WEB_URL="https://lifever.example.com"
 DISCORD_CLIENT_ID="..."
 DISCORD_CLIENT_SECRET="..."
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
 VITE_API_URL="https://api.example.com"
 ```
 

@@ -12,24 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
-import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import { SignInDialog } from "@/components/app-shell/sign-in-dialog";
+import { authClient } from "@/lib/auth-client";
 import { clearDesktopAuthToken } from "@/lib/auth-token";
 
 export function AccountMenu() {
   const { data: session, isPending } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
   const name = session?.user.name ?? "Local profile";
   const initial = name.charAt(0).toUpperCase();
-
-  const signIn = async () => {
-    const result = await signInWithDiscord();
-
-    if (result.error) {
-      toast.error("Couldn’t sign in with Discord", {
-        description: result.error.message,
-      });
-    }
-  };
 
   const signOut = async () => {
     await authClient.signOut();
@@ -81,15 +73,16 @@ export function AccountMenu() {
                 Sign out
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem onSelect={() => void signIn()}>
+              <DropdownMenuItem onSelect={() => setSignInOpen(true)}>
                 <LogIn className="size-4" />
-                Continue with Discord
+                Sign in
               </DropdownMenuItem>
             )}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </>
   );
 }

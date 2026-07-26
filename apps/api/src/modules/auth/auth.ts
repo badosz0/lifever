@@ -16,6 +16,9 @@ export const createAuth = ({ config, prisma }: AuthDependencies) => {
   const discordIsConfigured = Boolean(
     config.discordClientId && config.discordClientSecret,
   );
+  const googleIsConfigured = Boolean(
+    config.googleClientId && config.googleClientSecret,
+  );
 
   return betterAuth({
     appName: "Lifever",
@@ -26,17 +29,27 @@ export const createAuth = ({ config, prisma }: AuthDependencies) => {
     }),
     plugins: [oauthPopup(), bearer()],
     trustedOrigins: [config.webUrl, ...desktopOrigins],
-    socialProviders: discordIsConfigured
-      ? {
-          discord: {
-            clientId: config.discordClientId!,
-            clientSecret: config.discordClientSecret!,
-            mapProfileToUser: (profile) => ({
-              email: profile.email ?? `${profile.id}@discord.invalid`,
-            }),
-          },
-        }
-      : {},
+    socialProviders: {
+      ...(discordIsConfigured
+        ? {
+            discord: {
+              clientId: config.discordClientId!,
+              clientSecret: config.discordClientSecret!,
+              mapProfileToUser: (profile) => ({
+                email: profile.email ?? `${profile.id}@discord.invalid`,
+              }),
+            },
+          }
+        : {}),
+      ...(googleIsConfigured
+        ? {
+            google: {
+              clientId: config.googleClientId!,
+              clientSecret: config.googleClientSecret!,
+            },
+          }
+        : {}),
+    },
     advanced: {
       defaultCookieAttributes: {
         httpOnly: true,

@@ -45,19 +45,23 @@ The web app runs at [localhost:5173](http://localhost:5173), the API at
 [localhost:8787](http://localhost:8787), and API health is available at
 `/api/health`.
 
-## Discord sign-in
+## Social sign-in
 
-Create a Discord application and set these values in `.env`:
+Create Discord and/or Google OAuth applications and set their credentials in
+`.env`:
 
 ```dotenv
 DISCORD_CLIENT_ID="..."
 DISCORD_CLIENT_SECRET="..."
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
 ```
 
-Register this redirect URI:
+Register the callback for each provider you configure:
 
 ```text
 http://localhost:8787/api/auth/callback/discord
+http://localhost:8787/api/auth/callback/google
 ```
 
 Use a production-quality Better Auth secret:

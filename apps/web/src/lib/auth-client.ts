@@ -28,6 +28,8 @@ type OAuthPopupMessage = {
   token?: string;
 };
 
+export type SocialProvider = "discord" | "google";
+
 const closeDesktopOAuthWindow = async () => {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -37,10 +39,10 @@ const closeDesktopOAuthWindow = async () => {
   }
 };
 
-export const signInWithDiscord = async () => {
+export const signInWithProvider = async (provider: SocialProvider) => {
   if (!isTauri) {
     return authClient.signIn.social({
-      provider: "discord",
+      provider,
       callbackURL: window.location.href,
     });
   }
@@ -58,7 +60,7 @@ export const signInWithDiscord = async () => {
   window.addEventListener("message", captureToken);
   try {
     const result = await authClient.signIn.popup({
-      provider: "discord",
+      provider,
       callbackURL: window.location.href,
     });
     if (!capturedToken) return result;

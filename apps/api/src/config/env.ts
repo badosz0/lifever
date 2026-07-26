@@ -11,6 +11,8 @@ export type ApiEnvironment = {
   WEB_URL?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
 };
 
 export type ApiConfig = ReturnType<typeof createApiConfig>;
@@ -57,5 +59,7 @@ export const createApiConfig = (
     webUrl: environment.WEB_URL ?? "http://localhost:5173",
     discordClientId: environment.DISCORD_CLIENT_ID,
     discordClientSecret: environment.DISCORD_CLIENT_SECRET,
+    googleClientId: environment.GOOGLE_CLIENT_ID,
+    googleClientSecret: environment.GOOGLE_CLIENT_SECRET,
   };
 };

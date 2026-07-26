@@ -14,6 +14,8 @@ const getWorkerEnvironment = (bindings: WorkerBindings): ApiEnvironment => ({
   WEB_URL: bindings.WEB_URL,
   DISCORD_CLIENT_ID: bindings.DISCORD_CLIENT_ID,
   DISCORD_CLIENT_SECRET: bindings.DISCORD_CLIENT_SECRET,
+  GOOGLE_CLIENT_ID: bindings.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: bindings.GOOGLE_CLIENT_SECRET,
 });
 
 export default {
