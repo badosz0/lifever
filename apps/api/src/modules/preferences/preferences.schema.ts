@@ -16,6 +16,12 @@ const appConfigurationSchema = z
   })
   .strict();
 
+const calendarSourceConfigurationSchema = z
+  .object({
+    visibility: z.record(z.string().min(1).max(160), z.boolean()).optional(),
+  })
+  .strict();
+
 export const updatePreferencesSchema = z
   .object({
     theme: z.enum(["system", "light", "dark"]).optional(),
@@ -29,6 +35,7 @@ export const updatePreferencesSchema = z
       ])
       .optional(),
     calendarClickToCreate: z.boolean().optional(),
+    calendarSourceConfiguration: calendarSourceConfigurationSchema.optional(),
     appConfiguration: appConfigurationSchema.optional(),
     favoriteDriverId: z.string().max(100).nullable().optional(),
     favoriteConstructorId: z.string().max(100).nullable().optional(),

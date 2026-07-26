@@ -11,6 +11,9 @@ export type ApiEnvironment = {
   WEB_URL?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
+  GOOGLE_CALENDAR_CLIENT_ID?: string;
+  GOOGLE_CALENDAR_CLIENT_SECRET?: string;
+  CALENDAR_TOKEN_ENCRYPTION_KEY?: string;
 };
 
 export type ApiConfig = ReturnType<typeof createApiConfig>;
@@ -30,6 +33,14 @@ export const createApiConfig = (
   const databaseUrl =
     options.databaseUrl ?? environment.DATABASE_URL ?? localDatabaseUrl;
   const authSecret = environment.BETTER_AUTH_SECRET ?? developmentSecret;
+  const googleCalendarClientId = environment.GOOGLE_CALENDAR_CLIENT_ID;
+  const googleCalendarClientSecret =
+    environment.GOOGLE_CALENDAR_CLIENT_SECRET;
+  const calendarTokenEncryptionKey =
+    environment.CALENDAR_TOKEN_ENCRYPTION_KEY ?? authSecret;
+  const googleCalendarConfigured = Boolean(
+    googleCalendarClientId && googleCalendarClientSecret,
+  );
 
   if (nodeEnv === "production" && authSecret === developmentSecret) {
     throw new Error("BETTER_AUTH_SECRET must be configured in production.");
@@ -42,6 +53,16 @@ export const createApiConfig = (
     !environment.DATABASE_URL
   ) {
     throw new Error("DATABASE_URL must be configured in production.");
+  }
+
+  if (
+    nodeEnv === "production" &&
+    googleCalendarConfigured &&
+    !environment.CALENDAR_TOKEN_ENCRYPTION_KEY
+  ) {
+    throw new Error(
+      "CALENDAR_TOKEN_ENCRYPTION_KEY must be configured with Google Calendar in production.",
+    );
   }
 
   return {
@@ -57,5 +78,9 @@ export const createApiConfig = (
     webUrl: environment.WEB_URL ?? "http://localhost:5173",
     discordClientId: environment.DISCORD_CLIENT_ID,
     discordClientSecret: environment.DISCORD_CLIENT_SECRET,
+    googleCalendarClientId,
+    googleCalendarClientSecret,
+    calendarTokenEncryptionKey,
+    googleCalendarConfigured,
   };
 };

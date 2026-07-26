@@ -19,9 +19,11 @@ export const createCalendarRoutes = ({
     startAt: true,
     endAt: true,
     categoryId: true,
+    calendarId: true,
     location: true,
     notes: true,
     alertsEnabled: true,
+    allDay: true,
     createdAt: true,
   } as const;
 
@@ -51,11 +53,22 @@ export const createCalendarRoutes = ({
     }
 
     const category = await prisma.calendarCategory.findFirst({
-      where: { id: parsed.data.categoryId, userId: session.user.id },
+      where: {
+        id: parsed.data.categoryId,
+        calendarId: parsed.data.calendarId,
+        userId: session.user.id,
+      },
       select: { id: true },
     });
     if (!category) {
       return context.json({ error: "Calendar category not found" }, 400);
+    }
+    const calendar = await prisma.lifeverCalendar.findFirst({
+      where: { id: parsed.data.calendarId, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!calendar) {
+      return context.json({ error: "Calendar not found" }, 400);
     }
 
     const event = await prisma.calendarEvent.create({
@@ -75,7 +88,13 @@ export const createCalendarRoutes = ({
     const session = context.get("session");
     const existing = await prisma.calendarEvent.findFirst({
       where: { id: context.req.param("id"), userId: session.user.id },
-      select: { id: true, startAt: true, endAt: true },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        calendarId: true,
+        categoryId: true,
+      },
     });
     if (!existing)
       return context.json({ error: "Calendar event not found" }, 404);
@@ -90,13 +109,31 @@ export const createCalendarRoutes = ({
       );
     }
 
-    if (parsed.data.categoryId) {
-      const category = await prisma.calendarCategory.findFirst({
-        where: { id: parsed.data.categoryId, userId: session.user.id },
-        select: { id: true },
-      });
+    const nextCalendarId = parsed.data.calendarId ?? existing.calendarId;
+    const nextCategoryId = parsed.data.categoryId ?? existing.categoryId;
+    if (parsed.data.calendarId || parsed.data.categoryId) {
+      const [calendar, category] = await Promise.all([
+        prisma.lifeverCalendar.findFirst({
+          where: { id: nextCalendarId, userId: session.user.id },
+          select: { id: true },
+        }),
+        prisma.calendarCategory.findFirst({
+          where: {
+            id: nextCategoryId,
+            calendarId: nextCalendarId,
+            userId: session.user.id,
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (!calendar) {
+        return context.json({ error: "Calendar not found" }, 400);
+      }
       if (!category) {
-        return context.json({ error: "Calendar category not found" }, 400);
+        return context.json(
+          { error: "Choose a category from this calendar." },
+          400,
+        );
       }
     }
 

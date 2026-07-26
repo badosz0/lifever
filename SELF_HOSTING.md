@@ -19,6 +19,9 @@ Start from [.env.example](.env.example). These are the important values:
 | `WEB_URL` | Public frontend origin allowed by CORS |
 | `DISCORD_CLIENT_ID` | Discord OAuth application ID |
 | `DISCORD_CLIENT_SECRET` | Discord OAuth secret |
+| `GOOGLE_CALENDAR_CLIENT_ID` | Google OAuth web client ID |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | Google OAuth web client secret |
+| `CALENDAR_TOKEN_ENCRYPTION_KEY` | Separate secret used to encrypt Google refresh tokens at rest |
 | `VITE_API_URL` | API origin embedded into the frontend build |
 | `DATABASE_URL` | PostgreSQL connection string for the Node runtime |
 | `PORT` | Optional Node API port; defaults to `8787` |
@@ -34,6 +37,17 @@ The Discord redirect URI is always:
 ```text
 https://YOUR_API_ORIGIN/api/auth/callback/discord
 ```
+
+The Google OAuth redirect URI is always:
+
+```text
+https://YOUR_API_ORIGIN/api/calendar-integrations/google/callback
+```
+
+Enable the Google Calendar API for the OAuth project and register that URI on a
+**Web application** OAuth client. The Calendar connection is optional; omit the
+three Google variables to hide its connect action. Google refresh tokens are
+encrypted before they are stored.
 
 Never place database credentials, auth secrets, or OAuth secrets in
 `VITE_API_URL` or any other frontend variable.
@@ -55,6 +69,9 @@ pnpm --dir apps/api exec wrangler secret put BETTER_AUTH_SECRET
 pnpm --dir apps/api exec wrangler secret put WEB_URL
 pnpm --dir apps/api exec wrangler secret put DISCORD_CLIENT_ID
 pnpm --dir apps/api exec wrangler secret put DISCORD_CLIENT_SECRET
+pnpm --dir apps/api exec wrangler secret put GOOGLE_CALENDAR_CLIENT_ID
+pnpm --dir apps/api exec wrangler secret put GOOGLE_CALENDAR_CLIENT_SECRET
+pnpm --dir apps/api exec wrangler secret put CALENDAR_TOKEN_ENCRYPTION_KEY
 ```
 
 `BETTER_AUTH_URL` is optional for Workers because Lifever derives it from the
@@ -110,6 +127,9 @@ BETTER_AUTH_URL="https://api.example.com"
 WEB_URL="https://lifever.example.com"
 DISCORD_CLIENT_ID="..."
 DISCORD_CLIENT_SECRET="..."
+GOOGLE_CALENDAR_CLIENT_ID="..."
+GOOGLE_CALENDAR_CLIENT_SECRET="..."
+CALENDAR_TOKEN_ENCRYPTION_KEY="..."
 VITE_API_URL="https://api.example.com"
 ```
 

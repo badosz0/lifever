@@ -26,7 +26,7 @@
 ## One place, six focused apps
 
 - **Reminders** — natural scheduling, categories, notes, priority, sounds, and Undo.
-- **Calendar** — day, week, month, and year views with drag creation, resizing, colors, and alerts.
+- **Calendar** — multiple calendars, Google sync, app-owned schedules, four views, drag creation, resizing, colors, and alerts.
 - **Notes** — multiple categories, fast search, pinning, and polished Markdown rendering.
 - **Kanban** — multiple projects, custom properties, labels, limits, search, and fluid drag and drop.
 - **Formula 1** — race weekends, championship data, local session times, and live countdowns.

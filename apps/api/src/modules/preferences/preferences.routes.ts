@@ -9,6 +9,7 @@ const preferencesSelect = {
   timeFormat: true,
   dateFormat: true,
   calendarClickToCreate: true,
+  calendarSourceConfiguration: true,
   appConfiguration: true,
   favoriteDriverId: true,
   favoriteConstructorId: true,

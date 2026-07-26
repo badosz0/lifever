@@ -1,3 +1,6 @@
 BETTER_AUTH_SECRET=replace-with-a-long-random-secret
 BETTER_AUTH_URL=http://localhost:8787
 WEB_URL=http://localhost:5173
+GOOGLE_CALENDAR_CLIENT_ID=
+GOOGLE_CALENDAR_CLIENT_SECRET=
+CALENDAR_TOKEN_ENCRYPTION_KEY=replace-with-a-separate-32-byte-random-secret

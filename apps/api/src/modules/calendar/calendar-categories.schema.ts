@@ -10,6 +10,7 @@ const calendarCategoryFields = {
   name: z.string().trim().min(1).max(40),
   color: calendarCategoryColorSchema,
   position: z.number().int().min(0),
+  calendarId: z.string().min(1).max(140),
 };
 
 export const createCalendarCategorySchema = z.object(calendarCategoryFields);

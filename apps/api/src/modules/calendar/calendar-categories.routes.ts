@@ -21,6 +21,7 @@ const calendarCategorySelect = {
   name: true,
   color: true,
   position: true,
+  calendarId: true,
   createdAt: true,
 } as const;
 
@@ -34,19 +35,58 @@ export const createCalendarCategoriesRoutes = ({
 
   calendarCategoriesRoutes.get("/", async (context) => {
     const session = context.get("session");
+    let calendars = await prisma.lifeverCalendar.findMany({
+      where: { userId: session.user.id },
+      select: { id: true, position: true },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    });
+    if (calendars.length === 0) {
+      const calendar = await prisma.lifeverCalendar.upsert({
+        where: { id: `default-${session.user.id}` },
+        create: {
+          id: `default-${session.user.id}`,
+          name: "Personal",
+          color: "#3B82F6",
+          userId: session.user.id,
+        },
+        update: {},
+        select: { id: true, position: true },
+      });
+      calendars = [calendar];
+    }
     let categories = await prisma.calendarCategory.findMany({
       where: { userId: session.user.id },
       select: calendarCategorySelect,
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
 
-    if (categories.length === 0) {
+    const categoryCalendarIds = new Set(
+      categories.map((category) => category.calendarId),
+    );
+    const missingCalendars = calendars.filter(
+      (calendar) => !categoryCalendarIds.has(calendar.id),
+    );
+    if (missingCalendars.length > 0) {
       await prisma.calendarCategory.createMany({
-        data: defaultCategories.map((category) => ({
-          id: crypto.randomUUID(),
-          ...category,
-          userId: session.user.id,
-        })),
+        data: missingCalendars.flatMap((calendar) =>
+          categories.length === 0 && calendar === calendars[0]
+            ? defaultCategories.map((category) => ({
+                id: crypto.randomUUID(),
+                ...category,
+                calendarId: calendar.id,
+                userId: session.user.id,
+              }))
+            : [
+                {
+                  id: crypto.randomUUID(),
+                  name: "General",
+                  color: "#3b82f6",
+                  position: 0,
+                  calendarId: calendar.id,
+                  userId: session.user.id,
+                },
+              ],
+        ),
       });
       categories = await prisma.calendarCategory.findMany({
         where: { userId: session.user.id },
@@ -68,6 +108,17 @@ export const createCalendarCategoriesRoutes = ({
         { error: "Invalid calendar category", issues: parsed.error.issues },
         400,
       );
+    }
+
+    const calendar = await prisma.lifeverCalendar.findFirst({
+      where: {
+        id: parsed.data.calendarId,
+        userId: session.user.id,
+      },
+      select: { id: true },
+    });
+    if (!calendar) {
+      return context.json({ error: "Calendar not found" }, 400);
     }
 
     const category = await prisma.calendarCategory.create({
@@ -108,7 +159,7 @@ export const createCalendarCategoriesRoutes = ({
     const session = context.get("session");
     const categories = await prisma.calendarCategory.findMany({
       where: { userId: session.user.id },
-      select: { id: true },
+      select: { id: true, calendarId: true },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
     const target = categories.find(
@@ -116,14 +167,17 @@ export const createCalendarCategoriesRoutes = ({
     );
     if (!target)
       return context.json({ error: "Calendar category not found" }, 404);
-    if (categories.length === 1) {
+    const siblingCategories = categories.filter(
+      (category) => category.calendarId === target.calendarId,
+    );
+    if (siblingCategories.length === 1) {
       return context.json(
         { error: "Keep at least one calendar category." },
         400,
       );
     }
 
-    const replacement = categories.find(
+    const replacement = siblingCategories.find(
       (category) => category.id !== target.id,
     )!;
     await prisma.$transaction([

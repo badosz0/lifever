@@ -6,8 +6,10 @@ import type { ApiConfig } from "./config/env.js";
 import type { AppPrisma } from "./db/types.js";
 import { createAuth } from "./modules/auth/auth.js";
 import { createSessionMiddleware } from "./modules/auth/session.js";
+import { createCalendarCalendarsRoutes } from "./modules/calendar/calendar-calendars.routes.js";
 import { createCalendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
 import { createCalendarRoutes } from "./modules/calendar/calendar.routes.js";
+import { createGoogleCalendarRoutes } from "./modules/google-calendar/google-calendar.routes.js";
 import { createKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { createNotesRoutes } from "./modules/notes/notes.routes.js";
 import { createPreferencesRoutes } from "./modules/preferences/preferences.routes.js";
@@ -22,7 +24,7 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
   const app = new Hono();
   const auth = createAuth({ config, prisma });
   const requireSession = createSessionMiddleware(auth);
-  const routeDependencies = { prisma, requireSession };
+  const routeDependencies = { config, prisma, requireSession };
   const allowedOrigins = new Set([
     config.webUrl,
     "tauri://localhost",
@@ -58,7 +60,15 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
     "/api/calendar-categories",
     createCalendarCategoriesRoutes(routeDependencies),
   );
+  app.route(
+    "/api/calendars",
+    createCalendarCalendarsRoutes(routeDependencies),
+  );
   app.route("/api/calendar-events", createCalendarRoutes(routeDependencies));
+  app.route(
+    "/api/calendar-integrations/google",
+    createGoogleCalendarRoutes(routeDependencies),
+  );
   app.route("/api/kanban", createKanbanRoutes(routeDependencies));
   app.route("/api/notes", createNotesRoutes(routeDependencies));
   app.route("/api/preferences", createPreferencesRoutes(routeDependencies));

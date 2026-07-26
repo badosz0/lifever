@@ -11,24 +11,27 @@ datasource db {
 }
 
 model User {
-  id                 String             @id
-  name               String
-  email              String             @unique
-  emailVerified      Boolean            @default(false)
-  image              String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  sessions           Session[]
-  accounts           Account[]
-  lists              ReminderList[]
-  reminders          Reminder[]
-  calendarEvents     CalendarEvent[]
-  calendarCategories CalendarCategory[]
-  notes              Note[]
-  noteCategories     NoteCategory[]
-  notesSettings      NotesSettings?
-  kanbanWorkspace    KanbanWorkspace?
-  preferences        UserPreferences?
+  id                       String                    @id
+  name                     String
+  email                    String                    @unique
+  emailVerified            Boolean                   @default(false)
+  image                    String?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  sessions                 Session[]
+  accounts                 Account[]
+  lists                    ReminderList[]
+  reminders                Reminder[]
+  calendars                LifeverCalendar[]
+  calendarEvents           CalendarEvent[]
+  calendarCategories       CalendarCategory[]
+  googleCalendarConnection GoogleCalendarConnection?
+  googleCalendars          GoogleCalendar[]
+  notes                    Note[]
+  noteCategories           NoteCategory[]
+  notesSettings            NotesSettings?
+  kanbanWorkspace          KanbanWorkspace?
+  preferences              UserPreferences?
 
   @@map("user")
 }
@@ -119,38 +122,91 @@ model Reminder {
 }
 
 model CalendarEvent {
-  id         String           @id @default(cuid())
-  title      String
-  startAt    DateTime
-  endAt      DateTime
-  location   String           @default("")
-  notes      String           @default("")
-  alertsEnabled Boolean       @default(true)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  userId     String
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId String
-  category   CalendarCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id            String           @id @default(cuid())
+  title         String
+  startAt       DateTime
+  endAt         DateTime
+  location      String           @default("")
+  notes         String           @default("")
+  alertsEnabled Boolean          @default(true)
+  allDay        Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      CalendarCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  calendarId    String
+  calendar      LifeverCalendar  @relation(fields: [calendarId], references: [id], onDelete: Cascade)
 
   @@index([userId, startAt])
   @@index([categoryId])
+  @@index([calendarId, startAt])
   @@map("calendar_event")
 }
 
-model CalendarCategory {
-  id        String          @id @default(cuid())
-  name      String
-  color     String
-  position  Int             @default(0)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  events    CalendarEvent[]
+model LifeverCalendar {
+  id         String             @id @default(cuid())
+  name       String
+  color      String
+  position   Int                @default(0)
+  visible    Boolean            @default(true)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events     CalendarEvent[]
+  categories CalendarCategory[]
 
   @@index([userId, position])
+  @@map("lifever_calendar")
+}
+
+model CalendarCategory {
+  id         String          @id @default(cuid())
+  name       String
+  color      String
+  position   Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendarId String
+  calendar   LifeverCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  events     CalendarEvent[]
+
+  @@index([calendarId, position])
   @@map("calendar_category")
+}
+
+model GoogleCalendarConnection {
+  userId                String    @id
+  encryptedRefreshToken String
+  calendarListSyncedAt  DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_connection")
+}
+
+model GoogleCalendar {
+  id         String   @id @default(cuid())
+  googleId   String
+  name       String
+  color      String
+  accessRole String
+  primary    Boolean  @default(false)
+  visible    Boolean  @default(true)
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, googleId])
+  @@index([userId, position])
+  @@map("google_calendar")
 }
 
 model Note {
@@ -208,16 +264,17 @@ model KanbanWorkspace {
 }
 
 model UserPreferences {
-  userId                String   @id
-  theme                 String   @default("system")
-  timeFormat            String   @default("system")
-  dateFormat            String   @default("system")
-  calendarClickToCreate Boolean  @default(true)
-  appConfiguration      Json     @default("{}")
-  favoriteDriverId      String?
-  favoriteConstructorId String?
-  updatedAt             DateTime @updatedAt
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                      String   @id
+  theme                       String   @default("system")
+  timeFormat                  String   @default("system")
+  dateFormat                  String   @default("system")
+  calendarClickToCreate       Boolean  @default(true)
+  calendarSourceConfiguration Json     @default("{}")
+  appConfiguration            Json     @default("{}")
+  favoriteDriverId            String?
+  favoriteConstructorId       String?
+  updatedAt                   DateTime @updatedAt
+  user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }

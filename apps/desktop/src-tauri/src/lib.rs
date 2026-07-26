@@ -4,20 +4,21 @@ mod notifications;
 use tauri::Manager;
 
 fn is_allowed_oauth_popup(url: &tauri::Url) -> bool {
-    if url.path() != "/api/auth/oauth-popup/start" {
-        return false;
-    }
-
-    let production_origin = matches!(
-        (url.scheme(), url.host_str()),
-        ("https", Some("lifever-api.badoszk.workers.dev")) | ("https", Some("api.lifever.app"))
+    let lifever_popup = url.path() == "/api/auth/oauth-popup/start"
+        && (matches!(
+            (url.scheme(), url.host_str()),
+            ("https", Some("lifever-api.badoszk.workers.dev"))
+                | ("https", Some("api.lifever.app"))
+        ) || matches!(
+            (url.scheme(), url.host_str(), url.port_or_known_default()),
+            ("http", Some("localhost" | "127.0.0.1"), Some(8787))
+        ));
+    let google_calendar_popup = matches!(
+        (url.scheme(), url.host_str(), url.path()),
+        ("https", Some("accounts.google.com"), "/o/oauth2/v2/auth")
     );
-    let local_origin = matches!(
-        (url.scheme(), url.host_str(), url.port_or_known_default()),
-        ("http", Some("localhost" | "127.0.0.1"), Some(8787))
-    );
 
-    production_origin || local_origin
+    lifever_popup || google_calendar_popup
 }
 
 #[tauri::command]

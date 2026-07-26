@@ -69,6 +69,33 @@ Use a production-quality Better Auth secret:
 openssl rand -base64 32
 ```
 
+## Google Calendar development
+
+Create a Google Cloud OAuth client of type **Web application**, enable the
+Google Calendar API, and add this exact local redirect URI:
+
+```text
+http://localhost:8787/api/calendar-integrations/google/callback
+```
+
+Then add these server-only values to `.env`:
+
+```dotenv
+GOOGLE_CALENDAR_CLIENT_ID="..."
+GOOGLE_CALENDAR_CLIENT_SECRET="..."
+CALENDAR_TOKEN_ENCRYPTION_KEY="..."
+```
+
+Generate the encryption key separately from the Better Auth secret:
+
+```bash
+openssl rand -base64 32
+```
+
+The integration requests offline access plus the narrow Calendar List read and
+Calendar Events read/write scopes. While the OAuth consent screen is in testing,
+add each developer account as a test user.
+
 ## Desktop development
 
 Save the public API origin used by desktop builds:
