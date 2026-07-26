@@ -17,11 +17,7 @@ import {
   defaultCalendarCategories,
   isCalendarCategoryColor,
 } from "@/features/calendar/lib/categories";
-import {
-  addDays,
-  addMinutes,
-  toCalendarDate,
-} from "@/features/calendar/lib/dates";
+import { addDays } from "@/features/calendar/lib/dates";
 import {
   defaultLocalCalendars,
   initialCalendarEvents,
@@ -63,6 +59,8 @@ type CalendarContextValue = {
   removeEvent: (id: string) => CalendarEvent | null;
   restoreEvent: (event: CalendarEvent) => CalendarEvent | null;
   duplicateEvent: (id: string) => CalendarEvent | null;
+  registerEventUndo: (action: () => void) => () => void;
+  undoLastEventAction: () => boolean;
   addCalendar: (
     input: Pick<CalendarCollection, "name" | "color">,
   ) => CalendarCollection;
@@ -151,6 +149,7 @@ const CALENDAR_STORAGE_KEY = "lifever-calendars";
 const ACTIVE_CALENDAR_STORAGE_KEY = "lifever-active-calendar";
 const WRITE_DELAY = 400;
 const REMOTE_WRITE_DELAY = 400;
+const EVENT_UNDO_LIMIT = 50;
 
 const defaultGoogleEventRange = () => {
   const year = new Date().getFullYear();
@@ -341,6 +340,9 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   const pendingCalendarCreates = useRef(new Map<string, Promise<void>>());
   const calendarWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingEventUpdates = useRef(new Map<string, PendingEventUpdate>());
+  const eventUndoStack = useRef<
+    Array<{ action: () => void; consumed: boolean }>
+  >([]);
   const nativeEventsRef = useRef(nativeEvents);
   const googleEventsRef = useRef(googleEvents);
   const categoriesRef = useRef(categories);
@@ -568,6 +570,8 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     const nextMode = userId ? `user:${userId}` : "local";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
+    for (const entry of eventUndoStack.current) entry.consumed = true;
+    eventUndoStack.current = [];
     setHydratedMode(null);
     setSelectedEventId(null);
     if (userId) {
@@ -692,9 +696,40 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       );
       setActiveCalendarIdState(resetCalendars[0]!.id);
       setSelectedEventId(null);
+      for (const entry of eventUndoStack.current) entry.consumed = true;
+      eventUndoStack.current = [];
     };
     window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
     return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
+  }, []);
+
+  const registerEventUndo = useCallback((action: () => void) => {
+    const entry = { action, consumed: false };
+    eventUndoStack.current.push(entry);
+    if (eventUndoStack.current.length > EVENT_UNDO_LIMIT) {
+      eventUndoStack.current.splice(
+        0,
+        eventUndoStack.current.length - EVENT_UNDO_LIMIT,
+      );
+    }
+
+    return () => {
+      if (entry.consumed) return;
+      entry.consumed = true;
+      eventUndoStack.current = eventUndoStack.current.filter(
+        (candidate) => candidate !== entry,
+      );
+      entry.action();
+    };
+  }, []);
+
+  const undoLastEventAction = useCallback(() => {
+    let entry = eventUndoStack.current.pop();
+    while (entry?.consumed) entry = eventUndoStack.current.pop();
+    if (!entry) return false;
+    entry.consumed = true;
+    entry.action();
+    return true;
   }, []);
 
   const findEvent = useCallback(
@@ -1039,11 +1074,8 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       if (!source || source.readOnly) return null;
       return addEvent({
         title: source.title,
-        startAt: addMinutes(
-          toCalendarDate(source.startAt),
-          30,
-        ).toISOString(),
-        endAt: addMinutes(toCalendarDate(source.endAt), 30).toISOString(),
+        startAt: source.startAt,
+        endAt: source.endAt,
         categoryId:
           source.categoryId || categoriesRef.current[0]?.id || "",
         calendarId: source.calendarId,
@@ -1535,6 +1567,8 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       removeEvent,
       restoreEvent,
       duplicateEvent,
+      registerEventUndo,
+      undoLastEventAction,
       addCalendar,
       updateCalendar,
       removeCalendar,
@@ -1562,6 +1596,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       nativeCalendars.length,
       nativeEvents,
       refreshGoogle,
+      registerEventUndo,
       removeCalendar,
       removeCategory,
       removeEvent,
@@ -1572,6 +1607,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       setCalendarVisibility,
       setExternalCalendarColor,
       updateCalendar,
+      undoLastEventAction,
       updateCategory,
       updateEvent,
     ],

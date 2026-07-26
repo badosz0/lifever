@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
@@ -416,19 +417,28 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
 
       {!calendarEvent.readOnly ? (
         <div className="flex shrink-0 items-center gap-1 border-t border-border/60 px-2 py-1.5">
-        <Button variant="ghost" size="sm" className="h-8 flex-1 justify-start rounded-md px-2 text-[12px] font-medium" onClick={duplicate}>
-          <Copy className="size-3.5" strokeWidth={1.9} />
-          Duplicate
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={deleteEvent}
-          aria-label="Delete event"
-        >
-          <Trash2 className="size-3.5" strokeWidth={1.8} />
-        </Button>
+          <ShortcutTooltip label="Duplicate event" shortcut={["⌘", "D"]}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 flex-1 justify-start rounded-md px-2 text-[12px] font-medium"
+              onClick={duplicate}
+            >
+              <Copy className="size-3.5" strokeWidth={1.9} />
+              Duplicate
+            </Button>
+          </ShortcutTooltip>
+          <ShortcutTooltip label="Delete event" shortcut={["⌫"]}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={deleteEvent}
+              aria-label="Delete event"
+            >
+              <Trash2 className="size-3.5" strokeWidth={1.8} />
+            </Button>
+          </ShortcutTooltip>
         </div>
       ) : null}
     </aside>

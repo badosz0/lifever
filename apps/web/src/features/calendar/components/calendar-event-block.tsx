@@ -321,39 +321,14 @@ export function CalendarEventBlock({
         addMinutes(end, endDelta).toISOString(),
       );
       onSelect(event.id);
-      return;
     }
-
-    let dayDelta = 0;
-    let minuteDelta = 0;
-    if (keyboardEvent.key === "ArrowUp") minuteDelta = -SNAP_MINUTES;
-    if (keyboardEvent.key === "ArrowDown") minuteDelta = SNAP_MINUTES;
-    if (keyboardEvent.key === "ArrowLeft") dayDelta = -1;
-    if (keyboardEvent.key === "ArrowRight") dayDelta = 1;
-    if (dayDelta === 0 && minuteDelta === 0) return;
-
-    keyboardEvent.preventDefault();
-    const movedStart = addMinutes(addDays(start, dayDelta), minuteDelta);
-    const movedEnd = addMinutes(addDays(end, dayDelta), minuteDelta);
-    const movedDisplayStartMinute = displayStartMinute + minuteDelta;
-    const movedDisplayEndMinute = displayEndMinute + minuteDelta;
-    if (
-      (!(continuesBefore || continuesAfter) &&
-        (movedDisplayStartMinute < HOUR_START * 60 ||
-          movedDisplayEndMinute > HOUR_END * 60)) ||
-      dayIndex + dayDelta < 0 ||
-      dayIndex + dayDelta >= dayCount
-    ) {
-      return;
-    }
-    onMove(event.id, movedStart.toISOString(), movedEnd.toISOString());
-    onSelect(event.id);
   };
 
   return (
     <CalendarEventContextMenu event={event}>
       <button
         type="button"
+        data-calendar-event-id={event.id}
         onPointerDown={(pointerEvent) =>
           handlePointerDown(pointerEvent, "move")
         }
@@ -396,7 +371,7 @@ export function CalendarEventBlock({
             : undefined,
           willChange: preview.active ? "transform, top, height" : undefined,
         }}
-        aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${event.readOnly ? " Read only." : ` Drag to reschedule${resizeInstruction}, or use Alt and arrow keys.`}`}
+        aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${event.readOnly ? " Read only." : ` Drag to reschedule${resizeInstruction}, use Alt and arrow keys to move, or Alt plus and minus to adjust by one minute.`}`}
         aria-pressed={selected}
       >
       {!event.readOnly && !continuesBefore ? (

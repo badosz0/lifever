@@ -1,5 +1,5 @@
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AppHeader,
@@ -31,6 +31,11 @@ import {
 import { getCalendarCategory } from "@/features/calendar/lib/categories";
 import { intervalOverlapsRange } from "@/features/calendar/lib/event-segments";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
+import {
+  calendarViews,
+  calendarViewShortcuts,
+  useCalendarShortcuts,
+} from "@/features/calendar/model/use-calendar-shortcuts";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import type {
   CalendarEventPreview,
@@ -42,15 +47,6 @@ type CalendarViewProps = {
   onOpenMobileSidebar: () => void;
   onToggleSidebar: () => void;
 };
-
-const calendarViewShortcuts: Record<CalendarViewMode, string> = {
-  year: "Y",
-  month: "M",
-  week: "W",
-  day: "D",
-};
-
-const calendarViews: CalendarViewMode[] = ["year", "month", "week", "day"];
 
 const readViewMode = (): CalendarViewMode => {
   try {
@@ -88,6 +84,7 @@ export function CalendarView({
   const [composerSession, setComposerSession] = useState(0);
   const [composerOpen, setComposerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const calendarViewRef = useRef<HTMLElement>(null);
 
   const days = useMemo(() => {
     if (viewMode === "year" || viewMode === "month") return [];
@@ -123,7 +120,6 @@ export function CalendarView({
       ),
     ).length;
   }, [events, visibleRange]);
-
   useEffect(() => {
     setVisibleEventRange(visibleRange.start, visibleRange.end);
   }, [setVisibleEventRange, visibleRange]);
@@ -171,6 +167,31 @@ export function CalendarView({
     ],
   );
 
+  const navigate = useCallback(
+    (direction: -1 | 1) => {
+      setSelectedDate((current) =>
+        viewMode === "year"
+          ? addYears(current, direction)
+          : viewMode === "month"
+            ? addMonths(current, direction)
+            : addDays(current, direction * (viewMode === "week" ? 7 : 1)),
+      );
+      setSelectedEventId(null);
+    },
+    [setSelectedEventId, viewMode],
+  );
+
+  const { selectEvent } = useCalendarShortcuts({
+    calendarViewRef,
+    navigate,
+    openComposer,
+    selectedDate,
+    setSelectedDate,
+    setViewMode,
+    viewMode,
+    visibleRange,
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem("lifever-calendar-view", viewMode);
@@ -178,53 +199,6 @@ export function CalendarView({
       // The view remains available for the current session.
     }
   }, [viewMode]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
-      const isInDialog = target?.closest('[role="dialog"]');
-      const shortcutView = calendarViews.find(
-        (mode) =>
-          calendarViewShortcuts[mode].toLowerCase() === event.key.toLowerCase(),
-      );
-
-      if (
-        shortcutView &&
-        !isTyping &&
-        !isInDialog &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey
-      ) {
-        event.preventDefault();
-        setViewMode(shortcutView);
-        return;
-      }
-
-      if (
-        event.key.toLowerCase() === "n" &&
-        !event.altKey &&
-        ((event.metaKey || event.ctrlKey) || !isTyping)
-      ) {
-        event.preventDefault();
-        openComposer();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openComposer]);
-
-  const navigate = (direction: -1 | 1) => {
-    setSelectedDate((current) =>
-      viewMode === "year"
-        ? addYears(current, direction)
-        : viewMode === "month"
-        ? addMonths(current, direction)
-        : addDays(current, direction * (viewMode === "week" ? 7 : 1)),
-    );
-    setSelectedEventId(null);
-  };
 
   const showDay = (day: Date) => {
     setSelectedDate(startOfLocalDay(day));
@@ -237,7 +211,10 @@ export function CalendarView({
   };
 
   return (
-    <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <main
+      ref={calendarViewRef}
+      className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background"
+    >
       <AppHeader elevated>
         <AppHeaderToolbar
           onOpenMobileSidebar={onOpenMobileSidebar}
@@ -326,7 +303,7 @@ export function CalendarView({
           newEventPreview={composerOpen ? eventPreview : null}
           selectedEventId={selectedEventId}
           onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={setSelectedEventId}
+          onSelectEvent={selectEvent}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })
           }
@@ -341,7 +318,7 @@ export function CalendarView({
           selectedEventId={selectedEventId}
           clickToCreateEnabled={calendarClickToCreate}
           onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={setSelectedEventId}
+          onSelectEvent={selectEvent}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })
           }
