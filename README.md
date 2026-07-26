@@ -6,13 +6,15 @@
 
 <p align="center">
   A calm home for the everyday parts of life.<br>
-  Reminders, calendar, notes, projects, and Formula 1—together on the web and macOS.
+  Reminders, calendar, notes, projects, Formula 1, and AI usage—together on macOS, Windows, and the web.
 </p>
 
 <p align="center">
   <a href="https://www.lifever.app">Website</a>
   ·
   <a href="https://github.com/badosz0/lifever/releases/latest">Download for macOS</a>
+  ·
+  <a href="https://github.com/badosz0/lifever/releases/latest/download/Lifever-Windows-x64-setup.exe">Download for Windows</a>
   ·
   <a href="#homebrew">Install with Homebrew</a>
   ·
@@ -21,13 +23,20 @@
 
 ![Lifever week calendar](docs/screenshots/calendar-week.jpg)
 
-## One place, five focused apps
+## One place, six focused apps
 
 - **Reminders** — natural scheduling, categories, notes, priority, sounds, and Undo.
 - **Calendar** — day, week, month, and year views with drag creation, resizing, colors, and alerts.
 - **Notes** — multiple categories, fast search, pinning, and polished Markdown rendering.
 - **Kanban** — multiple projects, custom properties, labels, limits, search, and fluid drag and drop.
 - **Formula 1** — race weekends, championship data, local session times, and live countdowns.
+- **AI** — Codex limits, token history, model breakdowns, and daily usage at a glance.
+
+AI and Formula 1 are opt-in. Every other app is ready on first launch.
+
+| Home | AI usage |
+| --- | --- |
+| ![Lifever Home overview](docs/screenshots/home-overview.jpg) | ![Lifever AI usage dashboard](docs/screenshots/ai-usage.jpg) |
 
 | Reminders | Kanban |
 | --- | --- |
@@ -37,11 +46,12 @@
 | --- | --- |
 | ![Demo Markdown notes](docs/screenshots/notes-markdown.jpg) | ![Demo Formula 1 weekend](docs/screenshots/formula-1.jpg) |
 
-Lifever starts with a local demo profile, so the interface is useful before any
-account or server exists. Discord sign-in enables authenticated sync across
-devices.
+Lifever starts with a local demo profile. Discord sign-in enables authenticated
+sync across devices.
 
-## Homebrew
+## Install
+
+### macOS with Homebrew
 
 ```bash
 brew tap badosz0/lifever https://github.com/badosz0/lifever
@@ -55,6 +65,12 @@ Update later with:
 brew update
 brew upgrade lifever
 ```
+
+### Windows
+
+Download the latest
+[Windows 10/11 x64 installer](https://github.com/badosz0/lifever/releases/latest/download/Lifever-Windows-x64-setup.exe).
+The matching SHA-256 checksum is attached to every release.
 
 ## Run the demo
 
@@ -71,8 +87,8 @@ seeded with demo reminders, events, notes, and projects.
 
 ## Built with
 
-React 19 · TypeScript · Vite · Tailwind CSS · Tauri 2 · Hono · Better Auth ·
-Prisma · PostgreSQL · Cloudflare Workers and D1
+React 19 · TypeScript · Vite · Tailwind CSS · Tauri 2 · Rust · Hono · Better
+Auth · Prisma · PostgreSQL · Cloudflare Workers and D1
 
 ## Documentation
 

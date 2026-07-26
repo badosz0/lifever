@@ -138,6 +138,13 @@ pnpm desktop:configure -- --api-url https://YOUR_API_ORIGIN
 pnpm desktop:build
 ```
 
+On Windows, build the x64 NSIS setup executable directly:
+
+```powershell
+$env:VITE_API_URL="https://YOUR_API_ORIGIN"
+pnpm --filter @lifever/desktop tauri build --bundles nsis --ci
+```
+
 Backend secrets must remain on the server.
 
 ## Operations
@@ -147,4 +154,3 @@ Backend secrets must remain on the server.
 - Keep `BETTER_AUTH_SECRET` stable; rotating it invalidates existing sessions.
 - Restrict `WEB_URL` to the frontend origin you operate.
 - Monitor `/api/health` and Worker observability after deployments.
-

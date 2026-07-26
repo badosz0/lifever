@@ -16,6 +16,8 @@ apps/
   web/       Shared React product UI
   api/       Hono API, auth, services, and database adapters
   desktop/   Thin Tauri host for the web build
+  site/      Public Next.js landing page
+.github/     Cross-platform release automation
 prisma/      PostgreSQL and D1 schemas and migrations
 scripts/     Desktop, versioning, deployment, and release tooling
 ```
@@ -56,6 +58,7 @@ A useful pull request includes:
 
 - a concise description of the user-facing outcome;
 - screenshots or a short recording for visual changes;
+- platform notes when desktop behavior differs between macOS and Windows;
 - migration and deployment notes when data changes;
 - the checks performed;
 - any known follow-up that is intentionally out of scope.
@@ -69,4 +72,3 @@ refactor(notes): share collection search controls
 ```
 
 Avoid unrelated formatting or broad cleanup in feature commits.
-

@@ -1,6 +1,6 @@
 # Building Lifever
 
-This guide covers local development, production builds, the macOS app, and
+This guide covers local development, production builds, desktop apps, and
 releases. For deployment configuration, see [SELF_HOSTING.md](SELF_HOSTING.md).
 
 ## Requirements
@@ -8,7 +8,10 @@ releases. For deployment configuration, see [SELF_HOSTING.md](SELF_HOSTING.md).
 - Node `22.14.0` from [.nvmrc](.nvmrc)
 - pnpm `11.17.0` through Corepack
 - Docker or a PostgreSQL 17-compatible server for authenticated development
-- Rust `1.88.0` and Xcode Command Line Tools for the macOS app
+- Rust `1.88.0`
+- macOS: Xcode Command Line Tools
+- Windows: Windows 10/11, WebView2, and Microsoft C++ Build Tools with the
+  **Desktop development with C++** workload
 
 ## Install
 
@@ -66,7 +69,7 @@ Use a production-quality Better Auth secret:
 openssl rand -base64 32
 ```
 
-## macOS development
+## Desktop development
 
 Save the public API origin used by desktop builds:
 
@@ -82,6 +85,8 @@ pnpm desktop:dev
 ```
 
 Use `pnpm dev:worker` instead when developing against the Cloudflare runtime.
+
+### macOS
 
 Build and install the native app:
 
@@ -103,6 +108,24 @@ pnpm desktop:build
 
 Desktop commands accept `--api-url https://api.example.com`. Install commands
 also accept `--install-dir ~/Applications`.
+
+### Windows
+
+Run the app in development:
+
+```powershell
+pnpm desktop:dev
+```
+
+Build the same per-user NSIS installer published on GitHub:
+
+```powershell
+$env:VITE_API_URL="https://YOUR_API_ORIGIN"
+pnpm --filter @lifever/desktop tauri build --bundles nsis --ci
+```
+
+The setup executable is written under
+`apps/desktop/src-tauri/target/release/bundle/nsis`.
 
 ## Validation
 
@@ -173,7 +196,10 @@ pnpm release
 
 The release command checks the workspace, builds and verifies an Intel and
 Apple-silicon DMG, applies D1 migrations, deploys the Worker, tags the source,
-publishes the GitHub Release, and updates `Casks/lifever.rb`.
+and publishes the GitHub Release. Publishing triggers the
+[`Windows release`](.github/workflows/windows-release.yml) workflow, which
+builds the Windows x64 NSIS installer from the same tag. The release command
+waits for that installer before updating `Casks/lifever.rb`.
 
 Public releases require `APPLE_SIGNING_IDENTITY` plus one notarization method:
 
@@ -182,3 +208,6 @@ Public releases require `APPLE_SIGNING_IDENTITY` plus one notarization method:
 
 `--allow-ad-hoc` exists for intentional unnotarized builds. It should not be the
 normal public release path.
+
+Windows releases are currently unsigned. Each installer is built on GitHub
+Actions and published with a SHA-256 checksum beside it.
