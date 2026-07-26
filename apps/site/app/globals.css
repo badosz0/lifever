@@ -85,8 +85,7 @@ img {
 .header-inner,
 .footer-inner,
 .section,
-.hero,
-.rhythm-section {
+.hero {
   width: min(calc(100% - 48px), var(--page-width));
   margin-inline: auto;
 }
@@ -323,50 +322,8 @@ img {
   height: auto;
 }
 
-.rhythm-section {
-  display: grid;
-  grid-template-columns: 0.75fr 1.7fr;
-  gap: 60px;
-  align-items: center;
-  margin-top: clamp(82px, 10vw, 124px);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding-block: 28px;
-}
-
-.rhythm-section > p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.rhythm-list {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.rhythm {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-left: 19px;
-  border-left: 1px solid var(--border);
-}
-
-.rhythm strong {
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
-}
-
-.rhythm span {
-  color: var(--muted-soft);
-  font-size: 10px;
-}
-
 .section {
-  padding-block: clamp(104px, 13vw, 158px);
+  padding-block: clamp(92px, 11vw, 132px);
 }
 
 .eyebrow {
@@ -408,7 +365,7 @@ img {
 }
 
 .product-section {
-  padding-top: clamp(112px, 14vw, 170px);
+  padding-top: clamp(104px, 12vw, 146px);
   padding-bottom: 0;
 }
 
@@ -418,7 +375,7 @@ img {
 
 .product-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -552,8 +509,7 @@ img {
   align-items: center;
 }
 
-.install-logo,
-.final-mark {
+.install-logo {
   border: 1px solid var(--border);
   background: #fff;
   box-shadow: 0 2px 10px rgb(0 0 0 / 6%);
@@ -775,20 +731,13 @@ details[open] .summary-plus::after {
 }
 
 .final-cta {
-  width: min(calc(100% - 32px), var(--page-width));
-  margin: 0 auto 16px;
-  border: 1px solid rgb(151 113 0 / 10%);
-  border-radius: 36px;
-  padding: clamp(98px, 13vw, 148px) 24px;
-  background: var(--surface-warm);
+  width: min(calc(100% - 48px), var(--page-width));
+  margin: 0 auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: clamp(92px, 11vw, 124px) 24px;
+  background: transparent;
   text-align: center;
-}
-
-.final-mark {
-  width: 66px;
-  height: 66px;
-  margin: 0 auto 28px;
-  border-radius: 18px;
 }
 
 .final-cta h2 {
@@ -851,11 +800,6 @@ details[open] .summary-plus::after {
 }
 
 @media (max-width: 940px) {
-  .rhythm-section {
-    grid-template-columns: 1fr;
-    gap: 23px;
-  }
-
   .install-section,
   .faq-section {
     grid-template-columns: 1fr;
@@ -887,8 +831,7 @@ details[open] .summary-plus::after {
   .header-inner,
   .footer-inner,
   .section,
-  .hero,
-  .rhythm-section {
+  .hero {
     width: min(calc(100% - 32px), var(--page-width));
   }
 
@@ -952,20 +895,6 @@ details[open] .summary-plus::after {
     width: 150%;
     max-width: none;
     transform: translateX(-14%);
-  }
-
-  .rhythm-section {
-    margin-top: 78px;
-    padding-block: 24px;
-  }
-
-  .rhythm-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 0;
-  }
-
-  .rhythm {
-    padding-left: 14px;
   }
 
   .section {
@@ -1078,10 +1007,8 @@ details[open] .summary-plus::after {
   }
 
   .final-cta {
-    width: calc(100% - 16px);
-    margin-bottom: 8px;
-    border-radius: 25px;
-    padding: 92px 20px;
+    width: calc(100% - 32px);
+    padding: 82px 20px;
   }
 
   .footer-inner {

@@ -8,7 +8,7 @@ const siteUrl = "https://www.lifever.app";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Lifever — Life, together.",
+    default: "Lifever — Your day, together.",
     template: "%s · Lifever",
   },
   description:
@@ -30,23 +30,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "/",
     siteName: "Lifever",
-    title: "Lifever — Life, together.",
+    title: "Lifever — Your day, together.",
     description:
-      "Reminders, calendar, notes, projects, and Formula 1 in one calm place.",
+      "One calm home for reminders, plans, notes, projects, and the things you follow.",
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Lifever — Life, together.",
+        alt: "Lifever — Your day, together.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lifever — Life, together.",
+    title: "Lifever — Your day, together.",
     description:
-      "Reminders, calendar, notes, projects, and Formula 1 in one calm place.",
+      "One calm home for reminders, plans, notes, projects, and the things you follow.",
     images: ["/og.png"],
   },
   icons: {

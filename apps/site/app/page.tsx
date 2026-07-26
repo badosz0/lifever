@@ -14,14 +14,6 @@ import { ProductShowcase } from "@/components/product-showcase";
 const githubUrl = "https://github.com/badosz0/lifever";
 const releaseUrl = `${githubUrl}/releases/latest`;
 
-const rhythms = [
-  { verb: "Remember", app: "Reminders" },
-  { verb: "Plan", app: "Calendar" },
-  { verb: "Think", app: "Notes" },
-  { verb: "Move", app: "Kanban" },
-  { verb: "Follow", app: "Formula 1" },
-];
-
 const faqs = [
   {
     question: "Do I need an account?",
@@ -34,14 +26,9 @@ const faqs = [
       "Local-profile data stays on the device. Signed-in data lives in the configured Lifever API and is scoped to your authenticated account.",
   },
   {
-    question: "Which platforms are supported?",
-    answer:
-      "Lifever runs in modern browsers and ships as a native Tauri app for macOS through GitHub Releases and Homebrew.",
-  },
-  {
     question: "Can I self-host it?",
     answer:
-      "Yes. Cloudflare Workers with D1 and Node.js with PostgreSQL are both documented and supported.",
+      "Yes. The web app, desktop host, API, database schemas, and deployment scripts are all public. Cloudflare Workers with D1 and Node.js with PostgreSQL are supported.",
   },
 ];
 
@@ -83,39 +70,39 @@ export default function Home() {
         <section className="hero">
           <div className="hero-copy">
             <a className="announcement" href={releaseUrl}>
-              <span>Free</span>
-              Open source for macOS and the web
+              <span>Open source</span>
+              Available for macOS and the web
               <ArrowRight size={14} aria-hidden="true" />
             </a>
             <h1>
-              Life, <mark>together.</mark>
+              Your day, <mark>together.</mark>
             </h1>
             <p className="hero-lede">
-              Reminders, calendar, notes, projects, and race weekends—designed
-              as one quiet place, not five apps fighting for attention.
+              One calm home for reminders, plans, notes, projects, and the
+              things you follow.
             </p>
             <div className="hero-actions">
               <a className="button" href={releaseUrl}>
                 <Download size={17} aria-hidden="true" />
                 Download for macOS
               </a>
-              <a className="button button-secondary" href="#product">
-                Explore the product
-                <ArrowRight size={16} aria-hidden="true" />
+              <a className="button button-secondary" href={githubUrl}>
+                <Github size={16} aria-hidden="true" />
+                View on GitHub
               </a>
             </div>
             <ul className="hero-meta" aria-label="Lifever highlights">
               <li>No account required</li>
-              <li>Local first</li>
-              <li>Cross-device sync</li>
+              <li>Local-first</li>
+              <li>Sync when you want</li>
             </ul>
           </div>
 
           <div className="hero-frame">
             <Image
               className="hero-image"
-              src="/screenshots/calendar-week.jpg"
-              alt="Lifever week calendar showing color-coded events across a compact full-day view"
+              src="/screenshots/home-overview.jpg"
+              alt="Lifever Home showing useful summaries from reminders, calendar, notes, and Kanban"
               width={1920}
               height={1080}
               loading="eager"
@@ -126,26 +113,13 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="rhythm-section" aria-label="Lifever apps">
-          <p>One home for the things that shape a day.</p>
-          <div className="rhythm-list">
-            {rhythms.map(({ verb, app }) => (
-              <div className="rhythm" key={app}>
-                <strong>{verb}</strong>
-                <span>{app}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
         <section className="section product-section" id="product">
           <div className="section-heading">
-            <p className="eyebrow">The product</p>
-            <h2>Everything close. Nothing crowded.</h2>
+            <p className="eyebrow">A quieter workspace</p>
+            <h2>Separate tools. One useful home.</h2>
             <p>
-              Each app keeps its own rhythm. Together they cover the ordinary
-              work of planning a life without turning it into a system to
-              maintain.
+              Start with the day at a glance. Open an app only when you need
+              the detail.
             </p>
           </div>
           <ProductShowcase />
@@ -160,11 +134,11 @@ export default function Home() {
               width={58}
               height={58}
             />
-            <p className="eyebrow">Native without the ceremony</p>
-            <h2>On your Mac in a minute.</h2>
+            <p className="eyebrow">The macOS app</p>
+            <h2>Install it once. Keep using it.</h2>
             <p>
               A lightweight Tauri app with native notifications, signed
-              releases, and updates that stay as simple as the install.
+              releases, and a quiet notice when a newer version is ready.
             </p>
             <a className="text-link" href={releaseUrl}>
               Prefer a direct download?
@@ -176,12 +150,12 @@ export default function Home() {
 
         <section className="section source-section">
           <div>
-            <p className="eyebrow">Yours, end to end</p>
-            <h2>Open means open.</h2>
+            <p className="eyebrow">Public by design</p>
+            <h2>Yours, end to end.</h2>
           </div>
           <p>
-            The app, API, database schemas, desktop host, deployment scripts,
-            and release pipeline all live in one public repository.
+            App, API, desktop host, deployment, and releases live in one public
+            repository.
           </p>
           <div className="source-links">
             <a href={`${githubUrl}/blob/main/SELF_HOSTING.md`}>
@@ -201,8 +175,8 @@ export default function Home() {
 
         <section className="section faq-section" id="faq">
           <div className="faq-heading">
-            <p className="eyebrow">The practical bits</p>
-            <h2>Questions, answered.</h2>
+            <p className="eyebrow">Good to know</p>
+            <h2>The practical bits.</h2>
           </div>
           <div className="faq-list">
             {faqs.map(({ question, answer }) => (
@@ -218,15 +192,8 @@ export default function Home() {
         </section>
 
         <section className="final-cta">
-          <Image
-            className="final-mark"
-            src="/lifever-logo.png"
-            alt=""
-            width={72}
-            height={72}
-          />
-          <h2>Make a little room for life.</h2>
-          <p>Start locally today. Sign in only when sync becomes useful.</p>
+          <h2>Start with today.</h2>
+          <p>Use Lifever locally. Add an account only when sync is useful.</p>
           <div className="hero-actions">
             <a className="button" href={releaseUrl}>
               <Download size={17} aria-hidden="true" />

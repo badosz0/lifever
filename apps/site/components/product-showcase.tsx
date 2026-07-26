@@ -5,6 +5,7 @@ import {
   Columns3,
   FileText,
   FlagTriangleRight,
+  House,
   ListChecks,
   type LucideIcon,
 } from "lucide-react";
@@ -26,16 +27,29 @@ type Product = {
 
 const products: Product[] = [
   {
+    id: "home",
+    label: "Home",
+    shortLabel: "Home",
+    title: "The useful parts, already together.",
+    description:
+      "Home brings the next useful piece from every enabled app into one rearrangeable view. Keep only the summaries you want.",
+    image: "/screenshots/home-overview.jpg",
+    alt: "Lifever Home with reminders, calendar, notes, and Kanban summaries",
+    accent: "#007aff",
+    points: ["Reorder summaries", "Choose what appears", "Open any app"],
+    Icon: House,
+  },
+  {
     id: "calendar",
     label: "Calendar",
     shortLabel: "Calendar",
     title: "See the whole day. Move it in seconds.",
     description:
-      "Create by dragging, resize in place, span multiple days, and move naturally between day, week, month, and year.",
+      "Create and resize by dragging, span multiple days, use categories, and move naturally between day, week, month, and year.",
     image: "/screenshots/calendar-week.jpg",
     alt: "Lifever calendar showing a compact week with color-coded events",
     accent: "#007aff",
-    points: ["Drag to create", "Day to year views", "Event alerts"],
+    points: ["Compact full day", "Day to year views", "Event alerts"],
     Icon: CalendarDays,
   },
   {
@@ -44,7 +58,7 @@ const products: Product[] = [
     shortLabel: "Reminders",
     title: "Capture quickly. Organize when it matters.",
     description:
-      "Natural scheduling, categories, priorities, notes, sounds, and Undo keep small tasks fast without flattening the details.",
+      "Natural scheduling, priorities, notes, sounds, and Undo keep small tasks fast without flattening the details.",
     image: "/screenshots/reminders-today.jpg",
     alt: "Lifever reminders Today list",
     accent: "#ff3b30",
@@ -57,7 +71,7 @@ const products: Product[] = [
     shortLabel: "Notes",
     title: "A quiet place to think in Markdown.",
     description:
-      "Write, preview, pin, categorize, and find notes without a formatting toolbar getting in the way.",
+      "Write, preview, pin, categorize, and find notes in a clean list without a formatting toolbar getting in the way.",
     image: "/screenshots/notes-markdown.jpg",
     alt: "Lifever Markdown note with live preview",
     accent: "#ff9500",
@@ -83,7 +97,7 @@ const products: Product[] = [
     shortLabel: "F1",
     title: "Race weekends in your local time.",
     description:
-      "See the next session first, follow live countdowns, and keep the championship picture close without hunting through schedules.",
+      "See the next session first, follow live countdowns, and browse every race without translating schedules in your head.",
     image: "/screenshots/formula-1.jpg",
     alt: "Lifever Formula 1 weekend overview",
     accent: "#ff2d55",
