@@ -80,8 +80,8 @@ export function CalendarYearGrid({
 
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-background p-3 sm:p-4">
-      <div className="grid h-full min-h-[500px] min-w-[660px] grid-cols-4 grid-rows-3 gap-2.5">
-        {months.map((month) => {
+      <div className="grid h-full min-h-[500px] min-w-[660px] grid-cols-4 grid-rows-3 border-t border-border/55">
+        {months.map((month, monthIndex) => {
           const monthStart = startOfLocalMonth(month);
           const nextMonthStart = addMonths(monthStart, 1);
           const firstGridDay = startOfWeek(monthStart);
@@ -100,20 +100,23 @@ export function CalendarYearGrid({
           return (
             <section
               key={dateKey(month)}
-              className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card p-2 shadow-[0_1px_2px_rgb(0_0_0/0.035)]"
+              className={cn(
+                "flex min-h-0 flex-col border-b border-border/55 bg-background p-2.5 sm:p-3",
+                monthIndex % 4 !== 3 && "border-r",
+              )}
               aria-label={`${formatMonthName(month)} calendar`}
             >
               <button
                 type="button"
                 onClick={() => onSelectMonth(month)}
-                className="group flex h-6 shrink-0 items-center justify-between rounded-md px-1 text-left outline-none transition-[background-color,transform] duration-150 hover:bg-muted/70 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring"
+                className="group -ml-1 flex h-6 shrink-0 items-center justify-between rounded-md px-1 text-left outline-none transition-[color,transform] duration-150 hover:text-primary active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100"
                 aria-label={`Show ${formatMonthName(month)} ${month.getFullYear()}`}
               >
-                <span className="text-[11px] font-bold tracking-[-0.01em]">
+                <span className="text-[11px] font-semibold tracking-[-0.01em]">
                   {formatMonthName(month)}
                 </span>
                 {monthEventCount > 0 ? (
-                  <span className="text-[8px] font-semibold tabular-nums text-muted-foreground">
+                  <span className="text-[8px] font-medium tabular-nums text-muted-foreground">
                     {monthEventCount}
                   </span>
                 ) : null}
@@ -168,14 +171,15 @@ export function CalendarYearGrid({
                       role="gridcell"
                       onClick={() => onSelectDay(day)}
                       className={cn(
-                        "group relative flex min-h-0 flex-col items-center justify-center rounded-md text-[8px] font-medium tabular-nums text-foreground/80 outline-none transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground active:scale-[0.94] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring",
-                        isSelected && !isToday && "bg-muted text-foreground",
+                        "group relative flex min-h-0 flex-col items-center justify-center text-[8px] font-medium tabular-nums text-foreground/75 outline-none transition-colors duration-150 hover:text-foreground focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring",
+                        isSelected && !isToday && "text-foreground",
                       )}
                       aria-label={`${formatFullDay(day, dateFormat)}, ${eventLabel}`}
                     >
                       <span
                         className={cn(
-                          "flex size-4 items-center justify-center rounded-full",
+                          "flex size-4 items-center justify-center rounded-full transition-[background-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] group-hover:bg-muted group-active:scale-[0.9] motion-reduce:transition-colors motion-reduce:group-active:scale-100",
+                          isSelected && !isToday && "bg-muted font-semibold",
                           isToday && "bg-primary font-bold text-primary-foreground",
                         )}
                       >
