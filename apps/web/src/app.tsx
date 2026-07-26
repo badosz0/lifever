@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell/app-shell";
+import { GlobalContextMenuGuard } from "@/components/app-shell/global-context-menu-guard";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CalendarNotificationScheduler } from "@/features/calendar/components/calendar-notification-scheduler";
@@ -11,6 +12,7 @@ export function App() {
     <ThemeProvider>
       <TooltipProvider>
         <AppProviders>
+          <GlobalContextMenuGuard />
           <ReminderNotificationScheduler />
           <CalendarNotificationScheduler />
           <AppShell />

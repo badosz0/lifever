@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { CalendarEventResizeHandle } from "@/features/calendar/components/calendar-event-resize-handle";
+import { CalendarEventContextMenu } from "@/features/calendar/components/calendar-event-context-menu";
 import {
   addDays,
   addMinutes,
@@ -350,53 +351,54 @@ export function CalendarEventBlock({
   };
 
   return (
-    <button
-      type="button"
-      onPointerDown={(pointerEvent) =>
-        handlePointerDown(pointerEvent, "move")
-      }
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishPointer}
-      onPointerCancel={() => {
-        pointer.current = null;
-        setPreview(EMPTY_PREVIEW);
-      }}
-      onClick={(clickEvent) => {
-        clickEvent.stopPropagation();
-        onSelect(event.id);
-      }}
-      onKeyDown={handleKeyDown}
-      className={cn(
-        "group absolute z-[2] flex cursor-pointer flex-col items-start justify-start overflow-hidden rounded-md border border-[var(--category-border)] bg-[var(--category-surface)] px-1.5 py-0.5 text-left text-[var(--category-text)] outline-none transition-[box-shadow,filter] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--category-color)] focus-visible:ring-offset-1 motion-reduce:transition-none",
-        selected && "z-[5] ring-2",
-        selected && "ring-[var(--category-color)] shadow-[0_5px_18px_var(--category-highlight)]",
-        overlapping &&
-          !selected &&
-          "shadow-[0_2px_7px_rgb(0_0_0/.1)]",
-        overlapping && "hover:z-[4] focus:z-[6]",
-        preview.active &&
-          "z-20 shadow-[0_14px_34px_rgb(0_0_0/.2)] brightness-[1.03]",
-        preview.active && preview.mode === "move" && "cursor-grabbing",
-        preview.active && preview.mode !== "move" && "cursor-ns-resize",
-        continuesBefore && "rounded-t-none border-t-0",
-        continuesAfter && "rounded-b-none border-b-0",
-      )}
-      style={{
-        ...getCalendarCategoryStyle(category),
-        top: visibleTop,
-        height: visibleHeight,
-        left: `calc(${leftPercent}% + 4px)`,
-        width: `calc(${widthPercent}% - 6px)`,
-        minHeight: 24,
-        touchAction: "none",
-        transform: preview.active
-          ? `translate3d(${preview.dayDelta * preview.columnWidth}px, 0, 0)`
-          : undefined,
-        willChange: preview.active ? "transform, top, height" : undefined,
-      }}
-      aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${event.readOnly ? " Read only." : ` Drag to reschedule${resizeInstruction}, or use Alt and arrow keys.`}`}
-      aria-pressed={selected}
-    >
+    <CalendarEventContextMenu event={event}>
+      <button
+        type="button"
+        onPointerDown={(pointerEvent) =>
+          handlePointerDown(pointerEvent, "move")
+        }
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={() => {
+          pointer.current = null;
+          setPreview(EMPTY_PREVIEW);
+        }}
+        onClick={(clickEvent) => {
+          clickEvent.stopPropagation();
+          onSelect(event.id);
+        }}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          "group absolute z-[2] flex cursor-pointer flex-col items-start justify-start overflow-hidden rounded-md border border-[var(--category-border)] bg-[var(--category-surface)] px-1.5 py-0.5 text-left text-[var(--category-text)] outline-none transition-[box-shadow,filter] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--category-color)] focus-visible:ring-offset-1 motion-reduce:transition-none",
+          selected && "z-[5] ring-2",
+          selected && "ring-[var(--category-color)] shadow-[0_5px_18px_var(--category-highlight)]",
+          overlapping &&
+            !selected &&
+            "shadow-[0_2px_7px_rgb(0_0_0/.1)]",
+          overlapping && "hover:z-[4] focus:z-[6]",
+          preview.active &&
+            "z-20 shadow-[0_14px_34px_rgb(0_0_0/.2)] brightness-[1.03]",
+          preview.active && preview.mode === "move" && "cursor-grabbing",
+          preview.active && preview.mode !== "move" && "cursor-ns-resize",
+          continuesBefore && "rounded-t-none border-t-0",
+          continuesAfter && "rounded-b-none border-b-0",
+        )}
+        style={{
+          ...getCalendarCategoryStyle(category),
+          top: visibleTop,
+          height: visibleHeight,
+          left: `calc(${leftPercent}% + 4px)`,
+          width: `calc(${widthPercent}% - 6px)`,
+          minHeight: 24,
+          touchAction: "none",
+          transform: preview.active
+            ? `translate3d(${preview.dayDelta * preview.columnWidth}px, 0, 0)`
+            : undefined,
+          willChange: preview.active ? "transform, top, height" : undefined,
+        }}
+        aria-label={`${event.title}, ${preview.active ? previewRange : formatEventRange(event.startAt, event.endAt, timeFormat)}${continuesBefore ? ", continues from the previous day" : ""}${continuesAfter ? ", continues into the next day" : ""}.${event.readOnly ? " Read only." : ` Drag to reschedule${resizeInstruction}, or use Alt and arrow keys.`}`}
+        aria-pressed={selected}
+      >
       {!event.readOnly && !continuesBefore ? (
         <CalendarEventResizeHandle
           edge="start"
@@ -462,6 +464,7 @@ export function CalendarEventBlock({
           }}
         />
       ) : null}
-    </button>
+      </button>
+    </CalendarEventContextMenu>
   );
 }

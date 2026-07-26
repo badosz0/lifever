@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, GripVertical, MessageSquareText } from "lucide-react";
 
+import { KanbanCardContextMenu } from "@/features/kanban/components/kanban-card-context-menu";
 import { getKanbanDueState, parseKanbanDate } from "@/features/kanban/lib/dates";
 import { getKanbanPriority } from "@/features/kanban/lib/properties";
 import type {
@@ -145,28 +146,30 @@ export function KanbanSortableCard({
   });
 
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      onClick={() => onSelect(card.id)}
-      className={cn(
-        "block w-full cursor-pointer touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        isDragging && "opacity-25",
-      )}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      aria-label={`${card.title}. Drag to reorder or move to another status.`}
-      {...attributes}
-      {...listeners}
-    >
-      <KanbanCardSurface
-        card={card}
-        labels={labels}
-        completed={completed}
-        selected={selected}
-      />
-    </button>
+    <KanbanCardContextMenu card={card}>
+      <button
+        ref={setNodeRef}
+        type="button"
+        onClick={() => onSelect(card.id)}
+        className={cn(
+          "block w-full cursor-pointer touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          isDragging && "opacity-25",
+        )}
+        style={{
+          transform: CSS.Transform.toString(transform),
+          transition,
+        }}
+        aria-label={`${card.title}. Drag to reorder or move to another status.`}
+        {...attributes}
+        {...listeners}
+      >
+        <KanbanCardSurface
+          card={card}
+          labels={labels}
+          completed={completed}
+          selected={selected}
+        />
+      </button>
+    </KanbanCardContextMenu>
   );
 }

@@ -1,13 +1,17 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DragEventHandler } from "react";
 
+import { CalendarEventContextMenu } from "@/features/calendar/components/calendar-event-context-menu";
 import {
   durationInMinutes,
   formatDurationMinutes,
   formatEventRange,
 } from "@/features/calendar/lib/dates";
 import { getCalendarCategoryStyle } from "@/features/calendar/lib/categories";
-import type { CalendarCategory } from "@/features/calendar/model/types";
+import type {
+  CalendarCategory,
+  CalendarEvent,
+} from "@/features/calendar/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { cn } from "@/lib/cn";
 
@@ -17,6 +21,7 @@ type CalendarMonthEventCardProps = {
   continuesBefore?: boolean;
   dragging?: boolean;
   endAt: Date | string;
+  event?: CalendarEvent;
   preview?: boolean;
   readOnly?: boolean;
   selected?: boolean;
@@ -33,6 +38,7 @@ export function CalendarMonthEventCard({
   continuesBefore,
   dragging,
   endAt,
+  event,
   preview,
   readOnly,
   selected,
@@ -97,7 +103,7 @@ export function CalendarMonthEventCard({
     );
   }
 
-  return (
+  const button = (
     <button
       type="button"
       draggable={!readOnly}
@@ -114,5 +120,13 @@ export function CalendarMonthEventCard({
     >
       {content}
     </button>
+  );
+
+  return event ? (
+    <CalendarEventContextMenu event={event}>
+      {button}
+    </CalendarEventContextMenu>
+  ) : (
+    button
   );
 }

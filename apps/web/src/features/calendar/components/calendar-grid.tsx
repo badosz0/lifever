@@ -12,6 +12,7 @@ import {
 
 import { CalendarCurrentTimeLine } from "@/features/calendar/components/calendar-current-time-line";
 import { CalendarEventBlock } from "@/features/calendar/components/calendar-event-block";
+import { CalendarEventContextMenu } from "@/features/calendar/components/calendar-event-context-menu";
 import { CalendarEventDraft } from "@/features/calendar/components/calendar-event-draft";
 import {
   dateKey,
@@ -577,23 +578,27 @@ export function CalendarGrid({
                     segment.event,
                   );
                   return (
-                    <button
+                    <CalendarEventContextMenu
                       key={segment.event.id}
-                      type="button"
-                      onClick={() => onSelectEvent(segment.event.id)}
-                      className="flex h-5 w-full min-w-0 items-center gap-1 rounded border border-[var(--category-border)] bg-[var(--category-surface)] px-1 text-left text-[9px] font-semibold text-[var(--category-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--category-color)]"
-                      style={getCalendarCategoryStyle(category)}
+                      event={segment.event}
                     >
-                      {segment.continuesBefore ? (
-                        <ChevronLeft className="size-2.5 shrink-0 opacity-65" />
-                      ) : null}
-                      <span className="min-w-0 flex-1 truncate">
-                        {segment.event.title}
-                      </span>
-                      {segment.continuesAfter ? (
-                        <ChevronRight className="size-2.5 shrink-0 opacity-65" />
-                      ) : null}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectEvent(segment.event.id)}
+                        className="flex h-5 w-full min-w-0 items-center gap-1 rounded border border-[var(--category-border)] bg-[var(--category-surface)] px-1 text-left text-[9px] font-semibold text-[var(--category-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--category-color)]"
+                        style={getCalendarCategoryStyle(category)}
+                      >
+                        {segment.continuesBefore ? (
+                          <ChevronLeft className="size-2.5 shrink-0 opacity-65" />
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate">
+                          {segment.event.title}
+                        </span>
+                        {segment.continuesAfter ? (
+                          <ChevronRight className="size-2.5 shrink-0 opacity-65" />
+                        ) : null}
+                      </button>
+                    </CalendarEventContextMenu>
                   );
                 })}
                 {hiddenCount > 0 ? (

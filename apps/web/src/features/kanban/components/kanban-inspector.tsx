@@ -6,7 +6,6 @@ import {
   X,
 } from "lucide-react";
 import { useMemo } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -21,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { KanbanLabelPicker } from "@/features/kanban/components/kanban-label-picker";
 import { KanbanPrioritySelect } from "@/features/kanban/components/kanban-priority-select";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
+import { useKanbanCardActions } from "@/features/kanban/model/use-kanban-card-actions";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { cn } from "@/lib/cn";
 import { formatUserDate } from "@/lib/date-time-format";
@@ -36,12 +36,11 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
     duplicateCard,
     labels,
     moveCard,
-    removeCard,
-    restoreCard,
     selectedCardId,
     setSelectedCardId,
     updateCard,
   } = useKanban();
+  const { deleteKanbanCard } = useKanbanCardActions();
   const { dateFormat } = useUserPreferences();
   const card = cards.find((item) => item.id === selectedCardId);
   const projectColumns = useMemo(
@@ -87,17 +86,7 @@ export function KanbanInspector({ className }: KanbanInspectorProps) {
   const currentColumn = columns.find((column) => column.id === card.columnId);
 
   const deleteCard = () => {
-    const removed = removeCard(card.id);
-    if (!removed) return;
-    toast("Card deleted", {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          restoreCard(removed);
-          setSelectedCardId(removed.id);
-        },
-      },
-    });
+    deleteKanbanCard(card.id);
   };
 
   return (

@@ -297,6 +297,7 @@ export function CalendarMonthGrid({
                   {visibleEvents.map((segment) => (
                     <CalendarMonthEventCard
                       key={segment.event.id}
+                      event={segment.event}
                       title={segment.event.title}
                       category={getCalendarEventCategory(
                         categories,
