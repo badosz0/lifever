@@ -22,6 +22,7 @@ import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
 import { CalendarCollectionSelect } from "@/features/calendar/components/calendar-collection-select";
 import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
+import { CalendarEventColorControl } from "@/features/calendar/components/calendar-event-color-control";
 import {
   dateKey,
   getEventRangeFromInputs,
@@ -69,6 +70,7 @@ export function NewCalendarEventDialog({
   );
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [eventColor, setEventColor] = useState<string | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const titleId = useId();
   const startDateId = useId();
@@ -101,6 +103,7 @@ export function NewCalendarEventDialog({
     setStartTime(timeInputValue(initialStart));
     setEndDate(dateKey(initialEnd));
     setEndTime(timeInputValue(initialEnd));
+    setEventColor(null);
     setCalendarId(
       activeCalendarId ??
         calendars.find((calendar) => calendar.writable)?.id ??
@@ -128,13 +131,22 @@ export function NewCalendarEventDialog({
         ? {
             calendarId,
             categoryId,
+            color: eventColor,
             end: range.end,
             start: range.start,
             title: title.trim(),
           }
         : null,
     );
-  }, [calendarId, categoryId, onDraftChange, open, range, title]);
+  }, [
+    calendarId,
+    categoryId,
+    eventColor,
+    onDraftChange,
+    open,
+    range,
+    title,
+  ]);
 
   const submit = (formEvent: FormEvent) => {
     formEvent.preventDefault();
@@ -148,6 +160,7 @@ export function NewCalendarEventDialog({
       calendarId,
       location: location.trim(),
       notes: notes.trim(),
+      color: eventColor,
       alertsEnabled,
       allDay: false,
     });
@@ -301,6 +314,17 @@ export function NewCalendarEventDialog({
                   value={categoryId}
                   onValueChange={setCategoryId}
                   ariaLabel="New event category"
+                />
+              </div>
+
+              <div className="mt-4">
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Event color
+                </label>
+                <CalendarEventColorControl
+                  category={selectedCalendarCategory}
+                  value={eventColor}
+                  onValueChange={setEventColor}
                 />
               </div>
 

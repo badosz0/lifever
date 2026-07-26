@@ -57,6 +57,7 @@ type CalendarContextValue = {
   setVisibleEventRange: (start: Date, end: Date) => void;
   setSelectedEventId: (id: string | null) => void;
   setCalendarVisibility: (id: string, visible: boolean) => void;
+  setExternalCalendarColor: (id: string, color: string | null) => void;
   addEvent: (input: NewCalendarEvent) => CalendarEvent;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   removeEvent: (id: string) => CalendarEvent | null;
@@ -93,6 +94,7 @@ type CalendarEventPatch = Partial<
     | "calendarId"
     | "location"
     | "notes"
+    | "color"
     | "alertsEnabled"
     | "allDay"
   >
@@ -164,6 +166,11 @@ const normalizeCalendarEvent = (
 ): CalendarEvent => {
   const { color: storedColor, ...currentEvent } = event;
   const source = event.source ?? "lifever";
+  const color =
+    typeof storedColor === "string" &&
+    /^#[0-9a-f]{6}$/i.test(storedColor)
+      ? storedColor.toLowerCase()
+      : null;
   return {
     ...currentEvent,
     categoryId:
@@ -174,9 +181,7 @@ const normalizeCalendarEvent = (
     allDay: event.allDay === true,
     source,
     readOnly: event.readOnly === true,
-    ...(source !== "lifever" && typeof storedColor === "string"
-      ? { color: storedColor }
-      : {}),
+    ...(color ? { color } : {}),
   };
 };
 
@@ -192,6 +197,7 @@ const normalizeGoogleCalendar = (
   calendar: RemoteGoogleCalendar,
 ): CalendarCollection => ({
   ...calendar,
+  sourceColor: calendar.color,
   source: "google",
   writable:
     calendar.accessRole === "writer" || calendar.accessRole === "owner",
@@ -344,6 +350,17 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   categoriesRef.current = categories;
   nativeCalendarsRef.current = nativeCalendars;
 
+  const configuredGoogleCalendars = useMemo(
+    () =>
+      googleCalendars.map((calendar) => ({
+        ...calendar,
+        color:
+          calendarSourceConfiguration.colors?.[calendar.id] ??
+          calendar.sourceColor ??
+          calendar.color,
+      })),
+    [calendarSourceConfiguration.colors, googleCalendars],
+  );
   const appCalendars = useMemo(
     () =>
       appCalendarSources
@@ -352,7 +369,9 @@ export function CalendarProvider({ children }: PropsWithChildren) {
           id: source.id,
           appId: source.appId,
           name: source.name,
-          color: source.color,
+          color:
+            calendarSourceConfiguration.colors?.[source.id] ?? source.color,
+          sourceColor: source.color,
           position,
           visible:
             calendarSourceConfiguration.visibility?.[source.id] ??
@@ -362,13 +381,18 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         })),
     [
       appCalendarSources,
+      calendarSourceConfiguration.colors,
       calendarSourceConfiguration.visibility,
       isAppEnabled,
     ],
   );
   const calendars = useMemo(
-    () => [...nativeCalendars, ...googleCalendars, ...appCalendars],
-    [appCalendars, googleCalendars, nativeCalendars],
+    () => [
+      ...nativeCalendars,
+      ...configuredGoogleCalendars,
+      ...appCalendars,
+    ],
+    [appCalendars, configuredGoogleCalendars, nativeCalendars],
   );
   const appEvents = useMemo(
     () =>
@@ -384,7 +408,9 @@ export function CalendarProvider({ children }: PropsWithChildren) {
             categoryId: "",
             calendarId: source.id,
             calendarName: source.name,
-            color: source.color,
+            color:
+              calendarSourceConfiguration.colors?.[source.id] ??
+              source.color,
             location: event.location ?? "",
             notes: event.notes ?? "",
             alertsEnabled: false,
@@ -395,7 +421,20 @@ export function CalendarProvider({ children }: PropsWithChildren) {
             createdAt: event.startAt,
           })),
         ),
-    [appCalendarSources, isAppEnabled],
+    [
+      appCalendarSources,
+      calendarSourceConfiguration.colors,
+      isAppEnabled,
+    ],
+  );
+  const configuredGoogleEvents = useMemo(
+    () =>
+      googleEvents.map((event) => {
+        const color =
+          calendarSourceConfiguration.colors?.[event.calendarId];
+        return color ? { ...event, color } : event;
+      }),
+    [calendarSourceConfiguration.colors, googleEvents],
   );
   const visibleCalendarIds = useMemo(
     () =>
@@ -408,10 +447,15 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   );
   const events = useMemo(
     () =>
-      [...nativeEvents, ...googleEvents, ...appEvents].filter((event) =>
-        visibleCalendarIds.has(event.calendarId),
+      [...nativeEvents, ...configuredGoogleEvents, ...appEvents].filter(
+        (event) => visibleCalendarIds.has(event.calendarId),
       ),
-    [appEvents, googleEvents, nativeEvents, visibleCalendarIds],
+    [
+      appEvents,
+      configuredGoogleEvents,
+      nativeEvents,
+      visibleCalendarIds,
+    ],
   );
 
   const recoverRemote = useCallback((message: string) => {
@@ -843,7 +887,13 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         setNativeEvents((current) => [...current, event]);
       }
       setSelectedEventId(event.id);
-      persistNewEvent(event, { ...input, calendarId: requestedCalendar.id });
+      persistNewEvent(event, {
+        ...input,
+        calendarId: requestedCalendar.id,
+        ...(requestedCalendar.source === "lifever"
+          ? {}
+          : { color: undefined }),
+      });
       return event;
     },
     [activeCalendarId, calendars, persistNewEvent],
@@ -873,6 +923,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
             ? { location: patch.location }
             : {}),
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+          ...(patch.color !== undefined ? { color: patch.color } : {}),
           ...(patch.alertsEnabled !== undefined
             ? { alertsEnabled: patch.alertsEnabled }
             : {}),
@@ -881,6 +932,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         if (event.source === "google") {
           delete allowedPatch.categoryId;
           delete allowedPatch.calendarId;
+          delete allowedPatch.color;
           delete allowedPatch.alertsEnabled;
           if (
             patch.startAt !== undefined ||
@@ -972,6 +1024,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         calendarId: event.calendarId,
         location: event.location,
         notes: event.notes,
+        color: event.color,
         alertsEnabled: event.alertsEnabled,
         allDay: event.allDay,
       });
@@ -996,6 +1049,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         calendarId: source.calendarId,
         location: source.location,
         notes: source.notes,
+        color: source.color,
         alertsEnabled: source.alertsEnabled,
         allDay: source.allDay,
       });
@@ -1068,6 +1122,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         const appSource = appCalendarSources.find((source) => source.id === id);
         if (visible === appSource?.defaultVisible) delete nextVisibility[id];
         setCalendarSourceConfiguration({
+          ...calendarSourceConfiguration,
           visibility: Object.keys(nextVisibility).length
             ? nextVisibility
             : undefined,
@@ -1076,11 +1131,37 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     },
     [
       appCalendarSources,
-      calendarSourceConfiguration.visibility,
+      calendarSourceConfiguration,
       calendars,
       loadGoogleEvents,
       recoverRemote,
       session,
+      setCalendarSourceConfiguration,
+    ],
+  );
+
+  const setExternalCalendarColor = useCallback(
+    (id: string, color: string | null) => {
+      const calendar = calendars.find((item) => item.id === id);
+      if (!calendar || calendar.source === "lifever") return;
+      const nextColors = { ...calendarSourceConfiguration.colors };
+      const normalizedColor = color?.toLowerCase() ?? null;
+      if (
+        !normalizedColor ||
+        normalizedColor === calendar.sourceColor?.toLowerCase()
+      ) {
+        delete nextColors[id];
+      } else {
+        nextColors[id] = normalizedColor;
+      }
+      setCalendarSourceConfiguration({
+        ...calendarSourceConfiguration,
+        colors: Object.keys(nextColors).length ? nextColors : undefined,
+      });
+    },
+    [
+      calendarSourceConfiguration,
+      calendars,
       setCalendarSourceConfiguration,
     ],
   );
@@ -1448,6 +1529,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       setVisibleEventRange,
       setSelectedEventId,
       setCalendarVisibility,
+      setExternalCalendarColor,
       addEvent,
       updateEvent,
       removeEvent,
@@ -1488,6 +1570,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       setActiveCalendarId,
       setVisibleEventRange,
       setCalendarVisibility,
+      setExternalCalendarColor,
       updateCalendar,
       updateCategory,
       updateEvent,

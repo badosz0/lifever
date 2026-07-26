@@ -22,6 +22,7 @@ export const createCalendarRoutes = ({
     calendarId: true,
     location: true,
     notes: true,
+    color: true,
     alertsEnabled: true,
     allDay: true,
     createdAt: true,

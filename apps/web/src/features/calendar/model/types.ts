@@ -19,6 +19,7 @@ export type CalendarCollection = {
   source: CalendarSourceKind;
   appId?: string;
   primary?: boolean;
+  sourceColor?: string;
   createdAt?: string;
 };
 
@@ -30,7 +31,7 @@ export type CalendarEvent = {
   categoryId: string;
   calendarId: string;
   calendarName?: string;
-  color?: string;
+  color?: string | null;
   location: string;
   notes: string;
   alertsEnabled: boolean;
@@ -51,6 +52,7 @@ export type NewCalendarEvent = Pick<
   | "calendarId"
   | "location"
   | "notes"
+  | "color"
   | "alertsEnabled"
   | "allDay"
 >;
@@ -58,6 +60,7 @@ export type NewCalendarEvent = Pick<
 export type CalendarEventPreview = {
   calendarId: string;
   categoryId: string;
+  color?: string | null;
   end: Date;
   start: Date;
   title: string;

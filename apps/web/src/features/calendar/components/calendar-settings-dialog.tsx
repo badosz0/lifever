@@ -128,18 +128,33 @@ function EditableRow({
 
 type SourceRowProps = {
   calendar: CalendarCollection;
+  onColorChange: (color: string) => void;
   onVisibilityChange: (visible: boolean) => void;
 };
 
 function SourceRow({
   calendar,
+  onColorChange,
   onVisibilityChange,
 }: SourceRowProps) {
+  const sourceColor = calendar.sourceColor ?? calendar.color;
+  const sourceColorPreset = {
+    color: sourceColor,
+    label: `${calendar.name} default`,
+  };
+  const colorPresets = calendarColorPresets.some(
+    (preset) => preset.color.toLowerCase() === sourceColor.toLowerCase(),
+  )
+    ? calendarColorPresets
+    : [sourceColorPreset, ...calendarColorPresets.slice(0, -1)];
+
   return (
     <div className="flex min-h-12 items-center gap-3 border-b border-border/55 px-1 last:border-b-0">
-      <span
-        className="size-3 shrink-0 rounded-[4px] shadow-[inset_0_0_0_1px_rgb(0_0_0/.08)]"
-        style={{ backgroundColor: calendar.color }}
+      <CategoryColorPicker
+        value={calendar.color}
+        onValueChange={onColorChange}
+        presets={colorPresets}
+        ariaLabel={`Choose color for ${calendar.name}`}
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-medium">
@@ -148,9 +163,9 @@ function SourceRow({
         <span className="mt-0.5 block text-[10px] text-muted-foreground">
           {calendar.source === "google"
             ? calendar.writable
-              ? "Google · can edit"
-              : "Google · read only"
-            : "From Formula 1 · read only"}
+              ? "Can edit"
+              : "Read only"
+            : "Read only"}
         </span>
       </span>
       <Switch
@@ -179,6 +194,7 @@ export function CalendarSettingsDialog({
     refreshGoogle,
     removeCalendar,
     removeCategory,
+    setExternalCalendarColor,
     setCalendarVisibility,
     updateCalendar,
     updateCategory,
@@ -188,9 +204,9 @@ export function CalendarSettingsDialog({
     useUserPreferences();
   const [newCalendarId, setNewCalendarId] = useState<string | null>(null);
   const [newCategoryId, setNewCategoryId] = useState<string | null>(null);
-  const [section, setSection] = useState<"calendars" | "categories">(
-    "calendars",
-  );
+  const [section, setSection] = useState<
+    "general" | "calendars" | "categories"
+  >("general");
   const [categoryCalendarId, setCategoryCalendarId] = useState<string | null>(
     null,
   );
@@ -293,13 +309,13 @@ export function CalendarSettingsDialog({
           </div>
           <DialogTitle>Calendar settings</DialogTitle>
           <DialogDescription className="mt-1">
-            Calendars and their categories.
+            Behavior, calendars, and categories.
           </DialogDescription>
         </div>
 
         <div className="border-b border-border/65 px-5 pb-3">
           <div className="flex h-8 w-fit items-center rounded-lg bg-muted p-0.5">
-            {(["calendars", "categories"] as const).map((item) => (
+            {(["general", "calendars", "categories"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -319,21 +335,27 @@ export function CalendarSettingsDialog({
         </div>
 
         <div className="max-h-[min(62vh,540px)] overflow-y-auto px-5 py-3">
-          {section === "calendars" ? (
-            <>
-              <div className="flex min-h-12 w-full items-center gap-3 border-b border-border/55 px-1">
-                <MousePointerClick className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 text-[13px] font-medium">
+          {section === "general" ? (
+            <div className="flex min-h-14 items-center gap-3 px-1">
+              <MousePointerClick className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium">
                   Create events by clicking
                 </span>
-                <Switch
-                  checked={calendarClickToCreate}
-                  onCheckedChange={setCalendarClickToCreate}
-                  aria-label="Create events by clicking"
-                />
-              </div>
-
-              <div className="mt-4 flex items-center justify-between">
+                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+                  Click empty time for a quick event. Drag to choose its
+                  duration.
+                </span>
+              </span>
+              <Switch
+                checked={calendarClickToCreate}
+                onCheckedChange={setCalendarClickToCreate}
+                aria-label="Create events by clicking"
+              />
+            </div>
+          ) : section === "calendars" ? (
+            <>
+              <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-semibold text-muted-foreground">
                   MY CALENDARS
                 </h3>
@@ -387,7 +409,7 @@ export function CalendarSettingsDialog({
               </div>
 
               <h3 className="mt-5 text-[11px] font-semibold text-muted-foreground">
-                SOURCES
+                GOOGLE
               </h3>
               <div className="mt-1 flex min-h-12 items-center gap-3 border-b border-border/55 px-1">
                 <Cloud className="size-4 shrink-0 text-[#4285F4]" />
@@ -452,23 +474,34 @@ export function CalendarSettingsDialog({
                     <SourceRow
                       key={calendar.id}
                       calendar={calendar}
+                      onColorChange={(color) =>
+                        setExternalCalendarColor(calendar.id, color)
+                      }
                       onVisibilityChange={(visible) =>
                         setCalendarVisibility(calendar.id, visible)
                       }
                     />
                   ))
                 : null}
-              {appCalendars.length > 0
-                ? appCalendars.map((calendar) => (
+              {appCalendars.length > 0 ? (
+                <>
+                  <h3 className="mt-5 text-[11px] font-semibold text-muted-foreground">
+                    APPS
+                  </h3>
+                  {appCalendars.map((calendar) => (
                     <SourceRow
                       key={calendar.id}
                       calendar={calendar}
+                      onColorChange={(color) =>
+                        setExternalCalendarColor(calendar.id, color)
+                      }
                       onVisibilityChange={(visible) =>
                         setCalendarVisibility(calendar.id, visible)
                       }
                     />
-                  ))
-                : null}
+                  ))}
+                </>
+              ) : null}
             </>
           ) : (
             <div>

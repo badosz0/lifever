@@ -30,6 +30,7 @@ export type AppConfiguration = {
 };
 
 export type CalendarSourceConfiguration = {
+  colors?: Record<string, string>;
   visibility?: Record<string, boolean>;
 };
 
@@ -125,22 +126,41 @@ const normalizeCalendarSourceConfiguration = (
 ): CalendarSourceConfiguration => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const stored = value as Record<string, unknown>;
-  if (
-    !stored.visibility ||
-    typeof stored.visibility !== "object" ||
-    Array.isArray(stored.visibility)
-  ) {
-    return {};
-  }
-  const visibility = Object.fromEntries(
-    Object.entries(stored.visibility as Record<string, unknown>).flatMap(
-      ([sourceId, visible]) =>
-        sourceId && typeof visible === "boolean"
-          ? [[sourceId, visible] as const]
-          : [],
-    ),
-  );
-  return Object.keys(visibility).length ? { visibility } : {};
+  const colors =
+    stored.colors &&
+    typeof stored.colors === "object" &&
+    !Array.isArray(stored.colors)
+      ? Object.fromEntries(
+          Object.entries(stored.colors as Record<string, unknown>).flatMap(
+            ([sourceId, color]) =>
+              sourceId &&
+              typeof color === "string" &&
+              /^#[0-9a-f]{6}$/i.test(color)
+                ? [[sourceId, color.toLowerCase()] as const]
+                : [],
+          ),
+        )
+      : undefined;
+  const visibility =
+    stored.visibility &&
+    typeof stored.visibility === "object" &&
+    !Array.isArray(stored.visibility)
+      ? Object.fromEntries(
+          Object.entries(
+            stored.visibility as Record<string, unknown>,
+          ).flatMap(([sourceId, visible]) =>
+            sourceId && typeof visible === "boolean"
+              ? [[sourceId, visible] as const]
+              : [],
+          ),
+        )
+      : undefined;
+  return {
+    ...(colors && Object.keys(colors).length ? { colors } : {}),
+    ...(visibility && Object.keys(visibility).length
+      ? { visibility }
+      : {}),
+  };
 };
 
 const normalizePreferences = (

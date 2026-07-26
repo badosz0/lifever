@@ -102,17 +102,28 @@ export function DropdownMenuRadioItem({
 export function DropdownMenuCheckboxItem({
   className,
   children,
+  indicatorSide = "left",
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+}: ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem> & {
+  indicatorSide?: "left" | "right";
+}) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
       className={cn(
-        "relative flex h-8 cursor-default select-none items-center rounded-lg py-1.5 pr-2 pl-8 text-[13px] outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-accent",
+        "relative flex h-8 cursor-default select-none items-center rounded-lg py-1.5 text-[13px] outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-accent",
+        indicatorSide === "right" ? "pr-8 pl-2.5" : "pr-2 pl-8",
         className,
       )}
       {...props}
     >
-      <span className="absolute left-2.5 flex size-3.5 items-center justify-center">
+      <span
+        className={cn(
+          "absolute flex size-3.5 items-center justify-center",
+          indicatorSide === "right"
+            ? "right-2.5 text-primary"
+            : "left-2.5",
+        )}
+      >
         <DropdownMenuPrimitive.ItemIndicator>
           <Check className="size-3.5" strokeWidth={2.5} />
         </DropdownMenuPrimitive.ItemIndicator>

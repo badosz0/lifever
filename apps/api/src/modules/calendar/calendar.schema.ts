@@ -9,6 +9,7 @@ const calendarEventFields = {
   calendarId: z.string().min(1).max(140),
   location: z.string().max(240),
   notes: z.string().max(10_000),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().optional(),
   alertsEnabled: z.boolean().default(true),
   allDay: z.boolean().default(false),
 };
@@ -32,6 +33,7 @@ export const updateCalendarEventSchema = z
     calendarId: calendarEventFields.calendarId.optional(),
     location: calendarEventFields.location.optional(),
     notes: calendarEventFields.notes.optional(),
+    color: calendarEventFields.color,
     alertsEnabled: calendarEventFields.alertsEnabled.optional(),
     allDay: calendarEventFields.allDay.optional(),
   })

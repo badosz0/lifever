@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronDown, Settings2 } from "lucide-react";
+import { Check, ChevronDown, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -85,6 +85,7 @@ export function CalendarPicker({ onManage }: CalendarPickerProps) {
           <DropdownMenuCheckboxItem
             key={calendar.id}
             checked={calendar.visible}
+            indicatorSide="right"
             onCheckedChange={(checked) =>
               setCalendarVisibility(calendar.id, checked === true)
             }
@@ -108,12 +109,6 @@ export function CalendarPicker({ onManage }: CalendarPickerProps) {
           <Settings2 className="size-3.5" />
           Manage calendars…
         </DropdownMenuItem>
-        {calendars.some((calendar) => calendar.source === "app") ? (
-          <div className="flex items-start gap-2 px-2.5 pt-1.5 pb-1 text-[10px] leading-4 text-muted-foreground">
-            <CalendarDays className="mt-0.5 size-3 shrink-0" />
-            App calendars are read-only and follow each app’s data.
-          </div>
-        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

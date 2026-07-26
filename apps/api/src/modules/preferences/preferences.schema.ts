@@ -18,6 +18,12 @@ const appConfigurationSchema = z
 
 const calendarSourceConfigurationSchema = z
   .object({
+    colors: z
+      .record(
+        z.string().min(1).max(160),
+        z.string().regex(/^#[0-9a-f]{6}$/i),
+      )
+      .optional(),
     visibility: z.record(z.string().min(1).max(160), z.boolean()).optional(),
   })
   .strict();

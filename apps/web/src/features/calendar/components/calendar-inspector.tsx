@@ -9,7 +9,6 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -17,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { CalendarCategorySelect } from "@/features/calendar/components/calendar-category-select";
+import { CalendarEventColorControl } from "@/features/calendar/components/calendar-event-color-control";
 import { CalendarEventAlertToggle } from "@/features/calendar/components/calendar-event-alert-toggle";
 import {
   addDays,
@@ -32,8 +32,12 @@ import {
   startOfLocalDay,
   timeInputValue,
 } from "@/features/calendar/lib/dates";
-import { getCalendarEventCategory } from "@/features/calendar/lib/categories";
+import {
+  getCalendarCategory,
+  getCalendarEventCategory,
+} from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
+import { useCalendarEventActions } from "@/features/calendar/model/use-calendar-event-actions";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { cn } from "@/lib/cn";
 
@@ -44,16 +48,15 @@ type CalendarInspectorProps = {
 export function CalendarInspector({ className }: CalendarInspectorProps) {
   const { dateFormat, timeFormat } = useUserPreferences();
   const {
-    duplicateEvent,
     calendars,
     categories,
     events,
-    removeEvent,
-    restoreEvent,
     selectedEventId,
     setSelectedEventId,
     updateEvent,
   } = useCalendar();
+  const { deleteCalendarEvent, duplicateCalendarEvent } =
+    useCalendarEventActions();
   const calendarEvent = events.find((event) => event.id === selectedEventId);
   const calendar = calendars.find(
     (item) => item.id === calendarEvent?.calendarId,
@@ -105,6 +108,11 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
   }
 
   const category = getCalendarEventCategory(categories, calendarEvent);
+  const sourceCategory = getCalendarCategory(
+    categories,
+    calendarEvent.categoryId,
+    calendarEvent.calendarId,
+  );
   const durationMinutes = durationInMinutes(
     calendarEvent.startAt,
     calendarEvent.endAt,
@@ -161,33 +169,11 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
   };
 
   const deleteEvent = () => {
-    const removed = removeEvent(calendarEvent.id);
-    if (!removed) return;
-    toast("Event deleted", {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          restoreEvent(removed);
-          setSelectedEventId(removed.id);
-        },
-      },
-    });
+    deleteCalendarEvent(calendarEvent.id);
   };
 
   const duplicate = () => {
-    const sourceId = calendarEvent.id;
-    const copy = duplicateEvent(sourceId);
-    if (!copy) return;
-    toast.success("Event duplicated", {
-      description: `${formatEventRange(copy.startAt, copy.endAt, timeFormat)}`,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          removeEvent(copy.id);
-          setSelectedEventId(sourceId);
-        },
-      },
-    });
+    duplicateCalendarEvent(calendarEvent.id);
   };
 
   return (
@@ -352,16 +338,27 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
 
         {calendarEvent.source === "lifever" ? (
           <div className="mt-4">
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Category
-          </label>
-          <CalendarCategorySelect
-            calendarId={calendarEvent.calendarId}
-            value={calendarEvent.categoryId}
-            onValueChange={(categoryId) =>
-              updateEvent(calendarEvent.id, { categoryId })
-            }
-          />
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Category
+            </label>
+            <CalendarCategorySelect
+              calendarId={calendarEvent.calendarId}
+              value={calendarEvent.categoryId}
+              onValueChange={(categoryId) =>
+                updateEvent(calendarEvent.id, { categoryId })
+              }
+            />
+
+            <label className="mt-3 mb-1.5 block text-xs font-medium text-muted-foreground">
+              Event color
+            </label>
+            <CalendarEventColorControl
+              category={sourceCategory}
+              value={calendarEvent.color}
+              onValueChange={(color) =>
+                updateEvent(calendarEvent.id, { color })
+              }
+            />
           </div>
         ) : null}
 

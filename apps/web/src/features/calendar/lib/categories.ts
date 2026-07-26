@@ -81,8 +81,12 @@ export const getCalendarEventCategory = (
     CalendarEvent,
     "calendarName" | "categoryId" | "color" | "source"
   >,
-): CalendarCategory =>
-  event.source !== "lifever" && event.color
+): CalendarCategory => {
+  const category = getCalendarCategory(categories, event.categoryId);
+  if (event.source === "lifever") {
+    return event.color ? { ...category, color: event.color } : category;
+  }
+  return event.color
     ? {
         id: `source-${event.color}`,
         name: event.calendarName ?? "Calendar",
@@ -91,12 +95,16 @@ export const getCalendarEventCategory = (
         calendarId: "",
         createdAt: new Date(0).toISOString(),
       }
-    : getCalendarCategory(categories, event.categoryId);
+    : category;
+};
 
 export const getCalendarPreviewCategory = (
   categories: CalendarCategory[],
   calendars: CalendarCollection[],
-  preview: Pick<CalendarEventPreview, "calendarId" | "categoryId">,
+  preview: Pick<
+    CalendarEventPreview,
+    "calendarId" | "categoryId" | "color"
+  >,
 ): CalendarCategory => {
   const calendar = calendars.find((item) => item.id === preview.calendarId);
   return calendar && calendar.source !== "lifever"
@@ -108,11 +116,14 @@ export const getCalendarPreviewCategory = (
         calendarId: calendar.id,
         createdAt: new Date(0).toISOString(),
       }
-    : getCalendarCategory(
-        categories,
-        preview.categoryId,
-        preview.calendarId,
-      );
+    : {
+        ...getCalendarCategory(
+          categories,
+          preview.categoryId,
+          preview.calendarId,
+        ),
+        ...(preview.color ? { color: preview.color } : {}),
+      };
 };
 
 type CalendarCategoryProperties = CSSProperties & {
