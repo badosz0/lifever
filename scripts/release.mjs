@@ -428,7 +428,16 @@ async function createReleaseNotes({ notesPath, signingStatus, version }) {
     ["log", "--pretty=format:- %s", "--no-merges", range],
     { capture: true },
   );
-  const changes = log.stdout || "- Initial public macOS release";
+  const changes =
+    log.stdout
+      .split("\n")
+      .filter(
+        (line) =>
+          line &&
+          !line.includes("homebrew") &&
+          !line.startsWith("- chore(release):"),
+      )
+      .join("\n") || "- Maintenance and reliability improvements";
   const signingNote = signingStatus.trusted
     ? ""
     : "\n> This build is ad-hoc signed. macOS may ask you to allow Lifever in System Settings → Privacy & Security on first launch.\n";
