@@ -101,8 +101,8 @@ export default function Home() {
           <div className="hero-frame">
             <Image
               className="hero-image"
-              src="/screenshots/home-overview.jpg"
-              alt="Lifever Home showing useful summaries from reminders, calendar, notes, and Kanban"
+              src="/screenshots/calendar-week.jpg"
+              alt="Lifever Calendar showing a compact week with color-coded events and event details"
               width={1920}
               height={1080}
               loading="eager"
