@@ -1,6 +1,10 @@
-import { FilePenLine, Menu, PanelLeft, Plus } from "lucide-react";
+import { FilePenLine, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
@@ -117,28 +121,11 @@ export function NotesView({
 
   return (
     <main className="notes-search-layout relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="scroll-edge relative z-10 shrink-0 bg-background/88 px-4 pt-3 pb-4 backdrop-blur-xl sm:px-7 sm:pt-5">
-        <div className="flex min-h-9 items-center gap-2">
-          <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={onToggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </ShortcutTooltip>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
+      <AppHeader>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
           <NotesNavigation />
           <div className="flex-1" />
           <SearchField
@@ -163,7 +150,7 @@ export function NotesView({
               <Plus className="size-3.5" strokeWidth={2.5} />
             </Button>
           </ShortcutTooltip>
-        </div>
+        </AppHeaderToolbar>
 
         <div className="mt-6 min-w-0 px-1 sm:mt-8">
           <div className="flex items-center gap-2">
@@ -190,7 +177,7 @@ export function NotesView({
           label="Search notes"
           className="notes-body-search mt-3"
         />
-      </header>
+      </AppHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 sm:px-6">
         <div className="mx-auto max-w-3xl pt-2">

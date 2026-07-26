@@ -1,16 +1,17 @@
 import {
   AlertCircle,
   Flag,
-  Menu,
-  PanelLeft,
   RefreshCw,
   Trophy,
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { Button } from "@/components/ui/button";
-import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { Formula1Countdown } from "@/features/formula1/components/formula1-countdown";
 import { Formula1Flag } from "@/features/formula1/components/formula1-flag";
 import { Formula1RaceRow } from "@/features/formula1/components/formula1-race-row";
@@ -101,29 +102,11 @@ export function Formula1View({
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="scroll-edge relative z-30 shrink-0 bg-background/88 px-4 pt-3 pb-3 backdrop-blur-xl sm:px-6 sm:pt-5 sm:pb-4">
-        <div className="flex min-h-9 items-center gap-1.5">
-          <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={onToggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </ShortcutTooltip>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
-
+      <AppHeader>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
           <div className="ml-1 min-w-0">
             <div className="flex items-baseline gap-2">
               <h1 className="truncate text-[15px] font-semibold tracking-[-0.015em]">
@@ -170,8 +153,8 @@ export function Formula1View({
           >
             <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
           </Button>
-        </div>
-      </header>
+        </AppHeaderToolbar>
+      </AppHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-5xl px-4 pt-2 pb-12 sm:px-6">

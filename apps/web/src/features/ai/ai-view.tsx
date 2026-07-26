@@ -1,16 +1,17 @@
 import {
   AlertCircle,
-  Menu,
-  PanelLeft,
   RefreshCw,
   ShieldCheck,
   TerminalSquare,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
-import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { AISettingsDialog } from "@/features/ai/components/ai-settings-dialog";
 import {
   QuotaGauge,
@@ -71,29 +72,11 @@ export function AIView({
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="scroll-edge relative z-30 shrink-0 bg-background/88 px-4 pt-3 pb-3 backdrop-blur-xl sm:px-6 sm:pt-5 sm:pb-4">
-        <div className="flex min-h-9 items-center gap-1.5">
-          <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={onToggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </ShortcutTooltip>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
-
+      <AppHeader>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
           <div className="ml-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-[15px] font-semibold tracking-[-0.015em]">
@@ -130,7 +113,7 @@ export function AIView({
             className="size-8"
             onClick={() => setSettingsOpen(true)}
           />
-        </div>
+        </AppHeaderToolbar>
 
         <div className="mt-6 min-w-0 px-1 sm:mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -152,7 +135,7 @@ export function AIView({
             ) : null}
           </div>
         </div>
-      </header>
+      </AppHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-[1100px] px-4 pt-2 pb-14 sm:px-7">

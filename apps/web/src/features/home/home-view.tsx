@@ -13,9 +13,13 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Menu, PanelLeft, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { useState } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { useApps } from "@/features/apps/model/apps-provider";
@@ -59,26 +63,11 @@ export function HomeView({
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="scroll-edge relative z-10 shrink-0 bg-background/88 px-4 pt-3 pb-4 backdrop-blur-xl sm:px-7 sm:pt-5">
-        <div className="flex min-h-9 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hidden text-muted-foreground md:inline-flex"
-            onClick={onToggleSidebar}
-            aria-label="Toggle sidebar"
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
+      <AppHeader>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
           <span className="text-[12px] font-medium text-muted-foreground">
             Home
           </span>
@@ -87,7 +76,7 @@ export function HomeView({
             label="Home settings"
             onClick={() => setSettingsOpen(true)}
           />
-        </div>
+        </AppHeaderToolbar>
 
         <div className="mt-6 min-w-0 px-1 sm:mt-8">
           <h1 className="text-[30px] leading-[1.08] font-bold tracking-[-0.03em] sm:text-[34px]">
@@ -100,7 +89,7 @@ export function HomeView({
             })}
           </p>
         </div>
-      </header>
+      </AppHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 sm:px-7">
         <div className="mx-auto max-w-[980px]">

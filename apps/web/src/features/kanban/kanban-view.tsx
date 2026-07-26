@@ -1,4 +1,4 @@
-import { Filter, Menu, PanelLeft, Plus } from "lucide-react";
+import { Filter, Plus } from "lucide-react";
 import {
   type CSSProperties,
   useCallback,
@@ -8,6 +8,10 @@ import {
   useState,
 } from "react";
 
+import {
+  AppHeader,
+  AppHeaderToolbar,
+} from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,29 +182,11 @@ export function KanbanView({
       className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background"
       style={projectStyle}
     >
-      <header className="scroll-edge relative z-40 shrink-0 bg-background/86 px-4 pt-3 pb-3 backdrop-blur-xl sm:px-6 sm:pt-5 sm:pb-4">
-        <div className="flex min-h-9 items-center gap-1.5">
-          <ShortcutTooltip label="Toggle Sidebar" shortcut={["⌘", "\\"]}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={onToggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <PanelLeft className="size-4" />
-            </Button>
-          </ShortcutTooltip>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground md:hidden"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar"
-          >
-            <Menu className="size-4" />
-          </Button>
-
+      <AppHeader elevated>
+        <AppHeaderToolbar
+          onOpenMobileSidebar={onOpenMobileSidebar}
+          onToggleSidebar={onToggleSidebar}
+        >
           <KanbanProjectPicker
             projects={projects}
             activeProjectId={activeProjectId}
@@ -287,7 +273,7 @@ export function KanbanView({
               <Plus className="size-3.5" strokeWidth={2.5} />
             </Button>
           </ShortcutTooltip>
-        </div>
+        </AppHeaderToolbar>
 
         <div className="mt-5 flex items-end gap-3 px-1 sm:mt-6">
           <div className="min-w-0 flex-1">
@@ -312,7 +298,7 @@ export function KanbanView({
           label="Search cards"
           className="mt-3 md:hidden"
         />
-      </header>
+      </AppHeader>
 
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain pt-2">
         <KanbanBoard
