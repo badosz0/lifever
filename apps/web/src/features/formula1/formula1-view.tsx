@@ -247,7 +247,7 @@ export function Formula1View({
                           Times shown locally
                         </span>
                       </div>
-                      <div className="grid lg:grid-cols-2 lg:gap-x-6">
+                      <div className="grid gap-2.5 lg:grid-cols-2">
                         {upcomingRaces.map((race) => (
                           <Formula1RaceRow
                             key={race.round}
@@ -271,7 +271,7 @@ export function Formula1View({
                           Most recent first
                         </span>
                       </div>
-                      <div className="grid lg:grid-cols-2 lg:gap-x-6">
+                      <div className="grid gap-2.5 lg:grid-cols-2">
                         {completedRaces.map((race) => (
                           <Formula1RaceRow
                             key={race.round}

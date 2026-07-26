@@ -34,9 +34,9 @@ export function Formula1RaceRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        "group w-full border-b border-border/55 px-2 py-4 text-left outline-none transition-[background-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:bg-muted/45 active:scale-[.993] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100",
+        "group w-full rounded-xl border border-border/70 bg-card px-3 py-3.5 text-left outline-none transition-[background-color,border-color,transform] duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:border-foreground/15 hover:bg-muted/25 active:scale-[.993] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-colors motion-reduce:active:scale-100",
         selected &&
-          "bg-red-500/[.055] hover:bg-red-500/[.075]",
+          "border-red-500/35 bg-red-500/[.055] hover:border-red-500/45 hover:bg-red-500/[.075]",
       )}
       aria-label={`Open ${race.name} details`}
     >
@@ -73,7 +73,7 @@ export function Formula1RaceRow({
       </div>
 
       {winner ? (
-        <div className="mt-3 ml-9 flex items-center gap-2.5 border-t border-border/45 pt-2.5">
+        <div className="mt-3 ml-9 flex items-center gap-2.5 border-t border-border/55 pt-2.5">
           <Trophy className="size-3.5 shrink-0 text-amber-500" />
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
