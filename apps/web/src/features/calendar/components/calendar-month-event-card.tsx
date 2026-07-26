@@ -106,6 +106,7 @@ export function CalendarMonthEventCard({
   const button = (
     <button
       type="button"
+      data-calendar-event-id={event?.id}
       draggable={!readOnly}
       className={cn(className, "cursor-pointer")}
       style={getCalendarCategoryStyle(category)}

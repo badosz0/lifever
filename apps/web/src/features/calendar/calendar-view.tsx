@@ -1,5 +1,5 @@
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AppHeader,
@@ -31,7 +31,11 @@ import {
 import { getCalendarCategory } from "@/features/calendar/lib/categories";
 import { intervalOverlapsRange } from "@/features/calendar/lib/event-segments";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
-import { useCalendarEventActions } from "@/features/calendar/model/use-calendar-event-actions";
+import {
+  calendarViews,
+  calendarViewShortcuts,
+  useCalendarShortcuts,
+} from "@/features/calendar/model/use-calendar-shortcuts";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import type {
   CalendarEventPreview,
@@ -43,15 +47,6 @@ type CalendarViewProps = {
   onOpenMobileSidebar: () => void;
   onToggleSidebar: () => void;
 };
-
-const calendarViewShortcuts: Record<CalendarViewMode, string> = {
-  year: "Y",
-  month: "M",
-  week: "W",
-  day: "D",
-};
-
-const calendarViews: CalendarViewMode[] = ["year", "month", "week", "day"];
 
 const readViewMode = (): CalendarViewMode => {
   try {
@@ -77,11 +72,8 @@ export function CalendarView({
     selectedEventId,
     setSelectedEventId,
     setVisibleEventRange,
-    undoLastEventAction,
     updateEvent,
   } = useCalendar();
-  const { deleteCalendarEvent, duplicateCalendarEvent } =
-    useCalendarEventActions();
   const { calendarClickToCreate, dateFormat } = useUserPreferences();
   const [viewMode, setViewMode] = useState<CalendarViewMode>(readViewMode);
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay(new Date()));
@@ -92,6 +84,7 @@ export function CalendarView({
   const [composerSession, setComposerSession] = useState(0);
   const [composerOpen, setComposerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const calendarViewRef = useRef<HTMLElement>(null);
 
   const days = useMemo(() => {
     if (viewMode === "year" || viewMode === "month") return [];
@@ -127,7 +120,6 @@ export function CalendarView({
       ),
     ).length;
   }, [events, visibleRange]);
-
   useEffect(() => {
     setVisibleEventRange(visibleRange.start, visibleRange.end);
   }, [setVisibleEventRange, visibleRange]);
@@ -189,6 +181,17 @@ export function CalendarView({
     [setSelectedEventId, viewMode],
   );
 
+  const { selectEvent } = useCalendarShortcuts({
+    calendarViewRef,
+    navigate,
+    openComposer,
+    selectedDate,
+    setSelectedDate,
+    setViewMode,
+    viewMode,
+    visibleRange,
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem("lifever-calendar-view", viewMode);
@@ -196,117 +199,6 @@ export function CalendarView({
       // The view remains available for the current session.
     }
   }, [viewMode]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-
-      const target = event.target as HTMLElement | null;
-      const isTyping = Boolean(
-        target?.closest(
-          "input, textarea, select, [contenteditable='true']",
-        ),
-      );
-      const isInOverlay = Boolean(
-        target?.closest('[role="dialog"], [role="menu"], [role="listbox"]'),
-      );
-      const commandPressed = event.metaKey || event.ctrlKey;
-      const key = event.key.toLowerCase();
-      const selectedEvent = events.find((item) => item.id === selectedEventId);
-
-      if (
-        !isTyping &&
-        !isInOverlay &&
-        !commandPressed &&
-        !event.altKey &&
-        !event.shiftKey &&
-        (event.key === "ArrowLeft" || event.key === "ArrowRight")
-      ) {
-        event.preventDefault();
-        navigate(event.key === "ArrowLeft" ? -1 : 1);
-        return;
-      }
-
-      if (
-        !isTyping &&
-        !isInOverlay &&
-        commandPressed &&
-        !event.altKey &&
-        !event.shiftKey &&
-        key === "d" &&
-        selectedEvent &&
-        !selectedEvent.readOnly
-      ) {
-        event.preventDefault();
-        duplicateCalendarEvent(selectedEvent.id);
-        return;
-      }
-
-      if (
-        !isTyping &&
-        !isInOverlay &&
-        !commandPressed &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key === "Backspace" &&
-        selectedEvent &&
-        !selectedEvent.readOnly
-      ) {
-        event.preventDefault();
-        deleteCalendarEvent(selectedEvent.id);
-        return;
-      }
-
-      if (
-        !isTyping &&
-        !isInOverlay &&
-        commandPressed &&
-        !event.altKey &&
-        !event.shiftKey &&
-        key === "z" &&
-        undoLastEventAction()
-      ) {
-        event.preventDefault();
-        return;
-      }
-
-      const shortcutView = calendarViews.find(
-        (mode) =>
-          calendarViewShortcuts[mode].toLowerCase() === key,
-      );
-
-      if (
-        shortcutView &&
-        !isTyping &&
-        !isInOverlay &&
-        !commandPressed &&
-        !event.altKey
-      ) {
-        event.preventDefault();
-        setViewMode(shortcutView);
-        return;
-      }
-
-      if (
-        key === "n" &&
-        !event.altKey &&
-        (commandPressed || !isTyping)
-      ) {
-        event.preventDefault();
-        openComposer();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    deleteCalendarEvent,
-    duplicateCalendarEvent,
-    events,
-    navigate,
-    openComposer,
-    selectedEventId,
-    undoLastEventAction,
-  ]);
 
   const showDay = (day: Date) => {
     setSelectedDate(startOfLocalDay(day));
@@ -319,7 +211,10 @@ export function CalendarView({
   };
 
   return (
-    <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <main
+      ref={calendarViewRef}
+      className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background"
+    >
       <AppHeader elevated>
         <AppHeaderToolbar
           onOpenMobileSidebar={onOpenMobileSidebar}
@@ -408,7 +303,7 @@ export function CalendarView({
           newEventPreview={composerOpen ? eventPreview : null}
           selectedEventId={selectedEventId}
           onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={setSelectedEventId}
+          onSelectEvent={selectEvent}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })
           }
@@ -423,7 +318,7 @@ export function CalendarView({
           selectedEventId={selectedEventId}
           clickToCreateEnabled={calendarClickToCreate}
           onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={setSelectedEventId}
+          onSelectEvent={selectEvent}
           onMoveEvent={(id, startAt, endAt) =>
             updateEvent(id, { startAt, endAt })
           }
