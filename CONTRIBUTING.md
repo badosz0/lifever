@@ -4,7 +4,7 @@ Thanks for helping make Lifever calmer, clearer, and more dependable.
 
 ## Start here
 
-1. Follow [BUILDING.md](BUILDING.md) to install dependencies and run the demo.
+1. Follow [BUILDING.md](BUILDING.md) to install dependencies and run Lifever.
 2. Create a focused branch from `main`.
 3. Keep changes scoped to one feature or cleanup.
 4. Run `pnpm check` before opening a pull request.
@@ -14,11 +14,11 @@ Thanks for helping make Lifever calmer, clearer, and more dependable.
 ```text
 apps/
   web/       Shared React product UI
-  api/       Hono API, auth, services, and database adapters
+  api/       Cloudflare Worker API, auth, and services
   desktop/   Thin Tauri host for the web build
   site/      Public Next.js landing page
 .github/     Cross-platform release automation
-prisma/      PostgreSQL and D1 schemas and migrations
+prisma/      D1 schema and migrations
 scripts/     Desktop, versioning, deployment, and release tooling
 ```
 
@@ -39,18 +39,18 @@ pieces belong under `apps/web/src/components/app-shell`.
 
 ## Data and sync
 
-The local profile must remain useful without a server. Authenticated collections
-must be scoped to the server session's user ID; clients never choose a user ID.
+Lifever requires authentication. Collections must be scoped to the server
+session's user ID; clients never choose a user ID.
 
 For synced features:
 
-- update both PostgreSQL and D1 schemas when persistence changes;
-- include committed migrations;
+- update the canonical D1 Prisma schema when persistence changes;
+- include a committed D1 migration;
 - keep optimistic UI behavior and rollback paths intact;
 - do not store authenticated server data in local storage;
 - verify behavior after sign-in, refresh, and on a second client.
 
-See [SELF_HOSTING.md](SELF_HOSTING.md) for the two supported backend runtimes.
+See [SELF_HOSTING.md](SELF_HOSTING.md) for the supported Cloudflare deployment.
 
 ## Pull requests
 

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · Lifever",
   },
   description:
-    "A calm home for reminders, calendar, notes, projects, Formula 1, and AI usage. Local first, optionally synced, and native on macOS and Windows.",
+    "A calm, synced home for reminders, calendar, notes, projects, Formula 1, and AI usage on macOS and Windows.",
   applicationName: "Lifever",
   keywords: [
     "reminders",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     "macOS",
     "Windows",
     "productivity",
-    "local first",
+    "cross-device sync",
   ],
   authors: [{ name: "Lifever" }],
   creator: "Lifever",

@@ -246,7 +246,7 @@ async function reportApiStatus(apiUrl) {
     console.log(`API reachable at ${apiUrl}`);
   } catch {
     console.warn(
-      `API is not reachable at ${apiUrl}; local-only features will still work.`,
+      `API is not reachable at ${apiUrl}; sign-in and synced apps will be unavailable.`,
     );
   }
 }

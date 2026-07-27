@@ -7,7 +7,6 @@ releases. For deployment configuration, see [SELF_HOSTING.md](SELF_HOSTING.md).
 
 - Node `22.14.0` from [.nvmrc](.nvmrc)
 - pnpm `11.17.0` through Corepack
-- Docker or a PostgreSQL 17-compatible server for authenticated development
 - Rust `1.88.0`
 - macOS: Xcode Command Line Tools
 - Windows: Windows 10/11, WebView2, and Microsoft C++ Build Tools with the
@@ -21,12 +20,6 @@ corepack enable
 pnpm install
 ```
 
-The frontend can run immediately with its local demo profile:
-
-```bash
-pnpm dev:web
-```
-
 Run the public Next.js landing page separately:
 
 ```bash
@@ -35,22 +28,23 @@ pnpm dev:site
 
 The landing page runs at [localhost:3000](http://localhost:3000).
 
-For the complete authenticated stack:
+Configure the local Worker:
 
 ```bash
-cp .env.example .env
-docker compose up -d postgres
-pnpm db:migrate
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+pnpm db:deploy:local
 pnpm dev
 ```
 
-The web app runs at [localhost:5173](http://localhost:5173), the API at
+This starts the web app at [localhost:5173](http://localhost:5173) and the
+Cloudflare Worker API at
 [localhost:8787](http://localhost:8787), and API health is available at
 `/api/health`.
 
 ## Discord sign-in
 
-Create a Discord application and set these values in `.env`:
+Create a Discord application and set these values in
+`apps/api/.dev.vars`:
 
 ```dotenv
 DISCORD_CLIENT_ID="..."
@@ -78,7 +72,7 @@ Google Calendar API, and add this exact local redirect URI:
 http://localhost:8787/api/calendar-integrations/google/callback
 ```
 
-Then add these server-only values to `.env`:
+Then add these server-only values to `apps/api/.dev.vars`:
 
 ```dotenv
 GOOGLE_CALENDAR_CLIENT_ID="..."
@@ -104,14 +98,13 @@ Save the public API origin used by desktop builds:
 pnpm desktop:configure
 ```
 
-Start a compatible API, then run Tauri with Vite HMR:
+Start the local Worker, then run Tauri with Vite HMR:
 
 ```bash
+pnpm db:deploy:local
 pnpm dev:api
 pnpm desktop:dev
 ```
-
-Use `pnpm dev:worker` instead when developing against the Cloudflare runtime.
 
 ### macOS
 
@@ -166,12 +159,11 @@ Useful focused commands:
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm build` | Build the Node API and web frontend |
+| `pnpm build` | Validate the Worker bundle and build the web frontend |
 | `pnpm build:site` | Build the Next.js landing page |
 | `pnpm build:worker` | Validate the Cloudflare Worker bundle |
-| `pnpm db:generate` | Regenerate PostgreSQL and D1 Prisma clients |
-| `pnpm db:migrate` | Create and apply a local PostgreSQL migration |
-| `pnpm db:deploy:d1:local` | Apply migrations to local Wrangler D1 |
+| `pnpm db:generate` | Regenerate the D1 Prisma client |
+| `pnpm db:deploy:local` | Apply committed migrations to local Wrangler D1 |
 | `pnpm desktop:app` | Build and open the app bundle without installing |
 
 ## Landing page

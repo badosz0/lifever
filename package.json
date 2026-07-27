@@ -8,11 +8,11 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @lifever/api --filter @lifever/web dev",
+    "dev": "pnpm db:generate && pnpm --parallel --filter @lifever/api --filter @lifever/web dev",
     "dev:web": "pnpm --filter @lifever/web dev",
     "dev:site": "pnpm --filter @lifever/site dev",
-    "dev:api": "pnpm --filter @lifever/api dev",
-    "dev:worker": "pnpm db:generate && pnpm --filter @lifever/api dev:worker",
+    "dev:api": "pnpm db:generate && pnpm --filter @lifever/api dev",
+    "dev:worker": "pnpm dev:api",
     "desktop:configure": "node scripts/desktop.mjs configure",
     "desktop:dev": "node scripts/desktop.mjs dev",
     "desktop:app": "node scripts/desktop.mjs app",
@@ -23,17 +23,14 @@
     "release:version": "node scripts/set-version.mjs",
     "build": "pnpm db:generate && pnpm --filter @lifever/api build && pnpm --filter @lifever/web build",
     "build:site": "pnpm --filter @lifever/site build",
-    "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build:worker",
-    "deploy:api": "pnpm db:deploy:d1 && pnpm deploy:worker",
+    "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build",
+    "deploy:api": "pnpm db:deploy && pnpm deploy:worker",
     "deploy:site": "pnpm dlx vercel@57.0.0 --cwd apps/site --prod --yes",
-    "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy:worker",
+    "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy",
     "check": "pnpm db:generate && pnpm -r check",
-    "db:generate": "prisma generate && prisma generate --schema prisma/schema.d1.prisma",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:deploy:d1": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --remote",
-    "db:deploy:d1:local": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --local",
-    "db:studio": "prisma studio"
+    "db:generate": "prisma generate",
+    "db:deploy": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --remote",
+    "db:deploy:local": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --local"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

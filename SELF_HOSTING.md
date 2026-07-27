@@ -1,68 +1,57 @@
 # Self-hosting Lifever
 
-Lifever separates the static React client from its authenticated API. The client
-also has a fully local profile, while signed-in data is stored by the API.
-
-Two backend deployments are supported:
-
-- **Cloudflare Workers + D1** — the production-oriented, low-maintenance path.
-- **Node.js + PostgreSQL** — a conventional server or container deployment.
+Lifever uses one backend architecture: a Hono API on Cloudflare Workers with a
+Cloudflare D1 database. The React client is static and requires a signed-in
+account; there is no separate device-only data profile.
 
 ## Configuration
 
-Start from [.env.example](.env.example). These are the important values:
+The Worker uses these variables and secrets:
 
 | Variable | Purpose |
 | --- | --- |
 | `BETTER_AUTH_SECRET` | Random server secret with at least 32 characters |
-| `BETTER_AUTH_URL` | Public API origin |
+| `BETTER_AUTH_URL` | Public API origin when it cannot be inferred from the request |
 | `WEB_URL` | Public frontend origin allowed by CORS |
 | `DISCORD_CLIENT_ID` | Discord OAuth application ID |
 | `DISCORD_CLIENT_SECRET` | Discord OAuth secret |
-| `GOOGLE_CALENDAR_CLIENT_ID` | Google OAuth web client ID |
-| `GOOGLE_CALENDAR_CLIENT_SECRET` | Google OAuth web client secret |
-| `CALENDAR_TOKEN_ENCRYPTION_KEY` | Separate secret used to encrypt Google refresh tokens at rest |
-| `VITE_API_URL` | API origin embedded into the frontend build |
-| `DATABASE_URL` | PostgreSQL connection string for the Node runtime |
-| `PORT` | Optional Node API port; defaults to `8787` |
+| `GOOGLE_CALENDAR_CLIENT_ID` | Optional Google OAuth web client ID |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | Optional Google OAuth web client secret |
+| `CALENDAR_TOKEN_ENCRYPTION_KEY` | Separate secret used to encrypt Google refresh tokens |
+| `VITE_API_URL` | Public API origin embedded into a web or desktop build |
 
-Generate the auth secret with:
+Generate independent secrets:
 
 ```bash
 openssl rand -base64 32
+openssl rand -base64 32
 ```
 
-The Discord redirect URI is always:
+The OAuth redirect URIs are:
 
 ```text
 https://YOUR_API_ORIGIN/api/auth/callback/discord
-```
-
-The Google OAuth redirect URI is always:
-
-```text
 https://YOUR_API_ORIGIN/api/calendar-integrations/google/callback
 ```
 
-Enable the Google Calendar API for the OAuth project and register that URI on a
-**Web application** OAuth client. The Calendar connection is optional; omit the
-three Google variables to hide its connect action. Google refresh tokens are
-encrypted before they are stored.
+The Google Calendar integration is optional. Enable the Google Calendar API,
+create a **Web application** OAuth client, and register the exact callback
+above. Refresh tokens are encrypted before they are stored.
 
-Never place database credentials, auth secrets, or OAuth secrets in
-`VITE_API_URL` or any other frontend variable.
+Never place auth, OAuth, or encryption secrets in `VITE_API_URL` or another
+frontend variable.
 
-## Cloudflare Workers and D1
+## Create the Cloudflare resources
 
-Authenticate Wrangler and create the database once:
+Authenticate Wrangler and create the D1 database:
 
 ```bash
 pnpm --dir apps/api exec wrangler login
 pnpm --dir apps/api exec wrangler d1 create lifever
 ```
 
-Copy the returned database ID into `apps/api/wrangler.jsonc`, then configure
-Worker secrets:
+Copy the returned database ID into `apps/api/wrangler.jsonc`. Update the custom
+domain there as needed, then add Worker secrets:
 
 ```bash
 pnpm --dir apps/api exec wrangler secret put BETTER_AUTH_SECRET
@@ -74,17 +63,19 @@ pnpm --dir apps/api exec wrangler secret put GOOGLE_CALENDAR_CLIENT_SECRET
 pnpm --dir apps/api exec wrangler secret put CALENDAR_TOKEN_ENCRYPTION_KEY
 ```
 
-`BETTER_AUTH_URL` is optional for Workers because Lifever derives it from the
-incoming request. Set it as a secret when the externally visible auth origin
-differs from the request origin.
+`BETTER_AUTH_URL` is optional when the public auth origin matches the incoming
+request origin. Add it as a Worker secret if a proxy changes that origin.
 
-Apply migrations and deploy the API:
+## Deploy
+
+Apply every committed D1 migration, generate the Prisma client, and deploy the
+Worker:
 
 ```bash
 pnpm deploy:api
 ```
 
-This runs the committed D1 migrations before deploying the Worker. Verify it:
+Verify the deployment:
 
 ```bash
 curl https://YOUR_API_ORIGIN/api/health
@@ -96,58 +87,20 @@ Build the frontend with the public Worker origin:
 VITE_API_URL=https://YOUR_API_ORIGIN pnpm --filter @lifever/web build
 ```
 
-Deploy `apps/web/dist` to any static host and set `WEB_URL` to that frontend
-origin.
+Deploy `apps/web/dist` to a static host and set `WEB_URL` to that exact
+frontend origin.
 
-### Local Worker runtime
+## Local Worker development
 
 ```bash
 cp apps/api/.dev.vars.example apps/api/.dev.vars
-pnpm db:deploy:d1:local
-pnpm dev:worker
+pnpm db:deploy:local
+pnpm dev
 ```
 
-Wrangler stores its local D1 data outside the application source.
-
-## Node.js and PostgreSQL
-
-Copy the environment template and replace every production value:
-
-```bash
-cp .env.example .env
-```
-
-At minimum, production needs:
-
-```dotenv
-NODE_ENV="production"
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/lifever?schema=public"
-BETTER_AUTH_SECRET="..."
-BETTER_AUTH_URL="https://api.example.com"
-WEB_URL="https://lifever.example.com"
-DISCORD_CLIENT_ID="..."
-DISCORD_CLIENT_SECRET="..."
-GOOGLE_CALENDAR_CLIENT_ID="..."
-GOOGLE_CALENDAR_CLIENT_SECRET="..."
-CALENDAR_TOKEN_ENCRYPTION_KEY="..."
-VITE_API_URL="https://api.example.com"
-```
-
-Apply migrations and build:
-
-```bash
-pnpm db:deploy
-pnpm build
-```
-
-Start the API:
-
-```bash
-pnpm --filter @lifever/api start
-```
-
-Serve `apps/web/dist` from a static host or reverse proxy. Proxy the API origin
-with HTTPS and preserve cookies and request headers.
+Wrangler keeps the local D1 database outside application source. Configure a
+Discord OAuth application with
+`http://localhost:8787/api/auth/callback/discord` before signing in.
 
 ## Desktop clients
 
@@ -165,12 +118,13 @@ $env:VITE_API_URL="https://YOUR_API_ORIGIN"
 pnpm --filter @lifever/desktop tauri build --bundles nsis --ci
 ```
 
-Backend secrets must remain on the server.
+Backend secrets remain in Cloudflare.
 
 ## Operations
 
-- Back up PostgreSQL or D1 before destructive schema changes.
+- Back up D1 before destructive schema changes.
 - Apply committed migrations before deploying API code that depends on them.
 - Keep `BETTER_AUTH_SECRET` stable; rotating it invalidates existing sessions.
+- Keep `CALENDAR_TOKEN_ENCRYPTION_KEY` stable while encrypted Google tokens exist.
 - Restrict `WEB_URL` to the frontend origin you operate.
 - Monitor `/api/health` and Worker observability after deployments.

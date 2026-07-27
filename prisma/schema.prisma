@@ -1,11 +1,11 @@
 generator client {
   provider = "prisma-client"
   output   = "../apps/api/src/generated/prisma"
-  runtime  = "nodejs"
+  runtime  = "cloudflare"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {

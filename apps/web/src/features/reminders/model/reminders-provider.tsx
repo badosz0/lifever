@@ -10,10 +10,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { authClient } from "@/lib/auth-client";
-import { apiRequest } from "@/lib/api";
-import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { apiRequest } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import { isDemoMode } from "@/lib/demo-mode";
 
 import { initialReminders } from "./seed";
 import type { Reminder, ReminderViewId } from "./types";
@@ -71,37 +71,6 @@ const fromApiReminder = (reminder: ApiReminder): Reminder => ({
   createdAt: reminder.createdAt,
 });
 
-type StoredReminder = Reminder & {
-  flagged?: boolean;
-  priority?: string;
-};
-
-function readStoredReminders() {
-  try {
-    const stored = localStorage.getItem("lifever-reminders");
-    if (stored) {
-      return (JSON.parse(stored) as StoredReminder[]).map((storedReminder) => {
-        const reminder = { ...storedReminder };
-        reminder.important ??= Boolean(reminder.flagged);
-        delete reminder.flagged;
-        delete reminder.priority;
-        return reminder;
-      });
-    }
-  } catch {
-    // A corrupt or unavailable local store should never prevent the app opening.
-  }
-  return initialReminders;
-}
-
-function writeStoredReminders(reminders: Reminder[]) {
-  try {
-    localStorage.setItem("lifever-reminders", JSON.stringify(reminders));
-  } catch {
-    // Storage can be unavailable in private or restricted browsing contexts.
-  }
-}
-
 export function RemindersProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -114,10 +83,6 @@ export function RemindersProvider({ children }: PropsWithChildren) {
   const pendingDeletes = useRef(new Map<string, Promise<void>>());
   const apiWriteChains = useRef(new Map<string, Promise<void>>());
   const pendingApiUpdates = useRef(new Map<string, PendingApiUpdate>());
-  const remindersRef = useRef(reminders);
-  const sessionRef = useRef(session);
-  remindersRef.current = reminders;
-  sessionRef.current = session;
 
   const loadRemote = useCallback(
     async (userId: string, preserveSelection = false) => {
@@ -230,7 +195,7 @@ export function RemindersProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     setHydratedMode(null);
@@ -238,21 +203,14 @@ export function RemindersProvider({ children }: PropsWithChildren) {
     if (userId) {
       setReminders([]);
       void loadRemote(userId);
+    } else if (isDemoMode) {
+      setReminders(initialReminders.map((reminder) => ({ ...reminder })));
+      setHydratedMode("demo");
     } else {
-      setReminders(readStoredReminders());
-      setHydratedMode("local");
+      setReminders([]);
+      setHydratedMode("signed-out");
     }
   }, [isPending, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    if (hydratedMode === "local" && !session && !isPending) {
-      const timeout = window.setTimeout(
-        () => writeStoredReminders(reminders),
-        TEXT_SYNC_DELAY,
-      );
-      return () => window.clearTimeout(timeout);
-    }
-  }, [hydratedMode, isPending, reminders, session]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
@@ -268,19 +226,7 @@ export function RemindersProvider({ children }: PropsWithChildren) {
   }, Boolean(session?.user.id));
 
   useEffect(() => {
-    const reset = () => {
-      if (modeRef.current !== "local") return;
-      setReminders(initialReminders.map((reminder) => ({ ...reminder })));
-      setActiveView("today");
-      setSelectedReminderId(null);
-    };
-    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
-    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
-  }, []);
-
-  useEffect(() => {
     const flushPendingWork = () => {
-      if (!sessionRef.current) writeStoredReminders(remindersRef.current);
       for (const id of pendingApiUpdates.current.keys()) flushApiUpdate(id);
     };
 

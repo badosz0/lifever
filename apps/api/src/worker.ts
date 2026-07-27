@@ -16,7 +16,6 @@ export interface WorkerBindings extends ApiEnvironment {
 
 const getWorkerEnvironment = (bindings: WorkerBindings): ApiEnvironment => ({
   NODE_ENV: "production",
-  PORT: bindings.PORT,
   BETTER_AUTH_SECRET: bindings.BETTER_AUTH_SECRET,
   BETTER_AUTH_URL: bindings.BETTER_AUTH_URL,
   WEB_URL: bindings.WEB_URL,
@@ -86,9 +85,7 @@ const handleCollaborationSocket = async (
 export default {
   async fetch(request, bindings, executionContext) {
     const config = createApiConfig(getWorkerEnvironment(bindings), {
-      databaseProvider: "sqlite",
       defaultAuthUrl: new URL(request.url).origin,
-      usesDatabaseBinding: true,
     });
     const prisma = createWorkerPrisma(bindings.DB);
 

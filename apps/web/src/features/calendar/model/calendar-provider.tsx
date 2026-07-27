@@ -23,11 +23,10 @@ import {
 import {
   categoryIdForLegacyColor,
   defaultCalendarCategories,
-  isCalendarCategoryColor,
 } from "@/features/calendar/lib/categories";
 import { addDays } from "@/features/calendar/lib/dates";
 import {
-  defaultLocalCalendars,
+  demoCalendars,
   initialCalendarEvents,
 } from "@/features/calendar/model/seed";
 import type {
@@ -36,12 +35,12 @@ import type {
   CalendarEvent,
   NewCalendarEvent,
 } from "@/features/calendar/model/types";
-import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { ApiRequestError, apiRequest, apiUrl } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { isDemoMode } from "@/lib/demo-mode";
 
 type GoogleCalendarStatus = {
   configured: boolean;
@@ -157,11 +156,7 @@ type GoogleStatusResponse = {
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
-const EVENT_STORAGE_KEY = "lifever-calendar-events";
-const CATEGORY_STORAGE_KEY = "lifever-calendar-categories";
-const CALENDAR_STORAGE_KEY = "lifever-calendars";
 const ACTIVE_CALENDAR_STORAGE_KEY = "lifever-active-calendar";
-const WRITE_DELAY = 400;
 const REMOTE_WRITE_DELAY = 400;
 const EVENT_UNDO_LIMIT = 50;
 
@@ -216,93 +211,20 @@ const normalizeGoogleCalendar = (
     calendar.accessRole === "writer" || calendar.accessRole === "owner",
 });
 
-const readStoredCalendars = (): CalendarCollection[] => {
-  try {
-    const stored = JSON.parse(
-      localStorage.getItem(CALENDAR_STORAGE_KEY) ?? "null",
-    ) as CalendarCollection[] | null;
-    const calendars = stored?.filter(
-      (calendar) =>
-        calendar.id &&
-        calendar.name?.trim() &&
-        isCalendarCategoryColor(calendar.color),
-    );
-    if (calendars?.length) {
-      return calendars
-        .map((calendar) => ({
-          ...calendar,
-          source: "lifever" as const,
-          writable: true,
-        }))
-        .sort((left, right) => left.position - right.position);
-    }
-  } catch {
-    // Fall back to the curated local calendar.
-  }
-  return defaultLocalCalendars.map((calendar) => ({ ...calendar }));
-};
-
-const readStoredEvents = (fallbackCalendarId: string): CalendarEvent[] => {
-  try {
-    const stored = localStorage.getItem(EVENT_STORAGE_KEY);
-    if (stored) {
-      return (JSON.parse(stored) as StoredCalendarEvent[]).map((event) =>
-        normalizeCalendarEvent(event, fallbackCalendarId),
-      );
-    }
-  } catch {
-    // A storage issue should not prevent Calendar from opening.
-  }
-  return initialCalendarEvents.map((event) => ({
-    ...event,
-    calendarId: fallbackCalendarId,
-  }));
-};
-
-const readStoredCategories = (fallbackCalendarId: string): CalendarCategory[] => {
-  try {
-    const stored = localStorage.getItem(CATEGORY_STORAGE_KEY);
-    if (stored) {
-      const categories = (JSON.parse(stored) as CalendarCategory[])
-        .map((category) => ({
-          ...category,
-          calendarId: category.calendarId || fallbackCalendarId,
-        }))
-        .filter(
-        (category) =>
-          category.id &&
-          category.name?.trim() &&
-          isCalendarCategoryColor(category.color),
-      );
-      if (categories.length > 0) {
-        return categories.sort((left, right) => left.position - right.position);
-      }
-    }
-  } catch {
-    // Fall back to the curated category set.
-  }
-  return defaultCalendarCategories.map((category) => ({
-    ...category,
-    calendarId: fallbackCalendarId,
-  }));
-};
-
-const writeLocalState = ({
-  calendars,
-  categories,
-  events,
-}: {
-  calendars: CalendarCollection[];
-  categories: CalendarCategory[];
-  events: CalendarEvent[];
-}) => {
-  try {
-    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(calendars));
-    localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
-    localStorage.setItem(EVENT_STORAGE_KEY, JSON.stringify(events));
-  } catch {
-    // The current in-memory state remains usable in restricted contexts.
-  }
+const createDemoCalendarState = () => {
+  const calendars = demoCalendars.map((calendar) => ({ ...calendar }));
+  const calendarId = calendars[0]!.id;
+  return {
+    calendars,
+    events: initialCalendarEvents.map((event) => ({
+      ...event,
+      calendarId,
+    })),
+    categories: defaultCalendarCategories.map((category) => ({
+      ...category,
+      calendarId,
+    })),
+  };
 };
 
 const readActiveCalendar = () => {
@@ -754,7 +676,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     for (const entry of eventUndoStack.current) entry.consumed = true;
@@ -766,11 +688,11 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       setNativeCalendars([]);
       setCategories([]);
       void loadRemote(userId);
-    } else {
-      const storedCalendars = readStoredCalendars();
-      setNativeCalendars(storedCalendars);
-      setNativeEvents(readStoredEvents(storedCalendars[0]!.id));
-      setCategories(readStoredCategories(storedCalendars[0]!.id));
+    } else if (isDemoMode) {
+      const demoState = createDemoCalendarState();
+      setNativeCalendars(demoState.calendars);
+      setNativeEvents(demoState.events);
+      setCategories(demoState.categories);
       setGoogleCalendars([]);
       setGoogleEvents([]);
       setGoogleStatus({
@@ -778,7 +700,14 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         connected: false,
         lastSyncedAt: null,
       });
-      setHydratedMode("local");
+      setHydratedMode("demo");
+    } else {
+      setNativeCalendars([]);
+      setNativeEvents([]);
+      setCategories([]);
+      setGoogleCalendars([]);
+      setGoogleEvents([]);
+      setHydratedMode("signed-out");
     }
   }, [isPending, loadRemote, session?.user.id]);
 
@@ -791,27 +720,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       });
     });
   }, [googleStatus.connected, loadGoogleEvents, session]);
-
-  useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending) return;
-    const timeout = window.setTimeout(
-      () =>
-        writeLocalState({
-          calendars: nativeCalendars,
-          categories,
-          events: nativeEvents,
-        }),
-      WRITE_DELAY,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [
-    categories,
-    hydratedMode,
-    isPending,
-    nativeCalendars,
-    nativeEvents,
-    session,
-  ]);
 
   useEffect(() => {
     const writableCalendars = calendars.filter(
@@ -893,34 +801,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
   }, [activeApp, loadGoogleEvents, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    const reset = () => {
-      if (modeRef.current !== "local") return;
-      const resetCalendars = defaultLocalCalendars.map((calendar) => ({
-        ...calendar,
-      }));
-      setNativeCalendars(resetCalendars);
-      setNativeEvents(
-        initialCalendarEvents.map((event) => ({
-          ...event,
-          calendarId: resetCalendars[0]!.id,
-        })),
-      );
-      setCategories(
-        defaultCalendarCategories.map((category) => ({
-          ...category,
-          calendarId: resetCalendars[0]!.id,
-        })),
-      );
-      setActiveCalendarIdState(resetCalendars[0]!.id);
-      setSelectedEventId(null);
-      for (const entry of eventUndoStack.current) entry.consumed = true;
-      eventUndoStack.current = [];
-    };
-    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
-    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
-  }, []);
 
   const registerEventUndo = useCallback((action: () => void) => {
     const entry = { action, consumed: false };
@@ -1103,13 +983,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const flush = () => {
-      if (modeRef.current === "local") {
-        writeLocalState({
-          calendars: nativeCalendarsRef.current,
-          categories: categoriesRef.current,
-          events: nativeEventsRef.current,
-        });
-      }
       for (const id of pendingEventUpdates.current.keys()) {
         flushEventUpdate(id);
       }

@@ -9,9 +9,9 @@ import {
 import { categoryIdForLegacyColor } from "../lib/categories";
 import type { CalendarCollection, CalendarEvent } from "./types";
 
-export const defaultLocalCalendars: CalendarCollection[] = [
+export const demoCalendars: CalendarCollection[] = [
   {
-    id: "local-personal",
+    id: "demo-personal",
     name: "Personal",
     color: "#3B82F6",
     position: 0,
@@ -41,7 +41,7 @@ const makeEvent = (
     startAt: start.toISOString(),
     endAt: end.toISOString(),
     categoryId: categoryIdForLegacyColor(legacyColor),
-    calendarId: defaultLocalCalendars[0]!.id,
+    calendarId: demoCalendars[0]!.id,
     location,
     notes,
     alertsEnabled: true,
@@ -68,7 +68,7 @@ const makeAllDayEvent = (
     startAt: start.toISOString(),
     endAt: end.toISOString(),
     categoryId: categoryIdForLegacyColor(legacyColor),
-    calendarId: defaultLocalCalendars[0]!.id,
+    calendarId: demoCalendars[0]!.id,
     location: "",
     notes,
     alertsEnabled: true,

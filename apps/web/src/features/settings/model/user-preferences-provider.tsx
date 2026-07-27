@@ -55,7 +55,6 @@ type PreferencesPayload = {
   preferences: UserPreferences;
 };
 
-const STORAGE_KEY = "lifever-user-preferences";
 const DEFAULT_PREFERENCES: UserPreferences = {
   appConfiguration: {},
   calendarClickToCreate: true,
@@ -182,17 +181,6 @@ const normalizePreferences = (
     : DEFAULT_PREFERENCES.timeFormat,
 });
 
-const readPreferences = (): UserPreferences => {
-  try {
-    const stored = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? "null",
-    ) as Partial<Record<keyof UserPreferences, unknown>> | null;
-    return normalizePreferences(stored);
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
-};
-
 const UserPreferencesContext =
   createContext<UserPreferencesContextValue | null>(null);
 
@@ -227,7 +215,7 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     setHydratedMode(null);
@@ -235,19 +223,10 @@ export function UserPreferencesProvider({ children }: PropsWithChildren) {
       setPreferences(DEFAULT_PREFERENCES);
       void loadRemote(userId);
     } else {
-      setPreferences(readPreferences());
-      setHydratedMode("local");
+      setPreferences(DEFAULT_PREFERENCES);
+      setHydratedMode("demo");
     }
   }, [isPending, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-    } catch {
-      // The in-memory preferences still work in restricted contexts.
-    }
-  }, [hydratedMode, isPending, preferences, session]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;

@@ -19,14 +19,13 @@ import {
   collaborationRoomKey,
   useLiveCollaboration,
 } from "@/features/collaboration/model/use-live-collaboration";
-import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { mergeKanbanStates } from "@/features/kanban/lib/merge-state";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
 import { ApiRequestError, apiRequest } from "@/lib/api";
+import { isDemoMode } from "@/lib/demo-mode";
 
-import { readKanbanState, writeKanbanState } from "./storage";
 import { initialKanbanState } from "./seed";
 import type {
   KanbanCard,
@@ -39,7 +38,6 @@ import type {
   NewKanbanProject,
 } from "./types";
 
-const WRITE_DELAY = 250;
 const REMOTE_WRITE_DELAY = 400;
 const ACTIVE_PROJECT_KEY = "lifever-kanban-active-project";
 const emptyKanbanState: KanbanState = {
@@ -48,6 +46,16 @@ const emptyKanbanState: KanbanState = {
   labels: [],
   cards: [],
 };
+
+const createDemoState = (): KanbanState => ({
+  projects: initialKanbanState.projects.map((project) => ({ ...project })),
+  columns: initialKanbanState.columns.map((column) => ({ ...column })),
+  labels: initialKanbanState.labels.map((label) => ({ ...label })),
+  cards: initialKanbanState.cards.map((card) => ({
+    ...card,
+    labelIds: [...card.labelIds],
+  })),
+});
 
 const replaceProjectSlice = (
   state: KanbanState,
@@ -193,10 +201,8 @@ export function KanbanProvider({ children }: PropsWithChildren) {
   const remoteSaveChain = useRef(Promise.resolve());
   const remoteSaveCount = useRef(0);
   const stateRef = useRef(state);
-  const activeProjectIdRef = useRef(activeProjectId);
   const sessionRef = useRef(session);
   stateRef.current = state;
-  activeProjectIdRef.current = activeProjectId;
   sessionRef.current = session;
   const canEditProject = useCallback(
     (id: string) => projectAccess[id]?.permission !== "read",
@@ -372,7 +378,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     setHydratedMode(null);
@@ -386,19 +392,18 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       setProjectAccess({});
       setActiveProjectIdState("");
       void loadRemote(userId);
+    } else if (isDemoMode) {
+      const demoState = createDemoState();
+      setState(demoState);
+      setActiveProjectIdState(readActiveProject(demoState));
+      setHydratedMode("demo");
     } else {
-      const localState = readKanbanState();
-      setState(localState);
-      setActiveProjectIdState(readActiveProject(localState));
-      setHydratedMode("local");
+      setState(emptyKanbanState);
+      setProjectAccess({});
+      setActiveProjectIdState("");
+      setHydratedMode("signed-out");
     }
   }, [isPending, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending) return;
-    const timeout = window.setTimeout(() => writeKanbanState(state), WRITE_DELAY);
-    return () => window.clearTimeout(timeout);
-  }, [hydratedMode, isPending, session, state]);
 
   useEffect(() => {
     if (!hydratedMode || isPending || !activeProjectId) return;
@@ -566,18 +571,6 @@ export function KanbanProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const flush = () => {
-      if (modeRef.current === "local") {
-        writeKanbanState(stateRef.current);
-        try {
-          localStorage.setItem(
-            ACTIVE_PROJECT_KEY,
-            activeProjectIdRef.current,
-          );
-        } catch {
-          // The latest in-memory selection remains available until close.
-        }
-        return;
-      }
       if (!sessionRef.current) return;
       if (pendingRemoteSave.current) {
         window.clearTimeout(pendingRemoteSave.current);
@@ -608,26 +601,6 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
   }, [projectAccess]);
-
-  useEffect(() => {
-    const reset = () => {
-      if (modeRef.current !== "local") return;
-      const demo: KanbanState = {
-        projects: initialKanbanState.projects.map((project) => ({ ...project })),
-        columns: initialKanbanState.columns.map((column) => ({ ...column })),
-        labels: initialKanbanState.labels.map((label) => ({ ...label })),
-        cards: initialKanbanState.cards.map((card) => ({
-          ...card,
-          labelIds: [...card.labelIds],
-        })),
-      };
-      setState(demo);
-      setActiveProjectIdState(readActiveProject(demo));
-      setSelectedCardId(null);
-    };
-    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
-    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
-  }, []);
 
   const setActiveProjectId = useCallback(
     (id: string) => {

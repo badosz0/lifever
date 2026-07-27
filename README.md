@@ -40,14 +40,14 @@ AI and Formula 1 are opt-in. Every other app is ready on first launch.
 
 | Reminders | Kanban |
 | --- | --- |
-| ![Demo reminders](docs/screenshots/reminders-today.jpg) | ![Demo Kanban board](docs/screenshots/kanban-board.jpg) |
+| ![Lifever reminders](docs/screenshots/reminders-today.jpg) | ![Lifever Kanban board](docs/screenshots/kanban-board.jpg) |
 
 | Notes | Formula 1 |
 | --- | --- |
-| ![Demo Markdown notes](docs/screenshots/notes-markdown.jpg) | ![Demo Formula 1 weekend](docs/screenshots/formula-1.jpg) |
+| ![Lifever Markdown notes](docs/screenshots/notes-markdown.jpg) | ![Lifever Formula 1 weekend](docs/screenshots/formula-1.jpg) |
 
-Lifever starts with a local demo profile. Discord sign-in enables authenticated
-sync across devices.
+Lifever requires an account. Your reminders, calendars, notes, projects, and
+preferences stay synced through the Lifever API on every device.
 
 ## Install
 
@@ -72,23 +72,26 @@ Download the latest
 [Windows 10/11 x64 installer](https://github.com/badosz0/lifever/releases/latest/download/Lifever-Windows-x64-setup.exe).
 The matching SHA-256 checksum is attached to every release.
 
-## Run the demo
+## Develop locally
 
 Requirements: Node `22.14.0` and pnpm `11.17.0`.
 
 ```bash
 corepack enable
 pnpm install
-pnpm dev:web
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+pnpm db:deploy:local
+pnpm dev
 ```
 
-Open [localhost:5173](http://localhost:5173). The local profile is automatically
-seeded with demo reminders, events, notes, and projects.
+Add a Discord OAuth client to `apps/api/.dev.vars`, then open
+[localhost:5173](http://localhost:5173). See [BUILDING.md](BUILDING.md) for the
+redirect URI and full setup.
 
 ## Built with
 
 React 19 · TypeScript · Vite · Tailwind CSS · Tauri 2 · Rust · Hono · Better
-Auth · Prisma · PostgreSQL · Cloudflare Workers and D1
+Auth · Prisma · Cloudflare Workers · D1
 
 ## Documentation
 

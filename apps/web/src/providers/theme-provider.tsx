@@ -71,7 +71,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "device";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     if (userId) {

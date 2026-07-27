@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, LogIn, LogOut, Settings2 } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -14,26 +14,17 @@ import {
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
 import { InvitationsDialog } from "@/features/sharing/components/invitations-dialog";
 import { useSharing } from "@/features/sharing/model/sharing-provider";
-import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { clearDesktopAuthToken } from "@/lib/auth-token";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export function AccountMenu() {
   const { data: session, isPending } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [invitationsOpen, setInvitationsOpen] = useState(false);
   const { invites } = useSharing();
-  const name = session?.user.name ?? "Local profile";
+  const name = session?.user.name ?? (isDemoMode ? "Showcase" : "Lifever");
   const initial = name.charAt(0).toUpperCase();
-
-  const signIn = async () => {
-    const result = await signInWithDiscord();
-
-    if (result.error) {
-      toast.error("Couldn’t sign in with Discord", {
-        description: result.error.message,
-      });
-    }
-  };
 
   const signOut = async () => {
     await authClient.signOut();
@@ -104,20 +95,17 @@ export function AccountMenu() {
               ) : null}
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            {session ? (
-              <DropdownMenuItem onSelect={() => void signOut()}>
-                <LogOut className="size-4" />
-                Sign out
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onSelect={() => void signIn()}>
-                <LogIn className="size-4" />
-                Continue with Discord
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuGroup>
+          {session ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => void signOut()}>
+                  <LogOut className="size-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

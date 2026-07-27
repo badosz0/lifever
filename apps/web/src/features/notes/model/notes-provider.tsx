@@ -16,11 +16,11 @@ import {
   collaborationRoomKey,
   useLiveCollaboration,
 } from "@/features/collaboration/model/use-live-collaboration";
-import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
 import { ApiRequestError, apiRequest } from "@/lib/api";
+import { isDemoMode } from "@/lib/demo-mode";
 
 import {
   initialNoteCategories,
@@ -58,13 +58,6 @@ type NotesContextValue = {
   isNoteOwner: (id: string) => boolean;
 };
 
-type StoredNotesState = {
-  notes?: Note[];
-  categories?: NoteCategory[];
-  settings?: Partial<NotesSettings>;
-  activeFilter?: NotesFilter;
-};
-
 type HydratedNotesState = {
   notes: Note[];
   categories: NoteCategory[];
@@ -88,8 +81,6 @@ type PendingNoteUpdate = {
   timeout: number;
 };
 
-const STORAGE_KEY = "lifever-notes-v1";
-const WRITE_DELAY = 250;
 const REMOTE_WRITE_DELAY = 400;
 const NotesContext = createContext<NotesContextValue | null>(null);
 
@@ -99,66 +90,6 @@ const cloneDemoState = (): HydratedNotesState => ({
   settings: { ...initialNotesSettings },
   activeFilter: "all",
 });
-
-const readStoredState = (): HydratedNotesState => {
-  try {
-    const stored = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? "null",
-    ) as StoredNotesState | null;
-    const categories =
-      stored?.categories?.length ? stored.categories : initialNoteCategories;
-    const categoryIds = new Set(categories.map((category) => category.id));
-    const notes = (Array.isArray(stored?.notes) ? stored.notes : initialNotes).map(
-      (note) => ({
-        ...note,
-        categoryId: categoryIds.has(note.categoryId)
-          ? note.categoryId
-          : categories[0]!.id,
-      }),
-    );
-    const requestedDefaultCategoryId = stored?.settings?.defaultCategoryId;
-    const defaultCategoryId =
-      requestedDefaultCategoryId &&
-      categoryIds.has(requestedDefaultCategoryId)
-        ? requestedDefaultCategoryId
-        : categories[0]!.id;
-    const activeFilter =
-      stored?.activeFilter === "pinned" ||
-      (stored?.activeFilter?.startsWith("category:") &&
-        categoryIds.has(stored.activeFilter.slice("category:".length)))
-        ? stored.activeFilter
-        : "all";
-
-    return {
-      notes,
-      categories,
-      activeFilter,
-      settings: {
-        sort:
-          stored?.settings?.sort === "created" ||
-          stored?.settings?.sort === "title"
-            ? stored.settings.sort
-            : "updated",
-        previewLines:
-          stored?.settings?.previewLines === 1 ||
-          stored?.settings?.previewLines === 3
-            ? stored.settings.previewLines
-            : 2,
-        defaultCategoryId,
-        openInPreview:
-          typeof stored?.settings?.openInPreview === "boolean"
-            ? stored.settings.openInPreview
-            : initialNotesSettings.openInPreview,
-        spellcheck:
-          typeof stored?.settings?.spellcheck === "boolean"
-            ? stored.settings.spellcheck
-            : initialNotesSettings.spellcheck,
-      },
-    };
-  } catch {
-    return cloneDemoState();
-  }
-};
 
 export function NotesProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
@@ -185,13 +116,9 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const settingsWriteCount = useRef(0);
   const notesRef = useRef(notes);
   const categoriesRef = useRef(categories);
-  const settingsRef = useRef(settings);
-  const activeFilterRef = useRef(activeFilter);
   const sessionRef = useRef(session);
   notesRef.current = notes;
   categoriesRef.current = categories;
-  settingsRef.current = settings;
-  activeFilterRef.current = activeFilter;
   sessionRef.current = session;
 
   const loadRemote = useCallback(
@@ -237,7 +164,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
         if (modeRef.current === requestedMode) {
           toast.error("Notes could not sync", {
             id: "notes-sync-error",
-            description: "Your account data was not replaced with local demo data.",
+            description: "Your synced notes remain unchanged.",
           });
         }
       }
@@ -409,7 +336,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     modeRef.current = nextMode;
     mutationVersion.current = 0;
     setHydratedMode(null);
@@ -424,36 +351,21 @@ export function NotesProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const localState = readStoredState();
-    setNotes(localState.notes);
-    setCategories(localState.categories);
-    setSettings(localState.settings);
-    setActiveFilter(localState.activeFilter);
-    setHydratedMode("local");
+    if (isDemoMode) {
+      const demoState = cloneDemoState();
+      setNotes(demoState.notes);
+      setCategories(demoState.categories);
+      setSettings(demoState.settings);
+      setActiveFilter(demoState.activeFilter);
+      setHydratedMode("demo");
+    } else {
+      setNotes([]);
+      setCategories([]);
+      setSettings(initialNotesSettings);
+      setActiveFilter("all");
+      setHydratedMode("signed-out");
+    }
   }, [isPending, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending) return;
-    const timeout = window.setTimeout(() => {
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ notes, categories, settings, activeFilter }),
-        );
-      } catch {
-        // Notes remain available in memory when persistent storage is blocked.
-      }
-    }, WRITE_DELAY);
-    return () => window.clearTimeout(timeout);
-  }, [
-    activeFilter,
-    categories,
-    hydratedMode,
-    isPending,
-    notes,
-    session,
-    settings,
-  ]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
@@ -498,20 +410,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
       window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
   }, [activeApp, loadRemote, session?.user.id]);
-
-  useEffect(() => {
-    const reset = () => {
-      if (modeRef.current !== "local") return;
-      const demo = cloneDemoState();
-      setNotes(demo.notes);
-      setCategories(demo.categories);
-      setSettings(demo.settings);
-      setActiveFilter(demo.activeFilter);
-      setSelectedNoteId(null);
-    };
-    window.addEventListener(RESET_DEMO_DATA_EVENT, reset);
-    return () => window.removeEventListener(RESET_DEMO_DATA_EVENT, reset);
-  }, []);
 
   const sendNoteUpdate = useCallback(
     (id: string, body: NotePatch, baseUpdatedAt: string) => {
@@ -606,21 +504,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const flush = () => {
-      if (modeRef.current === "local") {
-        try {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              notes: notesRef.current,
-              categories: categoriesRef.current,
-              settings: settingsRef.current,
-              activeFilter: activeFilterRef.current,
-            }),
-          );
-        } catch {
-          // The latest in-memory state remains available until close.
-        }
-      }
       for (const id of pendingUpdates.current.keys()) flushNoteUpdate(id);
       const remoteSession = sessionRef.current;
       if (

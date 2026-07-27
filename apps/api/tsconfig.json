@@ -2,18 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2023"],
-    "types": ["node"],
+    "types": ["@cloudflare/workers-types"],
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": [
-    "src/worker.ts",
-    "src/collaboration-room.ts",
-    "src/db/worker-client.ts",
-    "src/generated/prisma-worker"
-  ]
+  "include": ["src/**/*.ts"]
 }

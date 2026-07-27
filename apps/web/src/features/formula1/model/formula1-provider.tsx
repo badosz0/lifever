@@ -23,7 +23,6 @@ import { authClient } from "@/lib/auth-client";
 import { apiRequest } from "@/lib/api";
 
 const CACHE_KEY = "lifever-formula1-cache-v1";
-const PREFERENCES_KEY = "lifever-formula1-preferences-v1";
 const CACHE_TTL_MS = 15 * 60 * 1_000;
 
 type Formula1Preferences = {
@@ -67,26 +66,6 @@ const readCache = (): Formula1Snapshot | null => {
   }
 };
 
-const readPreferences = (): Formula1Preferences => {
-  try {
-    const value = JSON.parse(
-      localStorage.getItem(PREFERENCES_KEY) ?? "null",
-    ) as Partial<Formula1Preferences> | null;
-    return {
-      favoriteDriverId:
-        typeof value?.favoriteDriverId === "string"
-          ? value.favoriteDriverId
-          : null,
-      favoriteConstructorId:
-        typeof value?.favoriteConstructorId === "string"
-          ? value.favoriteConstructorId
-          : null,
-    };
-  } catch {
-    return defaultPreferences;
-  }
-};
-
 const Formula1Context = createContext<Formula1ContextValue | null>(null);
 
 export function Formula1Provider({ children }: PropsWithChildren) {
@@ -99,7 +78,6 @@ export function Formula1Provider({ children }: PropsWithChildren) {
   const [selectedRaceRound, setSelectedRaceRound] = useState<number | null>(null);
   const [preferences, setPreferences] =
     useState<Formula1Preferences>(defaultPreferences);
-  const [preferencesMode, setPreferencesMode] = useState<string | null>(null);
   const preferencesModeRef = useRef<string | null>(null);
   const preferencesMutationVersion = useRef(0);
   const pendingPreferenceWrites = useRef(0);
@@ -120,12 +98,9 @@ export function Formula1Provider({ children }: PropsWithChildren) {
         preferencesMutationVersion.current === requestedVersion
       ) {
         setPreferences(remotePreferences);
-        setPreferencesMode(requestedMode);
       }
     } catch {
-      if (preferencesModeRef.current === requestedMode) {
-        setPreferencesMode(requestedMode);
-      }
+      // Keep the current preference values until a later refresh succeeds.
     }
   }, []);
 
@@ -188,27 +163,16 @@ export function Formula1Provider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
-    const nextMode = userId ? `user:${userId}` : "local";
+    const nextMode = userId ? `user:${userId}` : "demo";
     preferencesModeRef.current = nextMode;
     preferencesMutationVersion.current = 0;
-    setPreferencesMode(null);
     if (userId) {
       setPreferences(defaultPreferences);
       void loadRemotePreferences(userId);
     } else {
-      setPreferences(readPreferences());
-      setPreferencesMode("local");
+      setPreferences(defaultPreferences);
     }
   }, [isPending, loadRemotePreferences, session?.user.id]);
-
-  useEffect(() => {
-    if (preferencesMode !== "local" || session || isPending) return;
-    try {
-      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-    } catch {
-      // Preferences remain available for this session.
-    }
-  }, [isPending, preferences, preferencesMode, session]);
 
   useRefreshOnFocus(() => {
     const userId = session?.user.id;
