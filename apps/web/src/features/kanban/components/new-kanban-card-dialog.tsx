@@ -23,6 +23,7 @@ import { KanbanPrioritySelect } from "@/features/kanban/components/kanban-priori
 import { useKanban } from "@/features/kanban/model/kanban-provider";
 import type { KanbanPriority } from "@/features/kanban/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
+import { useOnOpen } from "@/hooks/use-on-open";
 
 type NewKanbanCardDialogProps = {
   open: boolean;
@@ -58,8 +59,7 @@ export function NewKanbanCardDialog({
   const [dueDate, setDueDate] = useState("");
   const [labelIds, setLabelIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!open) return;
+  useOnOpen(open, () => {
     setTitle("");
     setDescription("");
     setColumnId(
@@ -71,7 +71,17 @@ export function NewKanbanCardDialog({
     setPriority("none");
     setDueDate("");
     setLabelIds([]);
-  }, [initialColumnId, open, projectColumns]);
+  });
+
+  useEffect(() => {
+    if (
+      !open ||
+      projectColumns.some((column) => column.id === columnId)
+    ) {
+      return;
+    }
+    setColumnId(projectColumns[0]?.id ?? "");
+  }, [columnId, open, projectColumns]);
 
   const createCard = () => {
     if (!title.trim() || !columnId) return;

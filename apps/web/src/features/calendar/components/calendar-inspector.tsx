@@ -8,7 +8,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -46,6 +46,8 @@ type CalendarInspectorProps = {
   className?: string;
 };
 
+type EditingTextField = "title" | "location" | "notes";
+
 export function CalendarInspector({ className }: CalendarInspectorProps) {
   const { dateFormat, timeFormat } = useUserPreferences();
   const {
@@ -69,12 +71,29 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
   const [startTime, setStartTime] = useState("");
   const [endDate, setEndDate] = useState("");
   const [endTime, setEndTime] = useState("");
+  const editingTextField = useRef<EditingTextField | null>(null);
+  const displayedEventId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!calendarEvent) return;
-    setTitle(calendarEvent.title);
-    setLocation(calendarEvent.location);
-    setNotes(calendarEvent.notes);
+    if (!calendarEvent) {
+      displayedEventId.current = null;
+      editingTextField.current = null;
+      return;
+    }
+
+    const eventChanged = displayedEventId.current !== calendarEvent.id;
+    displayedEventId.current = calendarEvent.id;
+    if (eventChanged || editingTextField.current !== "title") {
+      setTitle(calendarEvent.title);
+    }
+    if (eventChanged || editingTextField.current !== "location") {
+      setLocation(calendarEvent.location);
+    }
+    if (eventChanged || editingTextField.current !== "notes") {
+      setNotes(calendarEvent.notes);
+    }
+    if (eventChanged) editingTextField.current = null;
+
     setStartDate(dateKey(calendarEvent.startAt));
     setStartTime(timeInputValue(calendarEvent.startAt));
     setEndDate(
@@ -85,7 +104,15 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
       ),
     );
     setEndTime(timeInputValue(calendarEvent.endAt));
-  }, [calendarEvent]);
+  }, [
+    calendarEvent?.endAt,
+    calendarEvent?.id,
+    calendarEvent?.location,
+    calendarEvent?.notes,
+    calendarEvent?.startAt,
+    calendarEvent?.title,
+    calendarEvent?.allDay,
+  ]);
 
   if (!calendarEvent) {
     return (
@@ -208,7 +235,13 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
             value={title}
             rows={2}
             onChange={(event) => setTitle(event.target.value)}
-            onBlur={(event) => commitText("title", event.currentTarget.value)}
+            onFocus={() => {
+              editingTextField.current = "title";
+            }}
+            onBlur={(event) => {
+              editingTextField.current = null;
+              commitText("title", event.currentTarget.value);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -388,7 +421,13 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
                   id="event-location"
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
-                  onBlur={(event) => commitText("location", event.currentTarget.value)}
+                  onFocus={() => {
+                    editingTextField.current = "location";
+                  }}
+                  onBlur={(event) => {
+                    editingTextField.current = null;
+                    commitText("location", event.currentTarget.value);
+                  }}
                   placeholder="Add a location"
                   className="pl-9 text-[13px]"
                 />
@@ -406,7 +445,13 @@ export function CalendarInspector({ className }: CalendarInspectorProps) {
                 id="event-notes"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                onBlur={(event) => commitText("notes", event.currentTarget.value)}
+                onFocus={() => {
+                  editingTextField.current = "notes";
+                }}
+                onBlur={(event) => {
+                  editingTextField.current = null;
+                  commitText("notes", event.currentTarget.value);
+                }}
                 placeholder="Add notes"
                 className="min-h-24 text-[13px]"
               />

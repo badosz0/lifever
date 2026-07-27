@@ -32,6 +32,7 @@ import { getCalendarCategory } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
 import type { CalendarEventPreview } from "@/features/calendar/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
+import { useOnOpen } from "@/hooks/use-on-open";
 
 type NewCalendarEventDialogProps = {
   open: boolean;
@@ -97,19 +98,55 @@ export function NewCalendarEventDialog({
     calendarId,
   );
 
-  useEffect(() => {
-    if (!open) return;
+  useOnOpen(open, () => {
+    const nextCalendarId =
+      activeCalendarId ??
+      calendars.find((calendar) => calendar.writable)?.id ??
+      "";
+
+    setTitle("");
     setStartDate(dateKey(initialStart));
     setStartTime(timeInputValue(initialStart));
     setEndDate(dateKey(initialEnd));
     setEndTime(timeInputValue(initialEnd));
-    setEventColor(null);
-    setCalendarId(
-      activeCalendarId ??
-        calendars.find((calendar) => calendar.writable)?.id ??
-        "",
+    setCategoryId(
+      getCalendarCategory(categories, null, nextCalendarId).id,
     );
-  }, [activeCalendarId, calendars, initialEnd, initialStart, open]);
+    setEventColor(null);
+    setCalendarId(nextCalendarId);
+    setLocation("");
+    setNotes("");
+    setAlertsEnabled(true);
+  });
+
+  useEffect(() => {
+    if (
+      !open ||
+      calendars.some(
+        (calendar) => calendar.id === calendarId && calendar.writable,
+      )
+    ) {
+      return;
+    }
+
+    const nextCalendarId =
+      calendars.find(
+        (calendar) => calendar.id === activeCalendarId && calendar.writable,
+      )?.id ??
+      calendars.find((calendar) => calendar.writable)?.id ??
+      "";
+    setCalendarId(nextCalendarId);
+    setCategoryId(
+      getCalendarCategory(categories, null, nextCalendarId).id,
+    );
+    setEventColor(null);
+  }, [
+    activeCalendarId,
+    calendarId,
+    calendars,
+    categories,
+    open,
+  ]);
 
   useEffect(() => {
     if (!open || selectedCalendar?.source !== "lifever") return;
