@@ -26,7 +26,7 @@
     "build:worker": "pnpm db:generate && pnpm --filter @lifever/api build",
     "deploy:api": "pnpm db:deploy && pnpm deploy:worker",
     "deploy:site": "pnpm dlx vercel@57.0.0 --cwd apps/site --prod --yes",
-    "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy",
+    "deploy:worker": "pnpm db:generate && pnpm --filter @lifever/api deploy:worker",
     "check": "pnpm db:generate && pnpm -r check",
     "db:generate": "prisma generate",
     "db:deploy": "pnpm --dir apps/api exec wrangler d1 migrations apply lifever --remote",
