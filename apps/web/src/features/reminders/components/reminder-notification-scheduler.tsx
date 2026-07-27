@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { syncNotificationScope } from "@/features/notifications/notification-service";
 import type { ScheduledAppNotification } from "@/features/notifications/types";
+import { isDemoMode } from "@/lib/demo-mode";
 
 import { useReminders } from "../model/reminders-provider";
 
@@ -34,7 +35,7 @@ export function ReminderNotificationScheduler() {
   );
 
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || isDemoMode) return;
 
     const nextKeys = new Set(scheduled.map((notification) => notification.key));
     const removedNotification =

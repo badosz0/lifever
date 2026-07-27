@@ -166,11 +166,17 @@ pub async fn sync(request: NotificationSyncRequest) -> Result<bool, String> {
 
     dispatch(move || {
         let NotificationSyncRequest {
+            clear_all,
             cancel_ids,
             notifications,
         } = request;
         let center = UNUserNotificationCenter::currentNotificationCenter();
-        cancel(&center, cancel_ids);
+        if clear_all {
+            center.removeAllPendingNotificationRequests();
+            center.removeAllDeliveredNotifications();
+        } else {
+            cancel(&center, cancel_ids);
+        }
 
         if notifications.is_empty() {
             let _ = sender.send(Ok(true));

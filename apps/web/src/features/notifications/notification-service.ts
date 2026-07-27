@@ -1,4 +1,7 @@
-import { syncNativeNotifications } from "./native-notification-transport";
+import {
+  clearNativeNotifications,
+  syncNativeNotifications,
+} from "./native-notification-transport";
 import type { ScheduledAppNotification } from "./types";
 
 type StoredNotification = {
@@ -83,6 +86,7 @@ async function reconcileScope(
     id: notificationId(scope, notification.key),
   }));
   const permissionGranted = await syncNativeNotifications({
+    clearAll: false,
     cancelIds: cancelledIds,
     notifications: scheduledById.map(({ notification, id }) => ({
       id,
@@ -119,6 +123,19 @@ export function syncNotificationScope(
   notifications: ScheduledAppNotification[],
 ) {
   const task = syncQueue.then(() => reconcileScope(scope, notifications));
+  syncQueue = task.catch(() => undefined);
+  return task;
+}
+
+/**
+ * Clears every pending and delivered Lifever notification from the operating
+ * system, then forgets the local registry so active schedulers can rebuild it.
+ */
+export function clearAllScheduledNotifications() {
+  const task = syncQueue.then(async () => {
+    await clearNativeNotifications();
+    writeRegistry({});
+  });
   syncQueue = task.catch(() => undefined);
   return task;
 }

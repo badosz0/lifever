@@ -1,13 +1,20 @@
 import { LoaderCircle, LogIn } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Titlebar } from "@/components/app-shell/titlebar";
 import { Button } from "@/components/ui/button";
+import { clearAllScheduledNotifications } from "@/features/notifications/notification-service";
 import { signInWithDiscord } from "@/lib/auth-client";
 
 export function SignedOutScreen() {
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  useEffect(() => {
+    void clearAllScheduledNotifications().catch((error) => {
+      console.warn("Could not clear signed-out notifications", error);
+    });
+  }, []);
 
   const signIn = async () => {
     setIsSigningIn(true);

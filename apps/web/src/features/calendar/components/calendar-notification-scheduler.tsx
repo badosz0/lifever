@@ -1,7 +1,9 @@
 import { subMinutes } from "date-fns";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { syncNotificationScope } from "@/features/notifications/notification-service";
+import type { ScheduledAppNotification } from "@/features/notifications/types";
+import { isDemoMode } from "@/lib/demo-mode";
 
 import { useCalendar } from "../model/calendar-provider";
 
@@ -9,12 +11,10 @@ const CALENDAR_NOTIFICATION_SYNC_DELAY = 400;
 
 export function CalendarNotificationScheduler() {
   const { events, isReady } = useCalendar();
-
-  useEffect(() => {
-    if (!isReady) return;
-
-    const timeout = window.setTimeout(() => {
-      const scheduled = events.flatMap((event) => {
+  const previousKeys = useRef<Set<string> | null>(null);
+  const scheduled = useMemo<ScheduledAppNotification[]>(
+    () =>
+      events.flatMap((event) => {
         if (!event.alertsEnabled) return [];
 
         const startsAt = new Date(event.startAt);
@@ -49,15 +49,33 @@ export function CalendarNotificationScheduler() {
             },
           },
         ];
-      });
+      }),
+    [events],
+  );
 
+  useEffect(() => {
+    if (!isReady || isDemoMode) return;
+
+    const nextKeys = new Set(scheduled.map((notification) => notification.key));
+    const removedNotification =
+      previousKeys.current === null ||
+      [...previousKeys.current].some((key) => !nextKeys.has(key));
+    previousKeys.current = nextKeys;
+
+    const sync = () => {
       void syncNotificationScope("calendar", scheduled).catch((error) => {
         console.warn("Could not sync calendar notifications", error);
       });
-    }, CALENDAR_NOTIFICATION_SYNC_DELAY);
+    };
 
+    if (removedNotification) {
+      sync();
+      return;
+    }
+
+    const timeout = window.setTimeout(sync, CALENDAR_NOTIFICATION_SYNC_DELAY);
     return () => window.clearTimeout(timeout);
-  }, [events, isReady]);
+  }, [isReady, scheduled]);
 
   return null;
 }

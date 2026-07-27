@@ -8,6 +8,7 @@ type NativeScheduledNotification = {
 };
 
 type NativeNotificationSyncRequest = {
+  clearAll: boolean;
   cancelIds: string[];
   notifications: NativeScheduledNotification[];
 };
@@ -31,4 +32,12 @@ export async function syncNativeNotifications(
   if (!invoke) return null;
 
   return invoke<boolean>("sync_native_notifications", { request });
+}
+
+export function clearNativeNotifications() {
+  return syncNativeNotifications({
+    clearAll: true,
+    cancelIds: [],
+    notifications: [],
+  });
 }

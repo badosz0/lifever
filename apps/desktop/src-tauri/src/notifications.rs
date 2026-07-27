@@ -17,6 +17,8 @@ pub struct ScheduledNotification {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSyncRequest {
+    #[serde(default)]
+    clear_all: bool,
     cancel_ids: Vec<String>,
     notifications: Vec<ScheduledNotification>,
 }
