@@ -231,7 +231,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
         setActiveProjectIdState((current) =>
           workspace.state.projects.some((project) => project.id === current)
             ? current
-            : workspace.state.projects[0]?.id ?? "",
+            : readActiveProject(workspace.state),
         );
         if (!preserveSelection) setSelectedCardId(null);
         setHydratedMode(requestedMode);
@@ -401,15 +401,13 @@ export function KanbanProvider({ children }: PropsWithChildren) {
   }, [hydratedMode, isPending, session, state]);
 
   useEffect(() => {
-    if (hydratedMode !== "local" || session || isPending || !activeProjectId) {
-      return;
-    }
+    if (!hydratedMode || isPending || !activeProjectId) return;
     try {
       localStorage.setItem(ACTIVE_PROJECT_KEY, activeProjectId);
     } catch {
       // The in-memory selection remains available.
     }
-  }, [activeProjectId, hydratedMode, isPending, session]);
+  }, [activeProjectId, hydratedMode, isPending]);
 
   useEffect(() => {
     const userId = session?.user.id;
