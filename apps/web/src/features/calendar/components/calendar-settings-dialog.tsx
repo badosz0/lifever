@@ -621,7 +621,7 @@ export function CalendarSettingsDialog({
           )}
         </div>
 
-        <div className="flex justify-end border-t border-border/65 bg-popover px-5 py-3">
+        <div className="flex justify-end rounded-b-2xl border-t border-border/65 bg-popover px-5 py-3">
           <Button type="button" onClick={() => onOpenChange(false)}>
             Done
           </Button>
