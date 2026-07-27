@@ -12,7 +12,24 @@ export type SharedResourceAccess = {
   role: "owner" | "collaborator";
   permission: SharePermission;
   shareId: string | null;
+  shared: boolean;
   owner: SharedPerson;
+};
+
+export type SharedResourceMember = {
+  id: string;
+  role: "owner" | "collaborator";
+  permission: SharePermission;
+  user: SharedPerson;
+};
+
+export type SharedResourceMembersPayload = {
+  resource: {
+    id: string;
+    name: string;
+    access: SharedResourceAccess;
+  };
+  members: SharedResourceMember[];
 };
 
 export type ResourceInvite = {

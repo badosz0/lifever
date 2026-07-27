@@ -27,6 +27,7 @@ export type ResourceAccess = {
   role: "owner" | "collaborator";
   permission: SharePermission;
   shareId: string | null;
+  shared: boolean;
   visible: boolean;
   resource: ResourceIdentity;
 };
@@ -112,10 +113,15 @@ export const getResourceAccess = async (
   );
   if (!resource) return null;
   if (resource.ownerId === userId) {
+    const shared = await prisma.resourceShare.findFirst({
+      where: { resourceType, resourceId },
+      select: { id: true },
+    });
     return {
       role: "owner",
       permission: "write",
       shareId: null,
+      shared: Boolean(shared),
       visible: true,
       resource,
     };
@@ -138,6 +144,7 @@ export const getResourceAccess = async (
     role: "collaborator",
     permission: share.permission,
     shareId: share.id,
+    shared: true,
     visible: share.visible,
     resource,
   };
@@ -150,6 +157,7 @@ export const serializeResourceAccess = (access: ResourceAccess) => ({
   role: access.role,
   permission: access.permission,
   shareId: access.shareId,
+  shared: access.shared,
   owner: access.resource.owner,
 });
 

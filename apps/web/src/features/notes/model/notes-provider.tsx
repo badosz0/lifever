@@ -10,6 +10,12 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { useApps } from "@/features/apps/model/apps-provider";
+import type { CollaborationPeer } from "@/features/collaboration/model/types";
+import {
+  collaborationRoomKey,
+  useLiveCollaboration,
+} from "@/features/collaboration/model/use-live-collaboration";
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
@@ -37,6 +43,7 @@ type NotesContextValue = {
   settings: NotesSettings;
   activeFilter: NotesFilter;
   selectedNoteId: string | null;
+  liveCollaborators: CollaborationPeer[];
   setActiveFilter: (filter: NotesFilter) => void;
   setSelectedNoteId: (id: string | null) => void;
   addNote: () => Note;
@@ -155,6 +162,7 @@ const readStoredState = (): HydratedNotesState => {
 
 export function NotesProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
+  const { activeApp } = useApps();
   const [notes, setNotes] = useState<Note[]>([]);
   const [categories, setCategories] = useState<NoteCategory[]>([]);
   const [settings, setSettings] =
@@ -248,6 +256,156 @@ export function NotesProvider({ children }: PropsWithChildren) {
     [loadRemote],
   );
 
+  const selectedSharedNote = useMemo(
+    () =>
+      notes.find(
+        (note) => note.id === selectedNoteId && note.access?.shared,
+      ) ?? null,
+    [notes, selectedNoteId],
+  );
+  const collaborationRooms = useMemo(
+    () =>
+      activeApp === "notes" && selectedSharedNote
+        ? [
+            {
+              resourceType: "note" as const,
+              resourceId: selectedSharedNote.id,
+              focus: {
+                kind: "note" as const,
+                id: selectedSharedNote.id,
+              },
+            },
+          ]
+        : [],
+    [activeApp, selectedSharedNote],
+  );
+  const handleCollaborationChange = useCallback(
+    (message: {
+      change: { action: "delete" | "upsert"; data: unknown; entity: string };
+      resourceId: string;
+    }) => {
+      if (message.change.entity === "note-category") {
+        if (message.change.action === "delete") {
+          const data = message.change.data as {
+            categoryId?: unknown;
+            replacementCategoryId?: unknown;
+          };
+          if (
+            typeof data.categoryId !== "string" ||
+            typeof data.replacementCategoryId !== "string"
+          ) {
+            return;
+          }
+          setCategories((current) =>
+            current.filter(
+              (category) => category.id !== data.categoryId,
+            ),
+          );
+          setNotes((current) =>
+            current.map((note) =>
+              note.categoryId === data.categoryId
+                ? {
+                    ...note,
+                    categoryId: data.replacementCategoryId as string,
+                  }
+                : note,
+            ),
+          );
+          return;
+        }
+        const category = (
+          message.change.data as { category?: NoteCategory }
+        ).category;
+        if (!category) return;
+        setCategories((current) =>
+          current.some((item) => item.id === category.id)
+            ? current.map((item) =>
+                item.id === category.id
+                  ? { ...category, owned: item.owned }
+                  : item,
+              )
+            : [
+                ...current,
+                {
+                  ...category,
+                  owned: selectedSharedNote?.access?.role !== "collaborator",
+                },
+              ],
+        );
+        return;
+      }
+      if (message.change.entity !== "note") return;
+      if (message.change.action === "delete") {
+        const noteId = (message.change.data as { noteId?: unknown }).noteId;
+        if (typeof noteId !== "string") return;
+        const pending = pendingUpdates.current.get(noteId);
+        if (pending) window.clearTimeout(pending.timeout);
+        pendingUpdates.current.delete(noteId);
+        noteVersions.current.delete(noteId);
+        setNotes((current) =>
+          current.filter((note) => note.id !== noteId),
+        );
+        setSelectedNoteId((current) =>
+          current === noteId ? null : current,
+        );
+        return;
+      }
+
+      const changeData = message.change.data as {
+        category?: NoteCategory;
+        note?: Note;
+      };
+      const remoteNote = changeData.note;
+      if (!remoteNote || remoteNote.id !== message.resourceId) return;
+      if (changeData.category) {
+        const category = changeData.category;
+        setCategories((current) =>
+          current.some((item) => item.id === category.id)
+            ? current.map((item) =>
+                item.id === category.id
+                  ? { ...category, owned: item.owned }
+                  : item,
+              )
+            : [
+                ...current,
+                {
+                  ...category,
+                  owned:
+                    selectedSharedNote?.access?.role !== "collaborator",
+                },
+              ],
+        );
+      }
+      const hasLocalWrite =
+        pendingUpdates.current.has(remoteNote.id) ||
+        noteWriteChains.current.has(remoteNote.id);
+      if (hasLocalWrite) return;
+      noteVersions.current.set(remoteNote.id, remoteNote.updatedAt);
+      setNotes((current) =>
+        current.map((note) =>
+          note.id === remoteNote.id
+            ? { ...remoteNote, access: note.access }
+            : note,
+        ),
+      );
+    },
+    [selectedSharedNote?.access?.role],
+  );
+  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
+    currentUserId: session?.user.id,
+    enabled: Boolean(session && collaborationRooms.length > 0),
+    rooms: collaborationRooms,
+    onResourceChange: handleCollaborationChange,
+    onAccessChanged: () => {
+      if (session?.user.id) void loadRemote(session.user.id, true);
+    },
+  });
+  const liveCollaborators = selectedSharedNote
+    ? collaborationPeers[
+        collaborationRoomKey("note", selectedSharedNote.id)
+      ] ?? []
+    : [];
+
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
@@ -320,6 +478,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
     const refresh = () => void loadRemote(userId, true);
     const interval = window.setInterval(() => {
       if (
+        activeApp === "notes" &&
         document.visibilityState === "visible" &&
         pendingCreates.current.size === 0 &&
         pendingDeletes.current.size === 0 &&
@@ -332,13 +491,13 @@ export function NotesProvider({ children }: PropsWithChildren) {
       ) {
         refresh();
       }
-    }, 5_000);
+    }, 30_000);
     window.addEventListener(SHARING_CHANGED_EVENT, refresh);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
-  }, [loadRemote, session?.user.id]);
+  }, [activeApp, loadRemote, session?.user.id]);
 
   useEffect(() => {
     const reset = () => {
@@ -386,7 +545,9 @@ export function NotesProvider({ children }: PropsWithChildren) {
           noteVersions.current.set(id, note.updatedAt);
           setNotes((current) =>
             current.map((item) =>
-              item.id === id ? { ...item, updatedAt: note.updatedAt } : item,
+              item.id === id
+                ? { ...note, access: item.access ?? note.access }
+                : item,
             ),
           );
         })
@@ -513,6 +674,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
               role: "owner" as const,
               permission: "write" as const,
               shareId: null,
+              shared: false,
               owner: {
                 id: session.user.id,
                 name: session.user.name,
@@ -809,6 +971,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
       settings,
       activeFilter,
       selectedNoteId,
+      liveCollaborators,
       setActiveFilter,
       setSelectedNoteId,
       addNote,
@@ -830,6 +993,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
       addNote,
       categories,
       hydratedMode,
+      liveCollaborators,
       notes,
       removeCategory,
       removeNote,

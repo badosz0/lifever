@@ -2,6 +2,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, GripVertical, MessageSquareText } from "lucide-react";
 
+import { LivePresence } from "@/features/collaboration/components/live-presence";
+import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import { KanbanCardContextMenu } from "@/features/kanban/components/kanban-card-context-menu";
 import { getKanbanDueState, parseKanbanDate } from "@/features/kanban/lib/dates";
 import { getKanbanPriority } from "@/features/kanban/lib/properties";
@@ -19,6 +21,7 @@ type KanbanCardSurfaceProps = {
   completed: boolean;
   selected?: boolean;
   overlay?: boolean;
+  collaborators?: CollaborationPeer[];
 };
 
 export function KanbanCardSurface({
@@ -27,6 +30,7 @@ export function KanbanCardSurface({
   completed,
   selected,
   overlay,
+  collaborators = [],
 }: KanbanCardSurfaceProps) {
   const { dateFormat } = useUserPreferences();
   const priority = getKanbanPriority(card.priority);
@@ -44,6 +48,12 @@ export function KanbanCardSurface({
           "scale-[1.02] border-foreground/15 shadow-[0_18px_45px_rgb(0_0_0/.2)]",
       )}
     >
+      <LivePresence
+        peers={collaborators}
+        pointer
+        size="xs"
+        className="absolute -top-2 -right-1 z-10"
+      />
       {cardLabels.length > 0 ? (
         <div className="mb-2 flex w-full flex-wrap gap-1.5">
           {cardLabels.slice(0, 3).map((label) => (
@@ -132,6 +142,7 @@ export function KanbanSortableCard({
   labels,
   completed,
   selected,
+  collaborators,
   onSelect,
   readOnly = false,
 }: KanbanSortableCardProps) {
@@ -175,6 +186,7 @@ export function KanbanSortableCard({
           labels={labels}
           completed={completed}
           selected={selected}
+          collaborators={collaborators}
         />
       </button>
     </KanbanCardContextMenu>

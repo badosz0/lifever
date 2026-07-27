@@ -1,11 +1,13 @@
 import type { Context, MiddlewareHandler } from "hono";
 
+import type { CollaborationBindings } from "../collaboration/collaboration.types.js";
 import type { AppAuth } from "./auth.js";
 
 export const getSession = (context: Context, auth: AppAuth) =>
   auth.api.getSession({ headers: context.req.raw.headers });
 
 export type AuthenticatedEnv = {
+  Bindings: CollaborationBindings;
   Variables: {
     session: NonNullable<Awaited<ReturnType<AppAuth["api"]["getSession"]>>>;
   };

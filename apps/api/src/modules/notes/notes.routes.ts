@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
   canWriteResource,
@@ -55,6 +56,24 @@ export const createNotesRoutes = ({
   requireSession,
 }: RouteDependencies) => {
   const notesRoutes = new Hono<AuthenticatedEnv>();
+  const sharedNoteIdsForCategory = async (
+    userId: string,
+    categoryId: string,
+  ) => {
+    const notes = await prisma.note.findMany({
+      where: { userId, categoryId },
+      select: { id: true },
+    });
+    if (notes.length === 0) return [];
+    const shares = await prisma.resourceShare.findMany({
+      where: {
+        resourceType: "note",
+        resourceId: { in: notes.map((note) => note.id) },
+      },
+      select: { resourceId: true },
+    });
+    return [...new Set(shares.map((share) => share.resourceId))];
+  };
 
   notesRoutes.use("*", requireSession);
 
@@ -109,16 +128,39 @@ export const createNotesRoutes = ({
     const [{ categories: ownCategories, settings }, shares] = await Promise.all([
       ensureNotesConfiguration(userId),
       prisma.resourceShare.findMany({
-        where: { userId, resourceType: "note" },
-        select: { id: true, resourceId: true, permission: true },
+        where: {
+          resourceType: "note",
+          OR: [{ userId }, { ownerId: userId }],
+        },
+        select: {
+          id: true,
+          ownerId: true,
+          resourceId: true,
+          permission: true,
+          userId: true,
+        },
       }),
     ]);
-    const shareByNote = new Map(shares.map((share) => [share.resourceId, share]));
+    const collaboratorShares = shares.filter(
+      (share) => share.userId === userId,
+    );
+    const shareByNote = new Map(
+      collaboratorShares.map((share) => [share.resourceId, share]),
+    );
+    const sharedOwnedNoteIds = new Set(
+      shares
+        .filter((share) => share.ownerId === userId)
+        .map((share) => share.resourceId),
+    );
     const notes = await prisma.note.findMany({
       where: {
         OR: [
           { userId },
-          { id: { in: shares.map((share) => share.resourceId) } },
+          {
+            id: {
+              in: collaboratorShares.map((share) => share.resourceId),
+            },
+          },
         ],
       },
       select: noteSelect,
@@ -159,6 +201,7 @@ export const createNotesRoutes = ({
             permission:
               own || share?.permission === "write" ? "write" : "read",
             shareId: own ? null : share?.id ?? null,
+            shared: own ? sharedOwnedNoteIds.has(note.id) : true,
             owner: user,
           },
         };
@@ -215,6 +258,22 @@ export const createNotesRoutes = ({
       data: parsed.data,
       select: categorySelect,
     });
+    const sharedNoteIds = await sharedNoteIdsForCategory(
+      userId,
+      category.id,
+    );
+    for (const noteId of sharedNoteIds) {
+      publishCollaborationChange(context, {
+        resourceType: "note",
+        resourceId: noteId,
+        shared: true,
+        change: {
+          action: "upsert",
+          entity: "note-category",
+          data: { category },
+        },
+      });
+    }
     return context.json({ category });
   });
 
@@ -236,6 +295,7 @@ export const createNotesRoutes = ({
     const replacementId = categories.find(
       (category) => category.id !== targetId,
     )!.id;
+    const sharedNoteIds = await sharedNoteIdsForCategory(userId, targetId);
     await prisma.$transaction([
       prisma.note.updateMany({
         where: { userId, categoryId: targetId },
@@ -247,6 +307,21 @@ export const createNotesRoutes = ({
       }),
       prisma.noteCategory.delete({ where: { id: targetId } }),
     ]);
+    for (const noteId of sharedNoteIds) {
+      publishCollaborationChange(context, {
+        resourceType: "note",
+        resourceId: noteId,
+        shared: true,
+        change: {
+          action: "delete",
+          entity: "note-category",
+          data: {
+            categoryId: targetId,
+            replacementCategoryId: replacementId,
+          },
+        },
+      });
+    }
 
     return context.json({ replacementCategoryId: replacementId });
   });
@@ -310,6 +385,7 @@ export const createNotesRoutes = ({
             role: "owner",
             permission: "write",
             shareId: null,
+            shared: false,
             owner: user,
           },
         },
@@ -344,12 +420,13 @@ export const createNotesRoutes = ({
       return context.json({ error: "You only have read access." }, 403);
     }
 
-    if (parsed.data.categoryId) {
-      const category = await prisma.noteCategory.findFirst({
-        where: { id: parsed.data.categoryId, userId: existing.userId },
-        select: { id: true },
-      });
-      if (!category)
+    const updatedCategory = parsed.data.categoryId
+      ? await prisma.noteCategory.findFirst({
+          where: { id: parsed.data.categoryId, userId: existing.userId },
+          select: categorySelect,
+        })
+      : null;
+    if (parsed.data.categoryId && !updatedCategory) {
         return context.json({ error: "Note category not found" }, 400);
     }
 
@@ -370,6 +447,19 @@ export const createNotesRoutes = ({
       select: noteSelect,
     });
     const { userId: _ownerId, user, ...updatedNote } = note;
+    publishCollaborationChange(context, {
+      resourceType: "note",
+      resourceId: note.id,
+      shared: access!.shared,
+      change: {
+        action: "upsert",
+        entity: "note",
+        data: {
+          note: updatedNote,
+          ...(updatedCategory ? { category: updatedCategory } : {}),
+        },
+      },
+    });
     return context.json({
       note: {
         ...updatedNote,
@@ -386,10 +476,21 @@ export const createNotesRoutes = ({
     });
     if (!note)
       return context.json({ error: "Note not found" }, 404);
+    const access = await getResourceAccess(prisma, userId, "note", note.id);
     await prisma.$transaction([
       ...deleteResourceSharing(prisma, "note", note.id),
       prisma.note.delete({ where: { id: note.id } }),
     ]);
+    publishCollaborationChange(context, {
+      resourceType: "note",
+      resourceId: note.id,
+      shared: access?.shared === true,
+      change: {
+        action: "delete",
+        entity: "note",
+        data: { noteId: note.id },
+      },
+    });
     return context.body(null, 204);
   });
 

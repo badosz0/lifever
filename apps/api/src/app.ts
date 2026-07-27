@@ -4,11 +4,13 @@ import { logger } from "hono/logger";
 
 import type { ApiConfig } from "./config/env.js";
 import type { AppPrisma } from "./db/types.js";
+import type { AuthenticatedEnv } from "./modules/auth/session.js";
 import { createAuth } from "./modules/auth/auth.js";
 import { createSessionMiddleware } from "./modules/auth/session.js";
 import { createCalendarCalendarsRoutes } from "./modules/calendar/calendar-calendars.routes.js";
 import { createCalendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
 import { createCalendarRoutes } from "./modules/calendar/calendar.routes.js";
+import { createCollaborationRoutes } from "./modules/collaboration/collaboration.routes.js";
 import { createGoogleCalendarRoutes } from "./modules/google-calendar/google-calendar.routes.js";
 import { createKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { createNotesRoutes } from "./modules/notes/notes.routes.js";
@@ -22,7 +24,7 @@ type ApiDependencies = {
 };
 
 export const createApp = ({ config, prisma }: ApiDependencies) => {
-  const app = new Hono();
+  const app = new Hono<AuthenticatedEnv>();
   const auth = createAuth({ config, prisma });
   const requireSession = createSessionMiddleware(auth);
   const routeDependencies = { config, prisma, requireSession };
@@ -38,7 +40,11 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
     cors({
       origin: (origin) => (allowedOrigins.has(origin) ? origin : config.webUrl),
       credentials: true,
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Lifever-Client-Id",
+      ],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
@@ -66,6 +72,10 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
     createCalendarCalendarsRoutes(routeDependencies),
   );
   app.route("/api/calendar-events", createCalendarRoutes(routeDependencies));
+  app.route(
+    "/api/collaboration",
+    createCollaborationRoutes(routeDependencies),
+  );
   app.route(
     "/api/calendar-integrations/google",
     createGoogleCalendarRoutes(routeDependencies),

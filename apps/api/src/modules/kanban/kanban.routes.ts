@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import type { AppPrisma } from "../../db/types.js";
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import { deleteResourceSharing } from "../sharing/sharing.service.js";
 import {
@@ -124,24 +125,41 @@ const ensureOwnedProjects = async (prisma: AppPrisma, userId: string) => {
 const loadWorkspace = async (prisma: AppPrisma, userId: string) => {
   await ensureOwnedProjects(prisma, userId);
   const shares = await prisma.resourceShare.findMany({
-    where: { userId, resourceType: "kanbanProject" },
+    where: {
+      resourceType: "kanbanProject",
+      OR: [{ userId }, { ownerId: userId }],
+    },
     select: {
       id: true,
+      ownerId: true,
       resourceId: true,
       permission: true,
+      userId: true,
       owner: {
         select: { id: true, name: true, email: true, image: true },
       },
     },
   });
+  const collaboratorShares = shares.filter(
+    (share) => share.userId === userId,
+  );
   const shareByProject = new Map(
-    shares.map((share) => [share.resourceId, share]),
+    collaboratorShares.map((share) => [share.resourceId, share]),
+  );
+  const sharedOwnedProjectIds = new Set(
+    shares
+      .filter((share) => share.ownerId === userId)
+      .map((share) => share.resourceId),
   );
   const projects = await prisma.kanbanProject.findMany({
     where: {
       OR: [
         { ownerId: userId },
-        { id: { in: shares.map((share) => share.resourceId) } },
+        {
+          id: {
+            in: collaboratorShares.map((share) => share.resourceId),
+          },
+        },
       ],
     },
     select: {
@@ -185,6 +203,7 @@ const loadWorkspace = async (prisma: AppPrisma, userId: string) => {
               ? "write"
               : "read",
           shareId: own ? null : share?.id ?? null,
+          shared: own ? sharedOwnedProjectIds.has(project.id) : true,
           owner: project.owner,
         },
       ];
@@ -243,16 +262,32 @@ export const createKanbanRoutes = ({
     const existingById = new Map(existing.map((project) => [project.id, project]));
     const shared = await prisma.resourceShare.findMany({
       where: {
-        userId,
         resourceType: "kanbanProject",
-        resourceId: { in: [...incomingById.keys()] },
+        resourceId: {
+          in: [
+            ...incomingById.keys(),
+            ...parsed.data.deletedProjectIds,
+          ],
+        },
+        OR: [{ userId }, { ownerId: userId }],
       },
-      select: { resourceId: true, permission: true },
+      select: {
+        ownerId: true,
+        permission: true,
+        resourceId: true,
+        userId: true,
+      },
     });
     const writableSharedIds = new Set(
       shared
-        .filter((share) => share.permission === "write")
+        .filter(
+          (share) =>
+            share.userId === userId && share.permission === "write",
+        )
         .map((share) => share.resourceId),
+    );
+    const sharedProjectIds = new Set(
+      shared.map((share) => share.resourceId),
     );
 
     for (const [id, incomingState] of incomingById) {
@@ -283,9 +318,11 @@ export const createKanbanRoutes = ({
     }
 
     const operations = [];
+    const changedProjectIds = new Set<string>();
     for (const [id, state] of incomingById) {
       const current = existingById.get(id);
       if (!current) {
+        changedProjectIds.add(id);
         operations.push(
           prisma.kanbanProject.create({
             data: { id, ownerId: userId, state },
@@ -295,6 +332,7 @@ export const createKanbanRoutes = ({
         (current.ownerId === userId || writableSharedIds.has(id)) &&
         JSON.stringify(current.state) !== JSON.stringify(state)
       ) {
+        changedProjectIds.add(id);
         operations.push(
           prisma.kanbanProject.update({
             where: { id },
@@ -325,12 +363,49 @@ export const createKanbanRoutes = ({
       return context.json({ error: "Keep at least one project." }, 400);
     }
     for (const project of ownedDeletes) {
+      changedProjectIds.delete(project.id);
       operations.push(
         ...deleteResourceSharing(prisma, "kanbanProject", project.id),
         prisma.kanbanProject.delete({ where: { id: project.id } }),
       );
     }
     if (operations.length > 0) await prisma.$transaction(operations);
+    const updatedProjects =
+      changedProjectIds.size > 0
+        ? await prisma.kanbanProject.findMany({
+            where: { id: { in: [...changedProjectIds] } },
+            select: { id: true, state: true, updatedAt: true },
+          })
+        : [];
+    for (const project of updatedProjects) {
+      const state = parseStoredState(project.state);
+      if (!state) continue;
+      publishCollaborationChange(context, {
+        resourceType: "kanbanProject",
+        resourceId: project.id,
+        shared: sharedProjectIds.has(project.id),
+        change: {
+          action: "upsert",
+          entity: "kanban-project",
+          data: {
+            state,
+            updatedAt: project.updatedAt.toISOString(),
+          },
+        },
+      });
+    }
+    for (const project of ownedDeletes) {
+      publishCollaborationChange(context, {
+        resourceType: "kanbanProject",
+        resourceId: project.id,
+        shared: sharedProjectIds.has(project.id),
+        change: {
+          action: "delete",
+          entity: "kanban-project",
+          data: { projectId: project.id },
+        },
+      });
+    }
     return context.json(await loadWorkspace(prisma, userId));
   });
 

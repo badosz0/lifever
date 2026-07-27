@@ -12,6 +12,7 @@
   "include": ["src/**/*.ts"],
   "exclude": [
     "src/worker.ts",
+    "src/collaboration-room.ts",
     "src/db/worker-client.ts",
     "src/generated/prisma-worker"
   ]

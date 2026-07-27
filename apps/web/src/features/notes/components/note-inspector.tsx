@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LivePresence } from "@/features/collaboration/components/live-presence";
 import { NoteMarkdown } from "@/features/notes/components/note-markdown";
 import { ShareDialog } from "@/features/sharing/components/share-dialog";
 import {
@@ -38,6 +39,7 @@ type EditorMode = "edit" | "preview";
 export function NoteInspector({ className }: NoteInspectorProps) {
   const {
     categories,
+    liveCollaborators,
     notes,
     removeNote,
     restoreNote,
@@ -193,6 +195,8 @@ export function NoteInspector({ className }: NoteInspectorProps) {
             Preview
           </button>
         </div>
+
+        <LivePresence peers={liveCollaborators} />
 
         <Button
           variant="ghost"

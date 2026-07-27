@@ -9,6 +9,7 @@ import {
 
 import { CalendarEventResizeHandle } from "@/features/calendar/components/calendar-event-resize-handle";
 import { CalendarEventContextMenu } from "@/features/calendar/components/calendar-event-context-menu";
+import { LivePresence } from "@/features/collaboration/components/live-presence";
 import {
   addDays,
   addMinutes,
@@ -90,7 +91,7 @@ export function CalendarEventBlock({
   onSelect,
   onMove,
 }: CalendarEventBlockProps) {
-  const { categories } = useCalendar();
+  const { categories, eventCollaborators } = useCalendar();
   const { timeFormat } = useUserPreferences();
   const category = getCalendarEventCategory(categories, event);
   const pointer = useRef<{
@@ -134,6 +135,7 @@ export function CalendarEventBlock({
     (visibleDuration / 60) * hourHeight - 2,
   );
   const durationLabel = formatDurationMinutes(visibleEventDuration);
+  const collaborators = eventCollaborators[event.id] ?? [];
 
   const previewRange = useMemo(() => {
     const movedStart = addMinutes(
@@ -400,6 +402,9 @@ export function CalendarEventBlock({
         <span className="min-w-0 flex-1 truncate text-[11px] leading-4 font-semibold tracking-[-0.005em]">
           {event.title}
         </span>
+        {collaborators.length > 0 ? (
+          <LivePresence peers={collaborators} size="xs" />
+        ) : null}
         <span className="shrink-0 text-[9px] leading-4 font-medium tabular-nums opacity-55">
           {durationLabel}
         </span>

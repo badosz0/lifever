@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
   canWriteResource,
@@ -111,6 +112,17 @@ export const createCalendarRoutes = ({
       },
       select: calendarEventSelect,
     });
+    const { userId: _ownerId, ...liveEvent } = event;
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: event.calendarId,
+      shared: access.shared,
+      change: {
+        action: "upsert",
+        entity: "calendar-event",
+        data: { event: liveEvent },
+      },
+    });
 
     return context.json({ event }, 201);
   });
@@ -220,6 +232,29 @@ export const createCalendarRoutes = ({
       },
       select: calendarEventSelect,
     });
+    const { userId: _ownerId, ...liveEvent } = event;
+    if (existing.calendarId !== event.calendarId) {
+      publishCollaborationChange(context, {
+        resourceType: "calendar",
+        resourceId: existing.calendarId,
+        shared: currentAccess.shared,
+        change: {
+          action: "delete",
+          entity: "calendar-event",
+          data: { eventId: event.id },
+        },
+      });
+    }
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: event.calendarId,
+      shared: nextAccess!.shared,
+      change: {
+        action: "upsert",
+        entity: "calendar-event",
+        data: { event: liveEvent },
+      },
+    });
 
     return context.json({ event });
   });
@@ -244,6 +279,16 @@ export const createCalendarRoutes = ({
       return context.json({ error: "You only have read access." }, 403);
     }
     await prisma.calendarEvent.delete({ where: { id: event.id } });
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: event.calendarId,
+      shared: access.shared,
+      change: {
+        action: "delete",
+        entity: "calendar-event",
+        data: { eventId: event.id },
+      },
+    });
     return context.body(null, 204);
   });
 

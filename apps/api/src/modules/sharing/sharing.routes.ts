@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { updateCollaborationAccess } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
   createResourceInviteSchema,
@@ -96,6 +97,12 @@ export const createSharingRoutes = ({
           where: { id: existingShare.id },
           data: { permission: parsed.data.permission },
           select: { id: true, permission: true },
+        });
+        updateCollaborationAccess(context, {
+          resourceType: parsed.data.resourceType,
+          resourceId: parsed.data.resourceId,
+          removedUserId: recipient.id,
+          shared: true,
         });
         return context.json({ share, alreadyMember: true });
       }
@@ -281,7 +288,13 @@ export const createSharingRoutes = ({
     }
     const share = await prisma.resourceShare.findUnique({
       where: { id: context.req.param("id") },
-      select: { id: true, ownerId: true },
+      select: {
+        id: true,
+        ownerId: true,
+        resourceId: true,
+        resourceType: true,
+        userId: true,
+      },
     });
     if (!share) return context.json({ error: "Collaborator not found" }, 404);
     if (share.ownerId !== session.user.id) {
@@ -292,6 +305,17 @@ export const createSharingRoutes = ({
       data: parsed.data,
       select: { id: true, permission: true },
     });
+    const parsedType = resourceParamsSchema.shape.resourceType.safeParse(
+      share.resourceType,
+    );
+    if (parsedType.success) {
+      updateCollaborationAccess(context, {
+        resourceType: parsedType.data,
+        resourceId: share.resourceId,
+        removedUserId: share.userId,
+        shared: true,
+      });
+    }
     return context.json({ share: updated });
   });
 
@@ -299,13 +323,36 @@ export const createSharingRoutes = ({
     const session = context.get("session");
     const share = await prisma.resourceShare.findUnique({
       where: { id: context.req.param("id") },
-      select: { id: true, ownerId: true, userId: true },
+      select: {
+        id: true,
+        ownerId: true,
+        resourceId: true,
+        resourceType: true,
+        userId: true,
+      },
     });
     if (!share) return context.json({ error: "Collaborator not found" }, 404);
     if (share.ownerId !== session.user.id && share.userId !== session.user.id) {
       return context.json({ error: "You cannot remove this access." }, 403);
     }
     await prisma.resourceShare.delete({ where: { id: share.id } });
+    const remainingShares = await prisma.resourceShare.count({
+      where: {
+        resourceType: share.resourceType,
+        resourceId: share.resourceId,
+      },
+    });
+    const parsedType = resourceParamsSchema.shape.resourceType.safeParse(
+      share.resourceType,
+    );
+    if (parsedType.success) {
+      updateCollaborationAccess(context, {
+        resourceType: parsedType.data,
+        resourceId: share.resourceId,
+        removedUserId: share.userId,
+        shared: remainingShares > 0,
+      });
+    }
     return context.body(null, 204);
   });
 

@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import {
   KanbanCardSurface,
 } from "@/features/kanban/components/kanban-card";
+import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import { KanbanColumn } from "@/features/kanban/components/kanban-column";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
 import type {
@@ -32,6 +33,7 @@ type KanbanBoardProps = {
   cards: KanbanCard[];
   allCards: KanbanCard[];
   labels: KanbanLabel[];
+  cardCollaborators: Record<string, CollaborationPeer[]>;
   onAddCard: (columnId: string) => void;
   onManageWorkflow: () => void;
   readOnly?: boolean;
@@ -50,11 +52,17 @@ export function KanbanBoard({
   cards,
   allCards,
   labels,
+  cardCollaborators,
   onAddCard,
   onManageWorkflow,
   readOnly = false,
 }: KanbanBoardProps) {
-  const { moveCard, selectedCardId, setSelectedCardId } = useKanban();
+  const {
+    moveCard,
+    selectedCardId,
+    setCollaborationFocusCardId,
+    setSelectedCardId,
+  } = useKanban();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -114,7 +122,10 @@ export function KanbanBoard({
   const handleDragStart = (event: DragStartEvent) => {
     if (readOnly) return;
     const cardId = event.active.data.current?.cardId;
-    if (typeof cardId === "string") setActiveCardId(cardId);
+    if (typeof cardId === "string") {
+      setActiveCardId(cardId);
+      setCollaborationFocusCardId(cardId);
+    }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -132,6 +143,7 @@ export function KanbanBoard({
     const cardId = event.active.data.current?.cardId;
     const destination = getDestination(event);
     setActiveCardId(null);
+    setCollaborationFocusCardId(null);
     if (typeof cardId !== "string" || !destination) return;
     moveCard(cardId, destination.columnId, destination.index);
   };
@@ -147,7 +159,10 @@ export function KanbanBoard({
       }}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
-      onDragCancel={() => setActiveCardId(null)}
+      onDragCancel={() => {
+        setActiveCardId(null);
+        setCollaborationFocusCardId(null);
+      }}
       onDragEnd={handleDragEnd}
     >
       <div className="flex min-h-full min-w-max items-start gap-4 px-4 pb-8 sm:px-6">
@@ -162,6 +177,7 @@ export function KanbanBoard({
               allCards.filter((card) => card.columnId === column.id).length
             }
             labels={labels}
+            cardCollaborators={cardCollaborators}
             selectedCardId={selectedCardId}
             onSelectCard={setSelectedCardId}
             onAddCard={onAddCard}

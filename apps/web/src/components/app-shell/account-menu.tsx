@@ -51,16 +51,32 @@ export function AccountMenu() {
         <DropdownMenuTrigger asChild>
           <button
             className="group flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:bg-sidebar-accent/75 active:bg-sidebar-accent data-[state=open]:bg-sidebar-accent/75 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            aria-label="Open account menu"
+            aria-label={
+              invites.length > 0
+                ? `Open account menu, ${invites.length} pending ${
+                    invites.length === 1 ? "invitation" : "invitations"
+                  }`
+                : "Open account menu"
+            }
           >
-            <Avatar className="size-6 ring-1 ring-border/70">
-              {session?.user.image ? (
-                <AvatarImage src={session.user.image} alt="" />
+            <span className="relative shrink-0">
+              <Avatar className="size-6 ring-1 ring-border/70">
+                {session?.user.image ? (
+                  <AvatarImage src={session.user.image} alt="" />
+                ) : null}
+                <AvatarFallback className="text-[10px]">
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
+              {invites.length > 0 ? (
+                <span
+                  className="absolute -top-1.5 -right-1.5 flex min-w-3.5 items-center justify-center rounded-full bg-destructive px-1 text-[8px] leading-3.5 font-bold text-destructive-foreground ring-2 ring-sidebar"
+                  aria-hidden="true"
+                >
+                  {invites.length > 9 ? "9+" : invites.length}
+                </span>
               ) : null}
-              <AvatarFallback className="text-[10px]">
-                {initial}
-              </AvatarFallback>
-            </Avatar>
+            </span>
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
               {name}
             </span>

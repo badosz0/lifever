@@ -36,6 +36,8 @@ import {
 } from "@/features/kanban/lib/properties";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
 import type { KanbanPriority } from "@/features/kanban/model/types";
+import { SharedMemberAvatars } from "@/features/sharing/components/shared-member-avatars";
+import { useSharedResourceMembers } from "@/features/sharing/model/use-shared-resource-members";
 import { cn } from "@/lib/cn";
 
 type KanbanViewProps = {
@@ -52,9 +54,12 @@ export function KanbanView({
   const {
     activeProjectId,
     cards,
+    cardCollaborators,
     canEditProject,
     columns,
     labels,
+    liveCollaborators,
+    projectAccess,
     projects,
     setActiveProjectId,
     setSelectedCardId,
@@ -68,6 +73,19 @@ export function KanbanView({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
+  const collaborative = projectAccess[activeProjectId]?.shared === true;
+  const projectMembers = useSharedResourceMembers({
+    enabled: collaborative,
+    resourceId: activeProjectId || null,
+    resourceType: "kanbanProject",
+  });
+  const activeCollaboratorIds = useMemo(
+    () =>
+      new Set(
+        liveCollaborators.map((collaborator) => collaborator.user.id),
+      ),
+    [liveCollaborators],
+  );
 
   const project = projects.find((item) => item.id === activeProjectId);
   const canEdit = canEditProject(activeProjectId);
@@ -197,6 +215,13 @@ export function KanbanView({
             onCreateProject={() => setNewProjectOpen(true)}
             onManageProject={() => setSettingsOpen(true)}
           />
+          {collaborative ? (
+            <SharedMemberAvatars
+              members={projectMembers}
+              activeUserIds={activeCollaboratorIds}
+              className="ml-0.5"
+            />
+          ) : null}
 
           <div className="flex-1" />
 
@@ -310,6 +335,7 @@ export function KanbanView({
           cards={filteredCards}
           allCards={projectCards}
           labels={projectLabels}
+          cardCollaborators={cardCollaborators}
           onAddCard={openCardComposer}
           onManageWorkflow={() => setSettingsOpen(true)}
           readOnly={!canEdit}

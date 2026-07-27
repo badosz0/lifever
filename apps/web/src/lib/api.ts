@@ -2,6 +2,7 @@ import {
   clearDesktopAuthToken,
   getDesktopAuthToken,
 } from "./auth-token";
+import { getClientInstanceId } from "./client-instance";
 
 export const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
@@ -25,6 +26,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
   if (authToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${authToken}`);
+  }
+  if (!headers.has("X-Lifever-Client-Id")) {
+    headers.set("X-Lifever-Client-Id", getClientInstanceId());
   }
 
   const response = await fetch(`${apiUrl}${path}`, {

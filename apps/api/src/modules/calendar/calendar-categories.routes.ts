@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
   canWriteResource,
@@ -148,6 +149,16 @@ export const createCalendarCategoriesRoutes = ({
       data: { ...parsed.data, userId: access.resource.ownerId },
       select: calendarCategorySelect,
     });
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: category.calendarId,
+      shared: access.shared,
+      change: {
+        action: "upsert",
+        entity: "calendar-category",
+        data: { category },
+      },
+    });
     return context.json({ category }, 201);
   });
 
@@ -183,6 +194,16 @@ export const createCalendarCategoriesRoutes = ({
       where: { id: existing.id },
       data: parsed.data,
       select: calendarCategorySelect,
+    });
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: category.calendarId,
+      shared: access!.shared,
+      change: {
+        action: "upsert",
+        entity: "calendar-category",
+        data: { category },
+      },
     });
     return context.json({ category });
   });
@@ -229,6 +250,19 @@ export const createCalendarCategoriesRoutes = ({
       }),
       prisma.calendarCategory.delete({ where: { id: target.id } }),
     ]);
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: target.calendarId,
+      shared: access!.shared,
+      change: {
+        action: "delete",
+        entity: "calendar-category",
+        data: {
+          categoryId: target.id,
+          replacementCategoryId: replacement.id,
+        },
+      },
+    });
 
     return context.json({ replacementCategoryId: replacement.id });
   });

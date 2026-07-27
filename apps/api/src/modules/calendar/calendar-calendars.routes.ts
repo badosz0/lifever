@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
+import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
 import {
   canWriteResource,
@@ -55,25 +56,42 @@ export const createCalendarCalendarsRoutes = ({
     const userId = context.get("session").user.id;
     await ensureDefaultCalendar(prisma, userId);
     const shares = await prisma.resourceShare.findMany({
-      where: { userId, resourceType: "calendar" },
+      where: {
+        resourceType: "calendar",
+        OR: [{ userId }, { ownerId: userId }],
+      },
       select: {
         id: true,
+        ownerId: true,
         resourceId: true,
         permission: true,
+        userId: true,
         visible: true,
         owner: {
           select: { id: true, name: true, email: true, image: true },
         },
       },
     });
+    const collaboratorShares = shares.filter(
+      (share) => share.userId === userId,
+    );
     const shareByCalendar = new Map(
-      shares.map((share) => [share.resourceId, share]),
+      collaboratorShares.map((share) => [share.resourceId, share]),
+    );
+    const sharedOwnedCalendarIds = new Set(
+      shares
+        .filter((share) => share.ownerId === userId)
+        .map((share) => share.resourceId),
     );
     const calendars = await prisma.lifeverCalendar.findMany({
       where: {
         OR: [
           { userId },
-          { id: { in: shares.map((share) => share.resourceId) } },
+          {
+            id: {
+              in: collaboratorShares.map((share) => share.resourceId),
+            },
+          },
         ],
       },
       select: {
@@ -98,6 +116,7 @@ export const createCalendarCalendarsRoutes = ({
             permission:
               own || share?.permission === "write" ? "write" : "read",
             shareId: own ? null : share?.id ?? null,
+            shared: own ? sharedOwnedCalendarIds.has(calendar.id) : true,
             owner: user,
           },
         };
@@ -200,6 +219,25 @@ export const createCalendarCalendarsRoutes = ({
             where: { id: existing.id },
             select: calendarSelect,
           });
+    if (Object.keys(sharedPatch).length > 0) {
+      publishCollaborationChange(context, {
+        resourceType: "calendar",
+        resourceId: calendar.id,
+        shared: access!.shared,
+        change: {
+          action: "upsert",
+          entity: "calendar",
+          data: {
+            calendar: {
+              id: calendar.id,
+              name: calendar.name,
+              color: calendar.color,
+              position: calendar.position,
+            },
+          },
+        },
+      });
+    }
     return context.json({
       calendar: {
         ...calendar,
@@ -244,6 +282,12 @@ export const createCalendarCalendarsRoutes = ({
       );
     }
 
+    const access = await getResourceAccess(
+      prisma,
+      userId,
+      "calendar",
+      target.id,
+    );
     await prisma.$transaction([
       prisma.calendarEvent.updateMany({
         where: { userId, calendarId: target.id },
@@ -255,6 +299,16 @@ export const createCalendarCalendarsRoutes = ({
       ...deleteResourceSharing(prisma, "calendar", target.id),
       prisma.lifeverCalendar.delete({ where: { id: target.id } }),
     ]);
+    publishCollaborationChange(context, {
+      resourceType: "calendar",
+      resourceId: target.id,
+      shared: access?.shared === true,
+      change: {
+        action: "delete",
+        entity: "calendar",
+        data: { calendarId: target.id },
+      },
+    });
     return context.json({ replacementCalendarId: replacement.id });
   });
 

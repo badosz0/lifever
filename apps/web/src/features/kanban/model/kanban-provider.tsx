@@ -10,6 +10,15 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { useApps } from "@/features/apps/model/apps-provider";
+import type {
+  CollaborationPeer,
+  CollaborationResourceMessage,
+} from "@/features/collaboration/model/types";
+import {
+  collaborationRoomKey,
+  useLiveCollaboration,
+} from "@/features/collaboration/model/use-live-collaboration";
 import { RESET_DEMO_DATA_EVENT } from "@/features/settings/lib/demo-data";
 import { mergeKanbanStates } from "@/features/kanban/lib/merge-state";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
@@ -40,6 +49,29 @@ const emptyKanbanState: KanbanState = {
   cards: [],
 };
 
+const replaceProjectSlice = (
+  state: KanbanState,
+  projectId: string,
+  replacement: KanbanState,
+): KanbanState => ({
+  projects: [
+    ...state.projects.filter((item) => item.id !== projectId),
+    ...replacement.projects,
+  ],
+  columns: [
+    ...state.columns.filter((item) => item.projectId !== projectId),
+    ...replacement.columns,
+  ],
+  labels: [
+    ...state.labels.filter((item) => item.projectId !== projectId),
+    ...replacement.labels,
+  ],
+  cards: [
+    ...state.cards.filter((item) => item.projectId !== projectId),
+    ...replacement.cards,
+  ],
+});
+
 type KanbanWorkspacePayload = {
   workspace: {
     state: KanbanState;
@@ -52,8 +84,11 @@ type KanbanWorkspacePayload = {
 type KanbanContextValue = KanbanState & {
   activeProjectId: string;
   selectedCardId: string | null;
+  liveCollaborators: CollaborationPeer[];
+  cardCollaborators: Record<string, CollaborationPeer[]>;
   setActiveProjectId: (id: string) => void;
   setSelectedCardId: (id: string | null) => void;
+  setCollaborationFocusCardId: (id: string | null) => void;
   addProject: (input: NewKanbanProject) => KanbanProject;
   updateProject: (id: string, patch: Partial<NewKanbanProject>) => void;
   removeProject: (id: string) => boolean;
@@ -139,9 +174,12 @@ const createDefaultColumns = (projectId: string): KanbanColumn[] => [
 
 export function KanbanProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
+  const { activeApp } = useApps();
   const [state, setState] = useState<KanbanState>(emptyKanbanState);
   const [activeProjectId, setActiveProjectIdState] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [collaborationFocusCardId, setCollaborationFocusCardId] =
+    useState<string | null>(null);
   const [hydratedMode, setHydratedMode] = useState<string | null>(null);
   const [projectAccess, setProjectAccess] = useState<KanbanProjectAccessMap>({});
   const modeRef = useRef<string | null>(null);
@@ -208,6 +246,128 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     },
     [],
   );
+
+  const activeSharedProject =
+    projectAccess[activeProjectId]?.shared === true
+      ? activeProjectId
+      : null;
+  const collaborationRooms = useMemo(
+    () =>
+      activeApp === "kanban" && activeSharedProject
+        ? [
+            {
+              resourceType: "kanbanProject" as const,
+              resourceId: activeSharedProject,
+              focus: collaborationFocusCardId || selectedCardId
+                ? {
+                    kind: "kanban-card" as const,
+                    id: collaborationFocusCardId ?? selectedCardId!,
+                  }
+                : {
+                    kind: "resource" as const,
+                    id: activeSharedProject,
+                  },
+            },
+          ]
+        : [],
+    [
+      activeApp,
+      activeSharedProject,
+      collaborationFocusCardId,
+      selectedCardId,
+    ],
+  );
+  const handleCollaborationChange = useCallback(
+    (message: CollaborationResourceMessage) => {
+      if (message.change.entity !== "kanban-project") return;
+      const projectId = message.resourceId;
+      if (message.change.action === "delete") {
+        setState((current) => ({
+          projects: current.projects.filter((item) => item.id !== projectId),
+          columns: current.columns.filter(
+            (item) => item.projectId !== projectId,
+          ),
+          labels: current.labels.filter(
+            (item) => item.projectId !== projectId,
+          ),
+          cards: current.cards.filter(
+            (item) => item.projectId !== projectId,
+          ),
+        }));
+        setProjectAccess((current) => {
+          const next = { ...current };
+          delete next[projectId];
+          return next;
+        });
+        delete lastRemoteProjectVersions.current[projectId];
+        setSelectedCardId(null);
+        setActiveProjectIdState((current) =>
+          current === projectId
+            ? stateRef.current.projects.find(
+                (project) => project.id !== projectId,
+              )?.id ?? ""
+            : current,
+        );
+        return;
+      }
+
+      const data = message.change.data as {
+        state?: KanbanState;
+        updatedAt?: string;
+      };
+      if (
+        !data.state ||
+        typeof data.updatedAt !== "string" ||
+        data.state.projects[0]?.id !== projectId
+      ) {
+        return;
+      }
+
+      const current = stateRef.current;
+      const base = lastRemoteState.current ?? current;
+      const remote = replaceProjectSlice(base, projectId, data.state);
+      const hasLocalChanges =
+        JSON.stringify(current) !== JSON.stringify(base);
+
+      lastRemoteState.current = remote;
+      lastRemoteSnapshot.current = JSON.stringify(remote);
+      lastRemoteUpdatedAt.current = data.updatedAt;
+      lastRemoteProjectVersions.current = {
+        ...lastRemoteProjectVersions.current,
+        [projectId]: data.updatedAt,
+      };
+
+      if (hasLocalChanges) {
+        setState(mergeKanbanStates(base, current, remote));
+      } else {
+        applyingRemoteState.current = true;
+        setState(remote);
+      }
+    },
+    [],
+  );
+  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
+    currentUserId: session?.user.id,
+    enabled: Boolean(session && collaborationRooms.length > 0),
+    rooms: collaborationRooms,
+    onResourceChange: handleCollaborationChange,
+    onAccessChanged: () => {
+      if (session?.user.id) void loadRemote(session.user.id, true);
+    },
+  });
+  const liveCollaborators = activeSharedProject
+    ? collaborationPeers[
+        collaborationRoomKey("kanbanProject", activeSharedProject)
+      ] ?? []
+    : [];
+  const cardCollaborators = useMemo(() => {
+    const result: Record<string, CollaborationPeer[]> = {};
+    for (const peer of liveCollaborators) {
+      if (peer.focus?.kind !== "kanban-card") continue;
+      (result[peer.focus.id] ??= []).push(peer);
+    }
+    return result;
+  }, [liveCollaborators]);
 
   useEffect(() => {
     if (isPending) return;
@@ -392,14 +552,19 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       }
     };
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") refresh();
-    }, 5_000);
+      if (
+        activeApp === "kanban" &&
+        document.visibilityState === "visible"
+      ) {
+        refresh();
+      }
+    }, 30_000);
     window.addEventListener(SHARING_CHANGED_EVENT, refresh);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
-  }, [loadRemote, session?.user.id]);
+  }, [activeApp, loadRemote, session?.user.id]);
 
   useEffect(() => {
     const flush = () => {
@@ -471,6 +636,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       if (!state.projects.some((project) => project.id === id)) return;
       setActiveProjectIdState(id);
       setSelectedCardId(null);
+      setCollaborationFocusCardId(null);
     },
     [state.projects],
   );
@@ -875,8 +1041,11 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       ...state,
       activeProjectId,
       selectedCardId,
+      liveCollaborators,
+      cardCollaborators,
       setActiveProjectId,
       setSelectedCardId,
+      setCollaborationFocusCardId,
       addProject,
       updateProject,
       removeProject,
@@ -904,6 +1073,8 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       addLabel,
       addProject,
       duplicateCard,
+      cardCollaborators,
+      liveCollaborators,
       moveCard,
       moveColumn,
       projectAccess,
