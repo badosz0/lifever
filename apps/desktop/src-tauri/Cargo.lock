@@ -2066,7 +2066,7 @@ dependencies = [
 
 [[package]]
 name = "lifever"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "block2",
  "futures-channel",
