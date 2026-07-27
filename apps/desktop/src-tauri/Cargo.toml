@@ -1,6 +1,6 @@
 [package]
 name = "lifever"
-version = "0.1.13"
+version = "0.1.14"
 description = "A calm home for the things that matter"
 authors = ["Lifever"]
 edition = "2021"
