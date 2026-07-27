@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { useApps } from "@/features/apps/model/apps-provider";
 import type {
+  CollaborationCursorPosition,
   CollaborationPeer,
   CollaborationResourceMessage,
 } from "@/features/collaboration/model/types";
@@ -94,6 +95,7 @@ type KanbanContextValue = KanbanState & {
   selectedCardId: string | null;
   liveCollaborators: CollaborationPeer[];
   cardCollaborators: Record<string, CollaborationPeer[]>;
+  updateLiveCursor: (cursor: CollaborationCursorPosition | null) => void;
   setActiveProjectId: (id: string) => void;
   setSelectedCardId: (id: string | null) => void;
   setCollaborationFocusCardId: (id: string | null) => void;
@@ -352,7 +354,10 @@ export function KanbanProvider({ children }: PropsWithChildren) {
     },
     [],
   );
-  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
+  const {
+    peersByRoom: collaborationPeers,
+    updateCursor: updateLiveCursor,
+  } = useLiveCollaboration({
     currentUserId: session?.user.id,
     enabled: Boolean(session && collaborationRooms.length > 0),
     rooms: collaborationRooms,
@@ -1014,6 +1019,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       selectedCardId,
       liveCollaborators,
       cardCollaborators,
+      updateLiveCursor,
       setActiveProjectId,
       setSelectedCardId,
       setCollaborationFocusCardId,
@@ -1060,6 +1066,7 @@ export function KanbanProvider({ children }: PropsWithChildren) {
       updateCard,
       updateColumn,
       updateLabel,
+      updateLiveCursor,
       updateProject,
       canEditProject,
       isProjectOwner,

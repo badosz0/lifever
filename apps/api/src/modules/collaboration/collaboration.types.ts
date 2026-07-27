@@ -37,6 +37,11 @@ export type CollaborationFocus = {
   id: string;
 } | null;
 
+export type CollaborationCursor = {
+  x: number;
+  y: number;
+};
+
 export type CollaborationConnection = {
   connectionId: string;
   clientId: string;
@@ -65,6 +70,13 @@ export type CollaborationBroadcast = {
   change: CollaborationChange;
   resourceId: string;
   resourceType: ResourceType;
+  sentAt: number;
+};
+
+export type CollaborationCursorBroadcast = {
+  type: "cursor.update";
+  connectionId: string;
+  cursor: CollaborationCursor | null;
   sentAt: number;
 };
 

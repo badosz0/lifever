@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LiveCursorSurface } from "@/features/collaboration/components/live-cursor-surface";
 import { LivePresence } from "@/features/collaboration/components/live-presence";
 import { NoteMarkdown } from "@/features/notes/components/note-markdown";
 import { ShareDialog } from "@/features/sharing/components/share-dialog";
@@ -47,6 +48,7 @@ export function NoteInspector({ className }: NoteInspectorProps) {
     setSelectedNoteId,
     settings,
     updateNote,
+    updateLiveCursor,
   } = useNotes();
   const { dateFormat, timeFormat } = useUserPreferences();
   const note = notes.find((item) => item.id === selectedNoteId);
@@ -132,7 +134,12 @@ export function NoteInspector({ className }: NoteInspectorProps) {
       )}
       aria-label={`${noteDisplayTitle(note)} editor`}
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/65 px-3">
+      <LiveCursorSurface
+        className="flex min-h-0 flex-1 flex-col"
+        peers={liveCollaborators}
+        onCursorChange={updateLiveCursor}
+      >
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/65 px-3">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -320,7 +327,8 @@ export function NoteInspector({ className }: NoteInspectorProps) {
             Shared by {note.access?.owner.name}
           </span>
         )}
-      </div>
+        </div>
+      </LiveCursorSurface>
       </aside>
       {note.access ? (
         <ShareDialog

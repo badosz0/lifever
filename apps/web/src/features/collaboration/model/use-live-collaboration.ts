@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -6,6 +7,7 @@ import {
 } from "react";
 
 import type {
+  CollaborationCursorPosition,
   CollaborationPeer,
   CollaborationResourceMessage,
   CollaborationRoom,
@@ -26,6 +28,15 @@ type ManagedSocket = {
   socket: WebSocket;
 };
 
+type CursorTransport = {
+  lastSentAt: number;
+  pending: CollaborationCursorPosition | undefined;
+  roomKey: string | null;
+  timer: number | null;
+};
+
+const CURSOR_SEND_INTERVAL_MS = 80;
+
 const roomKey = (resourceType: SharedResourceType, resourceId: string) =>
   `${resourceType}:${resourceId}`;
 
@@ -43,6 +54,23 @@ const reconnectDelay = (attempt: number) => {
   return base + Math.round(Math.random() * Math.min(1_000, base * 0.2));
 };
 
+const isCursorPosition = (
+  value: unknown,
+): value is CollaborationCursorPosition => {
+  if (!value || typeof value !== "object") return false;
+  const cursor = value as { x?: unknown; y?: unknown };
+  return (
+    typeof cursor.x === "number" &&
+    Number.isFinite(cursor.x) &&
+    cursor.x >= 0 &&
+    cursor.x <= 1 &&
+    typeof cursor.y === "number" &&
+    Number.isFinite(cursor.y) &&
+    cursor.y >= 0 &&
+    cursor.y <= 1
+  );
+};
+
 export const useLiveCollaboration = ({
   currentUserId,
   enabled,
@@ -58,10 +86,18 @@ export const useLiveCollaboration = ({
   >({});
   const sockets = useRef(new Map<string, ManagedSocket>());
   const roomConfigurations = useRef(new Map<string, CollaborationRoom>());
+  const peersByRoomRef = useRef(peersByRoom);
+  const cursorTransport = useRef<CursorTransport>({
+    lastSentAt: 0,
+    pending: undefined,
+    roomKey: null,
+    timer: null,
+  });
   const onResourceChangeRef = useRef(onResourceChange);
   const onAccessChangedRef = useRef(onAccessChanged);
   onResourceChangeRef.current = onResourceChange;
   onAccessChangedRef.current = onAccessChanged;
+  peersByRoomRef.current = peersByRoom;
   roomConfigurations.current = new Map(
     rooms.map((room) => [
       roomKey(room.resourceType, room.resourceId),
@@ -87,6 +123,102 @@ export const useLiveCollaboration = ({
         .sort()
         .join("|"),
     [rooms],
+  );
+
+  const sendCursor = useCallback(
+    (key: string, cursor: CollaborationCursorPosition | null) => {
+      const managed = sockets.current.get(key);
+      if (managed?.socket.readyState !== WebSocket.OPEN) return;
+      managed.socket.send(
+        JSON.stringify({ type: "cursor.update", cursor }),
+      );
+    },
+    [],
+  );
+
+  const resetCursorTransport = useCallback(() => {
+    const transport = cursorTransport.current;
+    if (transport.timer !== null) window.clearTimeout(transport.timer);
+    transport.lastSentAt = 0;
+    transport.pending = undefined;
+    transport.roomKey = null;
+    transport.timer = null;
+  }, []);
+
+  const flushCursor = useCallback(() => {
+    const transport = cursorTransport.current;
+    transport.timer = null;
+    if (!transport.pending || !transport.roomKey) return;
+    const cursor = transport.pending;
+    transport.pending = undefined;
+    sendCursor(transport.roomKey, cursor);
+    transport.lastSentAt = performance.now();
+  }, [sendCursor]);
+
+  const queueCursor = useCallback(
+    (key: string, cursor: CollaborationCursorPosition | null) => {
+      const transport = cursorTransport.current;
+      if (transport.roomKey && transport.roomKey !== key) {
+        sendCursor(transport.roomKey, null);
+        if (transport.timer !== null) {
+          window.clearTimeout(transport.timer);
+          transport.timer = null;
+        }
+        transport.pending = undefined;
+        transport.lastSentAt = 0;
+      }
+      transport.roomKey = key;
+
+      if (cursor === null) {
+        if (transport.timer !== null) window.clearTimeout(transport.timer);
+        transport.timer = null;
+        transport.pending = undefined;
+        sendCursor(key, null);
+        transport.roomKey = null;
+        transport.lastSentAt = 0;
+        return;
+      }
+
+      transport.pending = cursor;
+      const remaining =
+        CURSOR_SEND_INTERVAL_MS -
+        (performance.now() - transport.lastSentAt);
+      if (remaining <= 0) {
+        flushCursor();
+      } else if (transport.timer === null) {
+        transport.timer = window.setTimeout(flushCursor, remaining);
+      }
+    },
+    [flushCursor, sendCursor],
+  );
+
+  const updateCursor = useCallback(
+    (cursor: CollaborationCursorPosition | null) => {
+      const transport = cursorTransport.current;
+      if (cursor === null) {
+        if (transport.roomKey) queueCursor(transport.roomKey, null);
+        return;
+      }
+
+      const currentRoomHasPeers =
+        transport.roomKey !== null &&
+        roomConfigurations.current.has(transport.roomKey) &&
+        (peersByRoomRef.current[transport.roomKey]?.length ?? 0) > 0;
+      const key = currentRoomHasPeers
+        ? transport.roomKey
+        : [...roomConfigurations.current.keys()]
+            .sort()
+            .find(
+              (candidate) =>
+                (peersByRoomRef.current[candidate]?.length ?? 0) > 0,
+            );
+      if (!key) {
+        resetCursorTransport();
+        return;
+      }
+      queueCursor(key, cursor);
+    },
+    [queueCursor, resetCursorTransport],
   );
 
   useEffect(() => {
@@ -142,6 +274,8 @@ export const useLiveCollaboration = ({
           let message: {
             type?: string;
             peers?: CollaborationPeer[];
+            connectionId?: string;
+            cursor?: unknown;
           };
           try {
             message = JSON.parse(event.data) as typeof message;
@@ -152,10 +286,47 @@ export const useLiveCollaboration = ({
             message.type === "presence.snapshot" &&
             Array.isArray(message.peers)
           ) {
-            const peers = message.peers.filter(
-              (peer) => peer.user.id !== currentUserId,
-            );
-            setPeersByRoom((current) => ({ ...current, [key]: peers }));
+            setPeersByRoom((current) => {
+              const currentCursors = new Map(
+                (current[key] ?? [])
+                  .filter((peer) => peer.cursor)
+                  .map((peer) => [peer.connectionId, peer.cursor]),
+              );
+              const peers = message.peers!
+                .filter((peer) => peer.user.id !== currentUserId)
+                .map((peer) => {
+                  const cursor = currentCursors.get(peer.connectionId);
+                  return cursor ? { ...peer, cursor } : peer;
+                });
+              return { ...current, [key]: peers };
+            });
+            return;
+          }
+          if (
+            message.type === "cursor.update" &&
+            typeof message.connectionId === "string" &&
+            (message.cursor === null || isCursorPosition(message.cursor))
+          ) {
+            const nextCursor = message.cursor;
+            setPeersByRoom((current) => {
+              const peers = current[key];
+              if (!peers) return current;
+              let changed = false;
+              const nextPeers = peers.map((peer) => {
+                if (peer.connectionId !== message.connectionId) return peer;
+                changed = true;
+                return nextCursor === null
+                  ? { ...peer, cursor: undefined }
+                  : {
+                      ...peer,
+                      cursor: {
+                        ...nextCursor,
+                        updatedAt: Date.now(),
+                      },
+                    };
+              });
+              return changed ? { ...current, [key]: nextPeers } : current;
+            });
             return;
           }
           if (message.type === "resource.changed") {
@@ -214,6 +385,7 @@ export const useLiveCollaboration = ({
 
     return () => {
       disposed = true;
+      resetCursorTransport();
       for (const timer of retryTimers) window.clearTimeout(timer);
       retryTimers.clear();
       for (const managed of sockets.current.values()) {
@@ -222,7 +394,13 @@ export const useLiveCollaboration = ({
       sockets.current.clear();
       setPeersByRoom({});
     };
-  }, [currentUserId, enabled, pageVisible, roomKeys]);
+  }, [
+    currentUserId,
+    enabled,
+    pageVisible,
+    resetCursorTransport,
+    roomKeys,
+  ]);
 
   useEffect(() => {
     for (const [key, managed] of sockets.current) {
@@ -235,7 +413,7 @@ export const useLiveCollaboration = ({
     }
   }, [focusSignature]);
 
-  return { peersByRoom };
+  return { peersByRoom, updateCursor };
 };
 
 export const collaborationRoomKey = roomKey;

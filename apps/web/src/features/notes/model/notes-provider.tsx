@@ -11,7 +11,10 @@ import {
 import { toast } from "sonner";
 
 import { useApps } from "@/features/apps/model/apps-provider";
-import type { CollaborationPeer } from "@/features/collaboration/model/types";
+import type {
+  CollaborationCursorPosition,
+  CollaborationPeer,
+} from "@/features/collaboration/model/types";
 import {
   collaborationRoomKey,
   useLiveCollaboration,
@@ -44,6 +47,7 @@ type NotesContextValue = {
   activeFilter: NotesFilter;
   selectedNoteId: string | null;
   liveCollaborators: CollaborationPeer[];
+  updateLiveCursor: (cursor: CollaborationCursorPosition | null) => void;
   setActiveFilter: (filter: NotesFilter) => void;
   setSelectedNoteId: (id: string | null) => void;
   addNote: () => Note;
@@ -318,7 +322,10 @@ export function NotesProvider({ children }: PropsWithChildren) {
     },
     [selectedSharedNote?.access?.role],
   );
-  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
+  const {
+    peersByRoom: collaborationPeers,
+    updateCursor: updateLiveCursor,
+  } = useLiveCollaboration({
     currentUserId: session?.user.id,
     enabled: Boolean(session && collaborationRooms.length > 0),
     rooms: collaborationRooms,
@@ -855,6 +862,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
       activeFilter,
       selectedNoteId,
       liveCollaborators,
+      updateLiveCursor,
       setActiveFilter,
       setSelectedNoteId,
       addNote,
@@ -886,6 +894,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
       updateCategory,
       updateNote,
       updateSettings,
+      updateLiveCursor,
     ],
   );
 

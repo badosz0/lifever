@@ -4,8 +4,12 @@ import type { WorkerBindings } from "./worker.js";
 import type {
   CollaborationBroadcast,
   CollaborationConnection,
+  CollaborationCursor,
+  CollaborationCursorBroadcast,
   CollaborationFocus,
 } from "./modules/collaboration/collaboration.types.js";
+
+const CURSOR_MIN_INTERVAL_MS = 40;
 
 const isFocus = (value: unknown): value is CollaborationFocus => {
   if (value === null) return true;
@@ -21,7 +25,28 @@ const isFocus = (value: unknown): value is CollaborationFocus => {
   );
 };
 
+const isCursor = (value: unknown): value is CollaborationCursor | null => {
+  if (value === null) return true;
+  if (!value || typeof value !== "object") return false;
+  const cursor = value as { x?: unknown; y?: unknown };
+  return (
+    typeof cursor.x === "number" &&
+    Number.isFinite(cursor.x) &&
+    cursor.x >= 0 &&
+    cursor.x <= 1 &&
+    typeof cursor.y === "number" &&
+    Number.isFinite(cursor.y) &&
+    cursor.y >= 0 &&
+    cursor.y <= 1
+  );
+};
+
 export class CollaborationRoom extends DurableObject<WorkerBindings> {
+  private readonly cursorState = new Map<
+    string,
+    { updatedAt: number; visible: boolean }
+  >();
+
   constructor(ctx: DurableObjectState, env: WorkerBindings) {
     super(ctx, env);
     this.ctx.setWebSocketAutoResponse(
@@ -50,6 +75,15 @@ export class CollaborationRoom extends DurableObject<WorkerBindings> {
     const peers = connections.map(({ connection }) => connection);
     for (const { socket } of connections) {
       this.send(socket, { type: "presence.snapshot", peers });
+    }
+  }
+
+  private broadcastCursor(
+    source: WebSocket,
+    message: CollaborationCursorBroadcast,
+  ) {
+    for (const { socket } of this.connections()) {
+      if (socket !== source) this.send(socket, message);
     }
   }
 
@@ -130,19 +164,44 @@ export class CollaborationRoom extends DurableObject<WorkerBindings> {
     rawMessage: string | ArrayBuffer,
   ) {
     if (typeof rawMessage !== "string" || rawMessage.length > 2_000) return;
-    let message: { type?: unknown; focus?: unknown };
+    let message: { type?: unknown; focus?: unknown; cursor?: unknown };
     try {
       message = JSON.parse(rawMessage) as typeof message;
     } catch {
       return;
     }
-    if (message.type !== "presence.update" || !isFocus(message.focus)) return;
-
     const connection =
       socket.deserializeAttachment() as CollaborationConnection | null;
     if (!connection) return;
-    socket.serializeAttachment({ ...connection, focus: message.focus });
-    this.broadcastPresence();
+
+    if (message.type === "cursor.update" && isCursor(message.cursor)) {
+      const now = Date.now();
+      const previous = this.cursorState.get(connection.connectionId);
+      if (message.cursor === null) {
+        if (previous?.visible === false) return;
+      } else if (
+        previous &&
+        now - previous.updatedAt < CURSOR_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+      this.cursorState.set(connection.connectionId, {
+        updatedAt: now,
+        visible: message.cursor !== null,
+      });
+      this.broadcastCursor(socket, {
+        type: "cursor.update",
+        connectionId: connection.connectionId,
+        cursor: message.cursor,
+        sentAt: now,
+      });
+      return;
+    }
+
+    if (message.type === "presence.update" && isFocus(message.focus)) {
+      socket.serializeAttachment({ ...connection, focus: message.focus });
+      this.broadcastPresence();
+    }
   }
 
   override async webSocketClose(
@@ -150,11 +209,21 @@ export class CollaborationRoom extends DurableObject<WorkerBindings> {
     code: number,
     reason: string,
   ) {
+    const connection =
+      socket.deserializeAttachment() as CollaborationConnection | null;
+    if (connection) {
+      this.cursorState.delete(connection.connectionId);
+    }
     socket.close(code, reason);
     this.broadcastPresence();
   }
 
   override async webSocketError(socket: WebSocket) {
+    const connection =
+      socket.deserializeAttachment() as CollaborationConnection | null;
+    if (connection) {
+      this.cursorState.delete(connection.connectionId);
+    }
     socket.close(1011, "WebSocket error");
     this.broadcastPresence();
   }

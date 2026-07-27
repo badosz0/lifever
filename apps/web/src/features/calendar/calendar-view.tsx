@@ -8,6 +8,7 @@ import {
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
+import { LiveCursorSurface } from "@/features/collaboration/components/live-cursor-surface";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
 import { CalendarMonthGrid } from "@/features/calendar/components/calendar-month-grid";
 import { CalendarPicker } from "@/features/calendar/components/calendar-picker";
@@ -70,8 +71,10 @@ export function CalendarView({
     events,
     isReady,
     selectedEventId,
+    liveCollaborators,
     setSelectedEventId,
     setVisibleEventRange,
+    updateLiveCursor,
     updateEvent,
   } = useCalendar();
   const { calendarClickToCreate, dateFormat } = useUserPreferences();
@@ -287,45 +290,51 @@ export function CalendarView({
         </div>
       </AppHeader>
 
-      {viewMode === "year" ? (
-        <CalendarYearGrid
-          year={selectedDate}
-          selectedDate={selectedDate}
-          events={events}
-          newEventPreview={composerOpen ? eventPreview : null}
-          onSelectDay={showDay}
-          onSelectMonth={showMonth}
-        />
-      ) : viewMode === "month" ? (
-        <CalendarMonthGrid
-          month={selectedDate}
-          events={events}
-          newEventPreview={composerOpen ? eventPreview : null}
-          selectedEventId={selectedEventId}
-          onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={selectEvent}
-          onMoveEvent={(id, startAt, endAt) =>
-            updateEvent(id, { startAt, endAt })
-          }
-          onCreateAt={(start, end) => openComposer(start, end)}
-          onSelectDay={showDay}
-        />
-      ) : (
-        <CalendarGrid
-          days={days}
-          events={events}
-          newEventPreview={composerOpen ? eventPreview : null}
-          selectedEventId={selectedEventId}
-          clickToCreateEnabled={calendarClickToCreate}
-          onClearSelection={() => setSelectedEventId(null)}
-          onSelectEvent={selectEvent}
-          onMoveEvent={(id, startAt, endAt) =>
-            updateEvent(id, { startAt, endAt })
-          }
-          onCreateAt={(start, end) => openComposer(start, end)}
-          onSelectDay={showDay}
-        />
-      )}
+      <LiveCursorSurface
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+        peers={liveCollaborators}
+        onCursorChange={updateLiveCursor}
+      >
+        {viewMode === "year" ? (
+          <CalendarYearGrid
+            year={selectedDate}
+            selectedDate={selectedDate}
+            events={events}
+            newEventPreview={composerOpen ? eventPreview : null}
+            onSelectDay={showDay}
+            onSelectMonth={showMonth}
+          />
+        ) : viewMode === "month" ? (
+          <CalendarMonthGrid
+            month={selectedDate}
+            events={events}
+            newEventPreview={composerOpen ? eventPreview : null}
+            selectedEventId={selectedEventId}
+            onClearSelection={() => setSelectedEventId(null)}
+            onSelectEvent={selectEvent}
+            onMoveEvent={(id, startAt, endAt) =>
+              updateEvent(id, { startAt, endAt })
+            }
+            onCreateAt={(start, end) => openComposer(start, end)}
+            onSelectDay={showDay}
+          />
+        ) : (
+          <CalendarGrid
+            days={days}
+            events={events}
+            newEventPreview={composerOpen ? eventPreview : null}
+            selectedEventId={selectedEventId}
+            clickToCreateEnabled={calendarClickToCreate}
+            onClearSelection={() => setSelectedEventId(null)}
+            onSelectEvent={selectEvent}
+            onMoveEvent={(id, startAt, endAt) =>
+              updateEvent(id, { startAt, endAt })
+            }
+            onCreateAt={(start, end) => openComposer(start, end)}
+            onSelectDay={showDay}
+          />
+        )}
+      </LiveCursorSurface>
 
       <NewCalendarEventDialog
         key={composerSession}
