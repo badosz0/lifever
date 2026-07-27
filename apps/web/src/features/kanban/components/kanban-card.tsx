@@ -83,7 +83,7 @@ export function KanbanCardSurface({
       <div className="flex w-full items-start gap-2">
         <p
           className={cn(
-            "min-w-0 flex-1 text-[13px] leading-[1.35] font-semibold tracking-[-0.005em]",
+            "min-w-0 flex-1 [overflow-wrap:anywhere] text-[13px] leading-[1.35] font-semibold tracking-[-0.005em]",
             completed && "text-muted-foreground line-through decoration-border",
           )}
         >
@@ -93,7 +93,7 @@ export function KanbanCardSurface({
       </div>
 
       {card.description ? (
-        <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.45] text-muted-foreground">
+        <p className="mt-1.5 line-clamp-2 w-full min-w-0 whitespace-pre-line [overflow-wrap:anywhere] text-[11px] leading-[1.45] text-muted-foreground">
           {card.description}
         </p>
       ) : null}
