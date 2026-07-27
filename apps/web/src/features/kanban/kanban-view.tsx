@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchField } from "@/components/ui/search-field";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
-import { LiveCursorSurface } from "@/features/collaboration/components/live-cursor-surface";
 import { KanbanBoard } from "@/features/kanban/components/kanban-board";
 import { KanbanProjectPicker } from "@/features/kanban/components/kanban-project-picker";
 import { KanbanProjectSettingsDialog } from "@/features/kanban/components/kanban-project-settings-dialog";
@@ -64,7 +63,6 @@ export function KanbanView({
     projects,
     setActiveProjectId,
     setSelectedCardId,
-    updateLiveCursor,
   } = useKanban();
   const [query, setQuery] = useState("");
   const [priorityFilter, setPriorityFilter] =
@@ -331,11 +329,7 @@ export function KanbanView({
         />
       </AppHeader>
 
-      <LiveCursorSurface
-        className="min-h-0 min-w-0 flex-1"
-        peers={liveCollaborators}
-        onCursorChange={updateLiveCursor}
-      >
+      <div className="min-h-0 min-w-0 flex-1">
         <div className="h-full overflow-auto overscroll-contain pt-2">
           <KanbanBoard
             columns={projectColumns}
@@ -348,7 +342,7 @@ export function KanbanView({
             readOnly={!canEdit}
           />
         </div>
-      </LiveCursorSurface>
+      </div>
 
       <NewKanbanCardDialog
         open={newCardOpen}

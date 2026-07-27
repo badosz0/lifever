@@ -8,7 +8,6 @@ import {
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
-import { LiveCursorSurface } from "@/features/collaboration/components/live-cursor-surface";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
 import { CalendarMonthGrid } from "@/features/calendar/components/calendar-month-grid";
 import { CalendarPicker } from "@/features/calendar/components/calendar-picker";
@@ -71,10 +70,8 @@ export function CalendarView({
     events,
     isReady,
     selectedEventId,
-    liveCollaborators,
     setSelectedEventId,
     setVisibleEventRange,
-    updateLiveCursor,
     updateEvent,
   } = useCalendar();
   const { calendarClickToCreate, dateFormat } = useUserPreferences();
@@ -290,11 +287,7 @@ export function CalendarView({
         </div>
       </AppHeader>
 
-      <LiveCursorSurface
-        className="flex min-h-0 min-w-0 flex-1 flex-col"
-        peers={liveCollaborators}
-        onCursorChange={updateLiveCursor}
-      >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {viewMode === "year" ? (
           <CalendarYearGrid
             year={selectedDate}
@@ -334,7 +327,7 @@ export function CalendarView({
             onSelectDay={showDay}
           />
         )}
-      </LiveCursorSurface>
+      </div>
 
       <NewCalendarEventDialog
         key={composerSession}

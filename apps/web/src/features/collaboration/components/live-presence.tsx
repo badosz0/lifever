@@ -1,5 +1,3 @@
-import { MousePointer2 } from "lucide-react";
-
 import {
   Avatar,
   AvatarFallback,
@@ -11,7 +9,6 @@ import { cn } from "@/lib/cn";
 type LivePresenceProps = {
   className?: string;
   peers: CollaborationPeer[];
-  pointer?: boolean;
   size?: "sm" | "xs";
 };
 
@@ -27,7 +24,6 @@ const initials = (name: string) =>
 export function LivePresence({
   className,
   peers,
-  pointer = false,
   size = "sm",
 }: LivePresenceProps) {
   const uniquePeers = [
@@ -41,13 +37,6 @@ export function LivePresence({
       className={cn("flex items-center -space-x-1.5", className)}
       aria-label={`${uniquePeers.map((peer) => peer.user.name).join(", ")} viewing`}
     >
-      {pointer ? (
-        <MousePointer2
-          className="mr-0.5 size-3 fill-primary text-primary drop-shadow-sm"
-          strokeWidth={1.8}
-          aria-hidden="true"
-        />
-      ) : null}
       {visible.map((peer) => (
         <Avatar
           key={peer.user.id}

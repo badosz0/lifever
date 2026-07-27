@@ -50,7 +50,6 @@ export function KanbanCardSurface({
     >
       <LivePresence
         peers={collaborators}
-        pointer
         size="xs"
         className="absolute -top-2 -right-1 z-10"
       />

@@ -9,19 +9,9 @@ export type CollaborationFocus = {
   id: string;
 } | null;
 
-export type CollaborationCursorPosition = {
-  x: number;
-  y: number;
-};
-
-export type CollaborationCursor = CollaborationCursorPosition & {
-  updatedAt: number;
-};
-
 export type CollaborationPeer = {
   connectionId: string;
   clientId: string;
-  cursor?: CollaborationCursor;
   focus: CollaborationFocus;
   joinedAt: number;
   permission: SharePermission;

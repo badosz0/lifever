@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { useAppCalendarSources } from "@/features/apps/calendar-source-registry";
 import { useApps } from "@/features/apps/model/apps-provider";
 import type {
-  CollaborationCursorPosition,
   CollaborationPeer,
   CollaborationResourceMessage,
 } from "@/features/collaboration/model/types";
@@ -57,7 +56,6 @@ type CalendarContextValue = {
   nativeEvents: CalendarEvent[];
   liveCollaborators: CollaborationPeer[];
   eventCollaborators: Record<string, CollaborationPeer[]>;
-  updateLiveCursor: (cursor: CollaborationCursorPosition | null) => void;
   activeCalendarId: string | null;
   selectedEventId: string | null;
   google: GoogleCalendarStatus & { syncing: boolean };
@@ -647,10 +645,7 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     },
     [],
   );
-  const {
-    peersByRoom: collaborationPeers,
-    updateCursor: updateLiveCursor,
-  } = useLiveCollaboration({
+  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
     currentUserId: session?.user.id,
     enabled: Boolean(session && collaborationRooms.length > 0),
     rooms: collaborationRooms,
@@ -1749,7 +1744,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       nativeEvents,
       liveCollaborators,
       eventCollaborators,
-      updateLiveCursor,
       activeCalendarId,
       selectedEventId,
       google: { ...googleStatus, syncing: googleSyncing },
@@ -1808,7 +1802,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       undoLastEventAction,
       updateCategory,
       updateEvent,
-      updateLiveCursor,
     ],
   );
 
