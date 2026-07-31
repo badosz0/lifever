@@ -40,7 +40,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            notifications::initialize();
+            notifications::initialize(app.handle().clone());
 
             let main_window = app
                 .config()
@@ -98,6 +98,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             close_oauth_window,
             get_ai_usage_dashboard,
+            notifications::take_pending_notification_opens,
             notifications::sync_native_notifications
         ])
         .build(tauri::generate_context!())

@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "macos")]
 mod macos;
@@ -23,9 +23,28 @@ pub struct NotificationSyncRequest {
     notifications: Vec<ScheduledNotification>,
 }
 
-pub fn initialize() {
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationOpenTarget {
+    kind: String,
+    id: String,
+}
+
+pub fn initialize(app: tauri::AppHandle) {
     #[cfg(target_os = "macos")]
-    macos::initialize();
+    macos::initialize(app);
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+#[tauri::command]
+pub fn take_pending_notification_opens() -> Vec<NotificationOpenTarget> {
+    #[cfg(target_os = "macos")]
+    return macos::take_pending_opens();
+
+    #[cfg(not(target_os = "macos"))]
+    Vec::new()
 }
 
 #[tauri::command]

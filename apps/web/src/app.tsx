@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CalendarNotificationScheduler } from "@/features/calendar/components/calendar-notification-scheduler";
 import { SignedOutScreen } from "@/features/auth/components/signed-out-screen";
+import { NotificationOpenHandler } from "@/features/notifications/notification-open-handler";
 import { ReminderNotificationScheduler } from "@/features/reminders/components/reminder-notification-scheduler";
 import { authClient } from "@/lib/auth-client";
 import { isDemoMode } from "@/lib/demo-mode";
@@ -26,6 +27,7 @@ function AccountApp() {
       <GlobalContextMenuGuard />
       <ReminderNotificationScheduler />
       <CalendarNotificationScheduler />
+      <NotificationOpenHandler />
       <AppShell />
     </AppProviders>
   );

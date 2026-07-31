@@ -124,6 +124,23 @@ export function CalendarView({
     setVisibleEventRange(visibleRange.start, visibleRange.end);
   }, [setVisibleEventRange, visibleRange]);
 
+  useEffect(() => {
+    if (!selectedEventId) return;
+    const selectedEvent = events.find((event) => event.id === selectedEventId);
+    if (
+      !selectedEvent ||
+      intervalOverlapsRange(
+        selectedEvent.startAt,
+        selectedEvent.endAt,
+        visibleRange.start,
+        visibleRange.end,
+      )
+    ) {
+      return;
+    }
+    setSelectedDate(startOfLocalDay(new Date(selectedEvent.startAt)));
+  }, [events, selectedEventId, visibleRange]);
+
   const openComposer = useCallback(
     (start?: Date, end?: Date) => {
       if (!isReady || selectedEventId) return;

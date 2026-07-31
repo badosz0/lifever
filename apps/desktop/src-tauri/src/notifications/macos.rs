@@ -1,8 +1,9 @@
 use std::{
     cell::Cell,
+    collections::VecDeque,
     path::Path,
     ptr::NonNull,
-    sync::{mpsc, OnceLock},
+    sync::{mpsc, Mutex, OnceLock},
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -18,16 +19,68 @@ use objc2::{
 use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNMutableNotificationContent, UNNotification,
-    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSound,
+    UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
+    UNNotificationRequest, UNNotificationResponse, UNNotificationSound,
     UNTimeIntervalNotificationTrigger, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
 };
+use tauri::{Emitter, Manager};
 
-use super::{NotificationSyncRequest, ScheduledNotification};
+use super::{NotificationOpenTarget, NotificationSyncRequest, ScheduledNotification};
 
 type Task = Box<dyn FnOnce() + Send + 'static>;
 
 static WORKER: OnceLock<mpsc::Sender<Task>> = OnceLock::new();
 static AVAILABLE: OnceLock<bool> = OnceLock::new();
+static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+static PENDING_OPENS: OnceLock<Mutex<VecDeque<NotificationOpenTarget>>> = OnceLock::new();
+
+const NOTIFICATION_OPEN_EVENT: &str = "lifever-notification-open";
+
+fn pending_opens() -> &'static Mutex<VecDeque<NotificationOpenTarget>> {
+    PENDING_OPENS.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+fn notification_target(identifier: &str) -> Option<NotificationOpenTarget> {
+    if let Some(key) = identifier.strip_prefix("lifever:calendar:") {
+        let id = key
+            .strip_suffix(":thirty-minutes")
+            .or_else(|| key.strip_suffix(":start"))?;
+        if !id.is_empty() {
+            return Some(NotificationOpenTarget {
+                kind: "calendar-event".to_owned(),
+                id: id.to_owned(),
+            });
+        }
+    }
+
+    if let Some(id) = identifier.strip_prefix("lifever:reminders:") {
+        if !id.is_empty() {
+            return Some(NotificationOpenTarget {
+                kind: "reminder".to_owned(),
+                id: id.to_owned(),
+            });
+        }
+    }
+
+    None
+}
+
+fn open_notification_target(target: NotificationOpenTarget) {
+    pending_opens()
+        .lock()
+        .expect("notification open queue poisoned")
+        .push_back(target.clone());
+
+    let Some(app) = APP_HANDLE.get() else {
+        return;
+    };
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+    let _ = app.emit(NOTIFICATION_OPEN_EVENT, target);
+}
 
 fn is_app_bundle_executable(path: &Path) -> bool {
     path.ancestors().any(|ancestor| {
@@ -64,6 +117,24 @@ define_class!(
             completion_handler.call((UNNotificationPresentationOptions::Banner
                 | UNNotificationPresentationOptions::Sound,));
         }
+
+        #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
+        fn did_receive_response(
+            &self,
+            _center: &UNUserNotificationCenter,
+            response: &UNNotificationResponse,
+            completion_handler: &block2::DynBlock<dyn Fn()>,
+        ) {
+            let action_identifier = response.actionIdentifier().to_string();
+            let default_action = unsafe { UNNotificationDefaultActionIdentifier.to_string() };
+            if action_identifier == default_action {
+                let request_identifier = response.notification().request().identifier().to_string();
+                if let Some(target) = notification_target(&request_identifier) {
+                    open_notification_target(target);
+                }
+            }
+            completion_handler.call(());
+        }
     }
 );
 
@@ -74,13 +145,15 @@ impl NotificationDelegate {
     }
 }
 
-pub fn initialize() {
+pub fn initialize(app: tauri::AppHandle) {
     // macOS raises an Objective-C exception if UNUserNotificationCenter is used
     // by Tauri's raw `target/debug` executable. Packaged `.app` processes have
     // the bundle metadata that the notification center requires.
     if !is_available() {
         return;
     }
+
+    let _ = APP_HANDLE.set(app);
 
     static DELEGATE: OnceLock<Retained<NotificationDelegate>> = OnceLock::new();
 
@@ -90,6 +163,14 @@ pub fn initialize() {
             .setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         delegate
     });
+}
+
+pub fn take_pending_opens() -> Vec<NotificationOpenTarget> {
+    pending_opens()
+        .lock()
+        .expect("notification open queue poisoned")
+        .drain(..)
+        .collect()
 }
 
 fn worker() -> &'static mpsc::Sender<Task> {
@@ -218,7 +299,7 @@ pub async fn sync(request: NotificationSyncRequest) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_app_bundle_executable;
+    use super::{is_app_bundle_executable, notification_target};
     use std::path::Path;
 
     #[test]
@@ -233,5 +314,24 @@ mod tests {
         assert!(!is_app_bundle_executable(Path::new(
             "/workspace/apps/desktop/src-tauri/target/debug/lifever"
         )));
+    }
+
+    #[test]
+    fn reads_calendar_targets_from_both_alerts() {
+        let start = notification_target("lifever:calendar:event:with:colon:start").unwrap();
+        let advance =
+            notification_target("lifever:calendar:event:with:colon:thirty-minutes").unwrap();
+
+        assert_eq!(start.kind, "calendar-event");
+        assert_eq!(start.id, "event:with:colon");
+        assert_eq!(advance.id, start.id);
+    }
+
+    #[test]
+    fn reads_reminder_targets() {
+        let target = notification_target("lifever:reminders:reminder-id").unwrap();
+
+        assert_eq!(target.kind, "reminder");
+        assert_eq!(target.id, "reminder-id");
     }
 }
