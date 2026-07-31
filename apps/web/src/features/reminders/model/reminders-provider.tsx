@@ -74,7 +74,7 @@ const fromApiReminder = (reminder: ApiReminder): Reminder => ({
 export function RemindersProvider({ children }: PropsWithChildren) {
   const { data: session, isPending } = authClient.useSession();
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [activeView, setActiveView] = useState<ReminderViewId>("today");
+  const [activeView, setActiveView] = useState<ReminderViewId>("all");
   const [selectedReminderId, setSelectedReminderId] = useState<string | null>(null);
   const [hydratedMode, setHydratedMode] = useState<string | null>(null);
   const modeRef = useRef<string | null>(null);

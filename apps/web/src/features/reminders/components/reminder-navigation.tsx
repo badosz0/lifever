@@ -6,8 +6,8 @@ type ReminderNavigationProps = {
 };
 
 const views = [
-  { id: "today", label: "Today" },
   { id: "all", label: "All" },
+  { id: "today", label: "Today" },
   { id: "completed", label: "Completed" },
 ] as const;
 
