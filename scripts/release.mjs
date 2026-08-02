@@ -1,17 +1,21 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  access,
   copyFile,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
+
+import { config as loadEnvironment } from "dotenv";
 
 import {
   ensureDesktopConfig,
@@ -42,6 +46,11 @@ const releaseAssetsDirectory = path.join(
   "target/release-assets",
 );
 const windowsReleaseWorkflow = "windows-release.yml";
+const releaseEnvironmentPath =
+  process.env.LIFEVER_RELEASE_ENV_PATH ??
+  path.join(homedir(), ".config/lifever/release.env");
+
+loadEnvironment({ path: releaseEnvironmentPath, quiet: true });
 
 function printHelp() {
   console.log(`Usage: pnpm release -- [options]
@@ -61,6 +70,9 @@ Options:
 Before releasing:
   pnpm release:version <version>
   git commit && git push
+
+Signing credentials are loaded from the environment or:
+  ~/.config/lifever/release.env
 `);
 }
 
@@ -121,10 +133,70 @@ function getSigningStatus() {
   ].every((name) => Boolean(process.env[name]));
 
   return {
+    method: hasApiKeyCredentials
+      ? "api-key"
+      : hasAppleIdCredentials
+        ? "apple-id"
+        : undefined,
     trusted:
       hasSigningIdentity &&
       (hasApiKeyCredentials || hasAppleIdCredentials),
   };
+}
+
+async function assertSigningReady(signingStatus) {
+  if (!signingStatus.trusted) return;
+
+  const identity = process.env.APPLE_SIGNING_IDENTITY;
+  const identities = await run(
+    "/usr/bin/security",
+    ["find-identity", "-v", "-p", "codesigning"],
+    { capture: true },
+  );
+  if (!identities.stdout.includes(`\"${identity}\"`)) {
+    throw new Error(
+      `APPLE_SIGNING_IDENTITY is not installed in the current Keychain: ${identity}`,
+    );
+  }
+
+  if (signingStatus.method !== "api-key") return;
+
+  const apiKeyPath = path.resolve(process.env.APPLE_API_KEY_PATH);
+  await access(apiKeyPath);
+  const apiKeyStats = await stat(apiKeyPath);
+  if ((apiKeyStats.mode & 0o077) !== 0) {
+    throw new Error(
+      `${apiKeyPath} must only be readable by its owner (run chmod 600).`,
+    );
+  }
+}
+
+async function notarizeDiskImage(dmgPath, signingStatus) {
+  if (!signingStatus.trusted) return;
+
+  const args = ["notarytool", "submit", dmgPath, "--wait"];
+  if (signingStatus.method === "api-key") {
+    args.push(
+      "--key",
+      path.resolve(process.env.APPLE_API_KEY_PATH),
+      "--key-id",
+      process.env.APPLE_API_KEY,
+      "--issuer",
+      process.env.APPLE_API_ISSUER,
+    );
+  } else {
+    args.push(
+      "--apple-id",
+      process.env.APPLE_ID,
+      "--password",
+      process.env.APPLE_PASSWORD,
+      "--team-id",
+      process.env.APPLE_TEAM_ID,
+    );
+  }
+
+  await run("/usr/bin/xcrun", args);
+  await run("/usr/bin/xcrun", ["stapler", "staple", dmgPath]);
 }
 
 function run(
@@ -388,6 +460,27 @@ async function buildUniversalDmg({ apiUrl, signingStatus, version }) {
 
   const builtDmg = path.join(dmgDirectory, dmgs[0]);
   await run("/usr/bin/hdiutil", ["verify", builtDmg]);
+  if (signingStatus.trusted) {
+    await notarizeDiskImage(builtDmg, signingStatus);
+    await run("/usr/sbin/spctl", [
+      "--assess",
+      "--type",
+      "execute",
+      "--verbose=4",
+      appPath,
+    ]);
+    await run("/usr/bin/xcrun", ["stapler", "validate", appPath]);
+    await run("/usr/bin/xcrun", ["stapler", "validate", builtDmg]);
+    await run("/usr/sbin/spctl", [
+      "--assess",
+      "--type",
+      "open",
+      "--context",
+      "context:primary-signature",
+      "--verbose=4",
+      builtDmg,
+    ]);
+  }
   await mkdir(releaseAssetsDirectory, { recursive: true });
   const assetPath = path.join(
     releaseAssetsDirectory,
@@ -446,8 +539,7 @@ async function createReleaseNotes({ notesPath, signingStatus, version }) {
 
 \`\`\`bash
 brew tap ${homebrewTapName} ${homebrewTapUrl}
-brew trust --cask badosz0/lifever/lifever
-brew install lifever
+brew install --cask lifever
 \`\`\`
 
 ### macOS
@@ -603,8 +695,11 @@ async function main() {
   }
 
   const version = await getVersion();
-  const repository = await assertRepositoryReady(version);
+  const repository = options.dryRun
+    ? { head: undefined, tag: undefined, tagExists: false }
+    : await assertRepositoryReady(version);
   const signingStatus = getSigningStatus();
+  await assertSigningReady(signingStatus);
   const { apiUrl } = await ensureDesktopConfig({
     interactive: false,
     requestedApiUrl: options.apiUrl,
@@ -666,8 +761,7 @@ async function main() {
   );
   console.log("Install:");
   console.log(`  brew tap ${homebrewTapName} ${homebrewTapUrl}`);
-  console.log("  brew trust --cask badosz0/lifever/lifever");
-  console.log("  brew install lifever");
+  console.log("  brew install --cask lifever");
 }
 
 main().catch((error) => {

@@ -6,7 +6,7 @@ cask "lifever" do
       verified: "github.com/badosz0/lifever/"
   name "Lifever"
   desc "Calm, modular home for the everyday parts of life"
-  homepage "https://github.com/badosz0/lifever"
+  homepage "https://www.lifever.app/"
 
   livecheck do
     url :url
@@ -16,11 +16,6 @@ cask "lifever" do
   depends_on macos: :monterey
 
   app "Lifever.app"
-
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Lifever.app"]
-  end
 
   zap trash: [
     "~/Library/Application Support/app.lifever.desktop",

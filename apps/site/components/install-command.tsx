@@ -6,8 +6,7 @@ import { useEffect, useRef, useState } from "react";
 const windowsDownloadUrl =
   "https://github.com/badosz0/lifever/releases/latest/download/Lifever-Windows-x64-setup.exe";
 const installCommand = `brew tap badosz0/lifever https://github.com/badosz0/lifever
-brew trust --cask badosz0/lifever/lifever
-brew install lifever`;
+brew install --cask lifever`;
 
 export function InstallCommand() {
   const [copied, setCopied] = useState(false);
@@ -72,9 +71,7 @@ export function InstallCommand() {
             <span className="prompt">$</span> brew tap badosz0/lifever{" "}
             <span className="command-muted">https://github.com/badosz0/lifever</span>
             {"\n"}
-            <span className="prompt">$</span> brew trust --cask
-            badosz0/lifever/lifever{"\n"}
-            <span className="prompt">$</span> brew install lifever
+            <span className="prompt">$</span> brew install --cask lifever
           </code>
         </pre>
       ) : (

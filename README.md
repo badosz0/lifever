@@ -55,15 +55,14 @@ preferences stay synced through the Lifever API on every device.
 
 ```bash
 brew tap badosz0/lifever https://github.com/badosz0/lifever
-brew trust --cask badosz0/lifever/lifever
-brew install lifever
+brew install --cask lifever
 ```
 
 Update later with:
 
 ```bash
 brew update
-brew upgrade lifever
+brew upgrade --cask lifever
 ```
 
 ### Windows
