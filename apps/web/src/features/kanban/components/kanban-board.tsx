@@ -40,11 +40,55 @@ type KanbanBoardProps = {
 };
 
 const collisionDetection: CollisionDetection = (args) => {
+  const containerFor = (id: string | number) =>
+    args.droppableContainers.find((container) => container.id === id);
+  const isCardCollision = (id: string | number) =>
+    id !== args.active.id && containerFor(id)?.data.current?.type === "card";
+
+  const preferCardInColumn = (
+    collisions: ReturnType<typeof pointerWithin>,
+  ) => {
+    const eligibleCollisions = collisions.filter(
+      ({ id }) => id !== args.active.id,
+    );
+    const cardCollisions = eligibleCollisions.filter(({ id }) =>
+      isCardCollision(id),
+    );
+    if (cardCollisions.length > 0) return cardCollisions;
+
+    const columnCollision = eligibleCollisions.find(
+      ({ id }) => containerFor(id)?.data.current?.type === "column",
+    );
+    if (!columnCollision) return eligibleCollisions;
+
+    const columnId = containerFor(columnCollision.id)?.data.current?.columnId;
+    const columnCards = args.droppableContainers.filter(
+      (container) =>
+        container.id !== args.active.id &&
+        container.data.current?.type === "card" &&
+        container.data.current?.columnId === columnId,
+    );
+    const closestCard = closestCorners({
+      ...args,
+      droppableContainers: columnCards,
+    });
+
+    return closestCard.length > 0 ? closestCard : [columnCollision];
+  };
+
   const pointerCollisions = pointerWithin(args);
-  if (pointerCollisions.length > 0) return pointerCollisions;
+  if (pointerCollisions.length > 0) {
+    const preferredPointerCollisions = preferCardInColumn(pointerCollisions);
+    if (preferredPointerCollisions.length > 0) {
+      return preferredPointerCollisions;
+    }
+  }
   const intersections = rectIntersection(args);
-  if (intersections.length > 0) return intersections;
-  return closestCorners(args);
+  if (intersections.length > 0) {
+    const preferredIntersections = preferCardInColumn(intersections);
+    if (preferredIntersections.length > 0) return preferredIntersections;
+  }
+  return preferCardInColumn(closestCorners(args));
 };
 
 export function KanbanBoard({
@@ -88,32 +132,59 @@ export function KanbanBoard({
   ): { columnId: string; index: number } | null => {
     const over = event.over;
     if (!over) return null;
+    const activeId = String(event.active.data.current?.cardId ?? "");
     const overData = over.data.current;
     if (overData?.type === "column") {
       const columnId = String(overData.columnId);
       return {
         columnId,
-        index: allCards.filter((card) => card.columnId === columnId).length,
+        index: allCards.filter(
+          (card) => card.columnId === columnId && card.id !== activeId,
+        ).length,
       };
     }
     if (overData?.type === "card") {
       const overCardId = String(overData.cardId);
       const overCard = allCards.find((card) => card.id === overCardId);
       if (!overCard) return null;
-      const destinationCards = allCards
+      const cardsInColumn = allCards
         .filter((card) => card.columnId === overCard.columnId)
         .sort((a, b) => a.position - b.position);
+      const destinationCards = allCards
+        .filter(
+          (card) =>
+            card.columnId === overCard.columnId && card.id !== activeId,
+        )
+        .sort((a, b) => a.position - b.position);
+      if (overCardId === activeId) {
+        const currentIndex = cardsInColumn.findIndex(
+          (card) => card.id === activeId,
+        );
+        return {
+          columnId: overCard.columnId,
+          index: Math.max(0, Math.min(currentIndex, destinationCards.length)),
+        };
+      }
       const overIndex = destinationCards.findIndex(
         (card) => card.id === overCardId,
       );
-      const activeBottom =
-        event.active.rect.current.translated?.bottom ??
-        event.active.rect.current.initial?.bottom ??
-        0;
-      const goesAfter = activeBottom > over.rect.top + over.rect.height / 2;
+      if (overIndex < 0) return null;
+      const activeRect =
+        event.active.rect.current.translated ??
+        event.active.rect.current.initial;
+      const activeCenter = activeRect
+        ? activeRect.top + activeRect.height / 2
+        : over.rect.top + over.rect.height / 2;
+      const goesAfter = activeCenter > over.rect.top + over.rect.height / 2;
       return {
         columnId: overCard.columnId,
-        index: Math.max(0, overIndex + (goesAfter ? 1 : 0)),
+        index: Math.max(
+          0,
+          Math.min(
+            overIndex + (goesAfter ? 1 : 0),
+            destinationCards.length,
+          ),
+        ),
       };
     }
     return null;
