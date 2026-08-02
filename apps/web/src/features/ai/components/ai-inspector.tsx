@@ -1,4 +1,10 @@
-import { CheckCircle2, Clock3, HardDrive, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  HardDrive,
+  Minimize2,
+  ShieldCheck,
+} from "lucide-react";
 
 import { formatPlanName } from "@/features/ai/lib/ai-usage";
 import { useAI } from "@/features/ai/model/ai-provider";
@@ -59,6 +65,15 @@ export function AIInspector({ className }: { className?: string }) {
             value={dashboard?.source.sessionsFound ? "Found" : "Not found"}
           />
           <SourceRow
+            icon={Minimize2}
+            label="RTK"
+            value={
+              dashboard?.rtk.installed
+                ? dashboard.rtk.version ?? "Connected"
+                : "Not found"
+            }
+          />
+          <SourceRow
             icon={Clock3}
             label="Last refresh"
             value={
@@ -75,8 +90,8 @@ export function AIInspector({ className }: { className?: string }) {
         <div className="mt-6 flex items-start gap-2.5 border-t border-border/60 pt-4">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           <p className="text-[10px] leading-4 text-muted-foreground">
-            Aggregation happens on this device. Lifever reuses Codex’s saved
-            sign-in in memory and never stores or displays credentials.
+            Aggregation happens on this device. Lifever reads Codex and RTK
+            totals without storing command output, prompts, or credentials.
           </p>
         </div>
       </div>

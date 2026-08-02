@@ -69,6 +69,46 @@ export type AIUsageSource = {
   historyIsLocal: boolean;
 };
 
+export type RTKGainSummary = {
+  totalCommands: number;
+  totalInput: number;
+  totalOutput: number;
+  totalSaved: number;
+  avgSavingsPct: number;
+  totalTimeMs: number;
+  avgTimeMs: number;
+};
+
+export type RTKDailyUsage = {
+  date: string;
+  commands: number;
+  inputTokens: number;
+  outputTokens: number;
+  savedTokens: number;
+  savingsPct: number;
+  totalTimeMs: number;
+  avgTimeMs: number;
+};
+
+export type RTKWeeklyUsage = Omit<RTKDailyUsage, "date"> & {
+  weekStart: string;
+  weekEnd: string;
+};
+
+export type RTKMonthlyUsage = Omit<RTKDailyUsage, "date"> & {
+  month: string;
+};
+
+export type RTKUsageDashboard = {
+  installed: boolean;
+  version: string | null;
+  summary: RTKGainSummary | null;
+  daily: RTKDailyUsage[];
+  weekly: RTKWeeklyUsage[];
+  monthly: RTKMonthlyUsage[];
+  warning: string | null;
+};
+
 export type AIUsageDashboard = {
   collectedAt: number;
   plan: string | null;
@@ -79,6 +119,7 @@ export type AIUsageDashboard = {
   models: AIModelUsage[];
   projects: AIProjectUsage[];
   recentSessions: AIRecentSession[];
+  rtk: RTKUsageDashboard;
   source: AIUsageSource;
   warning: string | null;
   isDemo?: boolean;

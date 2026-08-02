@@ -1,4 +1,11 @@
-import { Database, Gauge, HardDrive, Settings2, ShieldCheck } from "lucide-react";
+import {
+  Database,
+  Gauge,
+  HardDrive,
+  Minimize2,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
 
 import {
   Dialog,
@@ -35,7 +42,7 @@ export function AISettingsDialog({
           </div>
           <DialogTitle>AI settings</DialogTitle>
           <DialogDescription className="mt-1">
-            Choose how the local Codex dashboard is displayed.
+            Choose how local Codex and RTK activity is displayed.
           </DialogDescription>
         </div>
 
@@ -94,6 +101,28 @@ export function AISettingsDialog({
                 )}
               />
             </div>
+            <div className="ml-11 h-px bg-border/55" />
+            <div className="flex min-h-[58px] items-center gap-3 px-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                <Minimize2 className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold">RTK compression</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {dashboard?.rtk.installed
+                    ? `Reading RTK ${dashboard.rtk.version ?? "gain"} statistics locally`
+                    : "Install RTK to see command-output savings"}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  dashboard?.rtk.installed
+                    ? "bg-emerald-500"
+                    : "bg-muted-foreground/35",
+                )}
+              />
+            </div>
           </div>
 
           <p className="mt-5 mb-2 px-1 text-[9px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
@@ -103,7 +132,7 @@ export function AISettingsDialog({
             <DataRow
               icon={Database}
               title="Local history"
-              description="Aggregated from recent Codex sessions in ~/.codex"
+              description="Aggregated from recent Codex sessions and RTK gain statistics"
             />
             <div className="ml-11 h-px bg-border/55" />
             <DataRow

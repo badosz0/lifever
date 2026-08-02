@@ -3,12 +3,14 @@ import { type CSSProperties, useMemo } from "react";
 
 import {
   buildChartDays,
+  buildRtkChartDays,
   formatTokenCount,
 } from "@/features/ai/lib/ai-usage";
 import type {
   AIDailyUsage,
   AIHistoryRange,
   AIRateLimit,
+  RTKDailyUsage,
 } from "@/features/ai/model/types";
 import { cn } from "@/lib/cn";
 
@@ -125,7 +127,6 @@ export function TokenHistoryChart({
 }) {
   const days = useMemo(() => buildChartDays(daily, range), [daily, range]);
   const maximum = Math.max(...days.map((day) => day.totalTokens), 1);
-  const labelEvery = range === 30 ? 5 : 2;
 
   return (
     <div className="mt-5">
@@ -133,7 +134,7 @@ export function TokenHistoryChart({
         className="grid h-[190px] items-end gap-1.5 sm:gap-2"
         style={{ gridTemplateColumns: `repeat(${range}, minmax(0, 1fr))` }}
       >
-        {days.map((day, index) => {
+        {days.map((day) => {
           const cached = Math.min(day.cachedInputTokens, day.inputTokens);
           const uncached = Math.max(0, day.inputTokens - cached);
           const output = day.outputTokens;
@@ -178,26 +179,132 @@ export function TokenHistoryChart({
                   </>
                 ) : null}
               </div>
-              <span
-                className={cn(
-                  "mt-2 truncate text-center text-[8px] text-muted-foreground",
-                  index % labelEvery !== 0 &&
-                    index !== days.length - 1 &&
-                    "invisible",
-                )}
-              >
-                {format(new Date(`${day.date}T12:00:00`), "MMM d")}
-              </span>
             </div>
           );
         })}
       </div>
+
+      <ChartDateAxis days={days} labelCount={range === 30 ? 5 : 4} />
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-muted-foreground">
         <ChartLegend color="#5B8CFF" label="Uncached input" />
         <ChartLegend color="#9AB8FF" label="Cached input" />
         <ChartLegend color="#8B5CF6" label="Output" />
       </div>
+    </div>
+  );
+}
+
+export function RtkSavingsChart({
+  daily,
+  range,
+}: {
+  daily: RTKDailyUsage[];
+  range: AIHistoryRange;
+}) {
+  const days = useMemo(
+    () => buildRtkChartDays(daily, range),
+    [daily, range],
+  );
+  const maximum = Math.max(...days.map((day) => day.inputTokens), 1);
+
+  return (
+    <div className="mt-5">
+      <div
+        className="grid h-[164px] items-end gap-1.5 sm:gap-2"
+        style={{ gridTemplateColumns: `repeat(${range}, minmax(0, 1fr))` }}
+      >
+        {days.map((day) => {
+          const height = Math.max(
+            day.inputTokens ? 5 : 2,
+            (day.inputTokens / maximum) * 142,
+          );
+          const denominator = Math.max(day.inputTokens, 1);
+          return (
+            <div
+              key={day.date}
+              className="group relative flex h-full min-w-0 flex-col justify-end"
+              style={{ "--bar-height": `${height}px` } as CSSProperties}
+              role="img"
+              aria-label={`${format(new Date(`${day.date}T12:00:00`), "MMMM d")}: ${formatTokenCount(day.savedTokens)} tokens saved across ${day.commands} commands`}
+            >
+              <div className="pointer-events-none absolute bottom-[calc(var(--bar-height)+8px)] left-1/2 z-10 hidden w-max -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-2 text-[10px] shadow-lg group-hover:block">
+                <p className="font-semibold">
+                  {format(new Date(`${day.date}T12:00:00`), "MMM d")}
+                </p>
+                <p className="mt-0.5 text-muted-foreground">
+                  {formatTokenCount(day.savedTokens)} saved · {day.commands}{" "}
+                  commands · {Math.round(day.savingsPct)}%
+                </p>
+              </div>
+              <div
+                className="flex w-full min-w-[3px] flex-col-reverse overflow-hidden rounded-[4px] bg-muted"
+                style={{ height }}
+              >
+                {day.inputTokens ? (
+                  <>
+                    <span
+                      className="w-full bg-slate-400/55"
+                      style={{
+                        height: `${(day.outputTokens / denominator) * 100}%`,
+                      }}
+                    />
+                    <span
+                      className="w-full bg-emerald-500"
+                      style={{
+                        height: `${(day.savedTokens / denominator) * 100}%`,
+                      }}
+                    />
+                  </>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <ChartDateAxis days={days} labelCount={range === 30 ? 5 : 4} />
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-muted-foreground">
+        <ChartLegend color="#10B981" label="Saved before context" />
+        <ChartLegend color="#94A3B8" label="Delivered to context" />
+      </div>
+    </div>
+  );
+}
+
+function ChartDateAxis({
+  days,
+  labelCount,
+}: {
+  days: { date: string }[];
+  labelCount: number;
+}) {
+  const labels = Array.from({ length: labelCount }, (_, index) => {
+    const dayIndex = Math.round(
+      (index * (days.length - 1)) / (labelCount - 1),
+    );
+    return days[dayIndex];
+  }).filter((day): day is { date: string } => Boolean(day));
+
+  return (
+    <div className="relative mt-2 h-3 text-[9px] leading-3 text-muted-foreground tabular-nums">
+      {labels.map((day, index) => (
+        <span
+          key={day.date}
+          className={cn(
+            "absolute top-0 whitespace-nowrap",
+            index === 0
+              ? "translate-x-0"
+              : index === labels.length - 1
+                ? "-translate-x-full"
+                : "-translate-x-1/2",
+          )}
+          style={{ left: `${(index / (labels.length - 1)) * 100}%` }}
+        >
+          {format(new Date(`${day.date}T12:00:00`), "MMM d")}
+        </span>
+      ))}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+use crate::local_cli::{find_on_path, home_directory, is_executable_file};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -31,6 +32,7 @@ pub struct AiUsageDashboard {
     models: Vec<AiModelUsage>,
     projects: Vec<AiProjectUsage>,
     recent_sessions: Vec<AiRecentSession>,
+    rtk: crate::rtk_usage::RtkUsageDashboard,
     source: AiUsageSource,
     warning: Option<String>,
 }
@@ -148,6 +150,7 @@ struct CodexLiveUsage {
 
 pub fn collect_dashboard() -> AiUsageDashboard {
     let collected_at = unix_timestamp_millis();
+    let rtk = crate::rtk_usage::collect_dashboard();
     let codex_home = codex_home();
     let sessions_path = codex_home.join("sessions");
     let auth_path = codex_home.join("auth.json");
@@ -191,6 +194,7 @@ pub fn collect_dashboard() -> AiUsageDashboard {
         models,
         projects,
         recent_sessions,
+        rtk,
         source: AiUsageSource {
             codex_connected,
             account_source,
@@ -208,12 +212,6 @@ fn codex_home() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| home_directory().map(|home| home.join(".codex")))
         .unwrap_or_else(|| PathBuf::from(".codex"))
-}
-
-fn home_directory() -> Option<PathBuf> {
-    env::var_os("HOME")
-        .or_else(|| env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
 }
 
 fn resolve_codex_cli() -> Option<PathBuf> {
@@ -239,17 +237,8 @@ fn resolve_codex_cli() -> Option<PathBuf> {
         return Some(path);
     }
 
-    let output = platform_path_lookup("codex");
-    if let Some(output) = output.filter(|output| output.status.success()) {
-        if let Some(path) = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(PathBuf::from)
-            .find(|path| is_executable_file(path))
-        {
-            return Some(path);
-        }
+    if let Some(path) = find_on_path("codex") {
+        return Some(path);
     }
 
     let home = home?;
@@ -263,23 +252,6 @@ fn resolve_codex_cli() -> Option<PathBuf> {
     nvm_candidates.sort();
     nvm_candidates.reverse();
     nvm_candidates.into_iter().next()
-}
-
-#[cfg(target_os = "windows")]
-fn platform_path_lookup(binary: &str) -> Option<std::process::Output> {
-    Command::new("where.exe").arg(binary).output().ok()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn platform_path_lookup(binary: &str) -> Option<std::process::Output> {
-    Command::new("/bin/sh")
-        .args(["-lc", &format!("command -v {binary}")])
-        .output()
-        .ok()
-}
-
-fn is_executable_file(path: &Path) -> bool {
-    path.is_file()
 }
 
 fn collect_live_usage_from_auth(auth_path: &Path) -> Result<CodexLiveUsage, String> {

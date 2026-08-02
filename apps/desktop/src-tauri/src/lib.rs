@@ -1,5 +1,7 @@
 mod ai_usage;
+mod local_cli;
 mod notifications;
+mod rtk_usage;
 
 use tauri::Manager;
 

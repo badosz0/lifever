@@ -4,6 +4,8 @@ import type {
   AIDailyUsage,
   AIHistoryRange,
   AIUsageDashboard,
+  RTKDailyUsage,
+  RTKUsageDashboard,
 } from "@/features/ai/model/types";
 import { isTauri } from "@/lib/runtime";
 
@@ -17,6 +19,16 @@ const emptySummary = {
   historyDays: 30,
 };
 
+const emptyRtkDashboard: RTKUsageDashboard = {
+  installed: false,
+  version: null,
+  summary: null,
+  daily: [],
+  weekly: [],
+  monthly: [],
+  warning: null,
+};
+
 const makeBrowserDashboard = (): AIUsageDashboard => ({
   collectedAt: Date.now(),
   plan: null,
@@ -27,6 +39,7 @@ const makeBrowserDashboard = (): AIUsageDashboard => ({
   models: [],
   projects: [],
   recentSessions: [],
+  rtk: emptyRtkDashboard,
   source: {
     codexConnected: false,
     accountSource: null,
@@ -70,6 +83,41 @@ const makeDemoDashboard = (): AIUsageDashboard => {
       historyDays: 30,
     }),
     { ...emptySummary },
+  );
+  const rtkDaily = Array.from({ length: 30 }, (_, index) => {
+    const age = 29 - index;
+    const active = index % 8 !== 2;
+    const inputTokens = active
+      ? Math.round(210_000 + (index % 7) * 74_000 + index * 4_200)
+      : 0;
+    const savingsPct = active ? 44 + ((index * 7) % 37) : 0;
+    const savedTokens = Math.round(inputTokens * (savingsPct / 100));
+    return {
+      date: format(subDays(new Date(), age), "yyyy-MM-dd"),
+      commands: active ? 110 + ((index * 43) % 310) : 0,
+      inputTokens,
+      outputTokens: inputTokens - savedTokens,
+      savedTokens,
+      savingsPct,
+      totalTimeMs: active ? 80_000 + index * 9_400 : 0,
+      avgTimeMs: active ? 620 + (index % 5) * 170 : 0,
+    };
+  });
+  const rtkSummary = rtkDaily.reduce(
+    (total, day) => ({
+      totalCommands: total.totalCommands + day.commands,
+      totalInput: total.totalInput + day.inputTokens,
+      totalOutput: total.totalOutput + day.outputTokens,
+      totalSaved: total.totalSaved + day.savedTokens,
+      totalTimeMs: total.totalTimeMs + day.totalTimeMs,
+    }),
+    {
+      totalCommands: 0,
+      totalInput: 0,
+      totalOutput: 0,
+      totalSaved: 0,
+      totalTimeMs: 0,
+    },
   );
 
   return {
@@ -169,6 +217,23 @@ const makeDemoDashboard = (): AIUsageDashboard => {
         totalTokens: 79_160,
       },
     ],
+    rtk: {
+      installed: true,
+      version: "0.43.0",
+      summary: {
+        ...rtkSummary,
+        avgSavingsPct: rtkSummary.totalInput
+          ? (rtkSummary.totalSaved / rtkSummary.totalInput) * 100
+          : 0,
+        avgTimeMs: rtkSummary.totalCommands
+          ? Math.round(rtkSummary.totalTimeMs / rtkSummary.totalCommands)
+          : 0,
+      },
+      daily: rtkDaily,
+      weekly: [],
+      monthly: [],
+      warning: null,
+    },
     source: {
       codexConnected: true,
       accountSource: "codex-auth",
@@ -228,6 +293,29 @@ export function buildChartDays(
         outputTokens: 0,
         totalTokens: 0,
         sessions: 0,
+      }
+    );
+  });
+}
+
+export function buildRtkChartDays(
+  usage: RTKDailyUsage[],
+  range: AIHistoryRange,
+) {
+  const byDate = new Map(usage.map((day) => [day.date, day]));
+  return Array.from({ length: range }, (_, index) => {
+    const date = subDays(new Date(), range - index - 1);
+    const key = format(date, "yyyy-MM-dd");
+    return (
+      byDate.get(key) ?? {
+        date: key,
+        commands: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        savedTokens: 0,
+        savingsPct: 0,
+        totalTimeMs: 0,
+        avgTimeMs: 0,
       }
     );
   });

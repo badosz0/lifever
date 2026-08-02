@@ -22,6 +22,7 @@ import {
   QuotaGauge,
   TokenHistoryChart,
 } from "@/features/ai/components/ai-usage-visuals";
+import { RtkUsageSection } from "@/features/ai/components/rtk-usage-section";
 import {
   buildChartDays,
   formatPlanName,
@@ -73,7 +74,9 @@ export function AIView({
       )
     : 0;
   const hasLocalData =
-    dashboard?.source.codexConnected || dashboard?.source.sessionsFound;
+    dashboard?.source.codexConnected ||
+    dashboard?.source.sessionsFound ||
+    dashboard?.rtk.installed;
 
   return (
     <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -127,7 +130,7 @@ export function AIView({
                 Codex usage
               </h2>
               <p className="mt-1.5 text-[12px] text-muted-foreground">
-                Live OpenAI limits and private token history from this device
+                Live OpenAI limits, Codex activity, and RTK savings
               </p>
             </div>
             {dashboard?.source.codexConnected ? (
@@ -258,11 +261,16 @@ export function AIView({
                 </section>
               </div>
 
+              <RtkUsageSection
+                rtk={dashboard.rtk}
+                range={historyRange}
+              />
+
               <div className="mt-6 flex items-start gap-2.5 px-1 text-[10px] leading-4 text-muted-foreground">
                 <ShieldCheck className="mt-px size-3.5 shrink-0" />
                 <p>
                   Live limits reuse your existing Codex sign-in. Credentials
-                  stay in Codex storage; token totals are aggregated locally
+                  stay in Codex storage; Codex and RTK totals are read locally
                   and never synced to Lifever.
                 </p>
               </div>
