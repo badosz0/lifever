@@ -12,13 +12,15 @@ export const metadata: Metadata = {
     template: "%s · Lifever",
   },
   description:
-    "A calm, synced home for reminders, calendar, notes, projects, Formula 1, and AI usage on macOS and Windows.",
+    "A calm, synced home for reminders, calendars, notes, projects, Formula 1, and AI usage on macOS and Windows.",
   applicationName: "Lifever",
   keywords: [
     "reminders",
     "calendar",
+    "Google Calendar",
     "notes",
     "kanban",
+    "collaboration",
     "AI usage",
     "macOS",
     "Windows",
@@ -34,7 +36,7 @@ export const metadata: Metadata = {
     siteName: "Lifever",
     title: "Lifever — Your day, together.",
     description:
-      "One calm home for reminders, plans, notes, projects, and the things you follow.",
+      "Reminders, calendars, notes, projects, and the things you follow—together and in sync.",
     images: [
       {
         url: "/og.png",
@@ -48,7 +50,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Lifever — Your day, together.",
     description:
-      "One calm home for reminders, plans, notes, projects, and the things you follow.",
+      "Reminders, calendars, notes, projects, and the things you follow—together and in sync.",
     images: ["/og.png"],
   },
   icons: {

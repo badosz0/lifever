@@ -52,7 +52,7 @@ export function InstallCommand() {
         </div>
         {platform === "macos" ? (
           <>
-            <span className="terminal-note">Homebrew</span>
+            <span className="terminal-note">Apple notarized</span>
             <button
               type="button"
               className="copy-button"

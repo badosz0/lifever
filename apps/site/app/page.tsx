@@ -47,7 +47,8 @@ export default function Home() {
               Your day, <mark>together.</mark>
             </h1>
             <p className="hero-lede">
-              Reminders, calendar, notes, projects, and more—in one calm place.
+              Reminders, calendars, notes, projects, and the things you
+              follow—in one calm place, synced wherever you sign in.
             </p>
             <div className="hero-actions">
               <a className="button" href={releaseUrl}>
@@ -66,7 +67,11 @@ export default function Home() {
 
         <section className="install-section" id="install">
           <div className="install-copy">
-            <h2>Made for your desktop.</h2>
+            <h2>Yours on every desktop.</h2>
+            <p>
+              Universal for Apple silicon and Intel, Developer ID signed and
+              notarized. Also available for Windows 10 and 11.
+            </p>
           </div>
           <InstallCommand />
         </section>

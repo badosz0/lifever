@@ -334,6 +334,15 @@ img {
   line-height: 1.01;
 }
 
+.install-copy p {
+  max-width: 390px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  letter-spacing: -0.018em;
+  line-height: 1.55;
+}
+
 .install-command {
   overflow: hidden;
   border: 1px solid var(--border);

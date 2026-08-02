@@ -5,11 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Lifever",
     short_name: "Lifever",
     description:
-      "A calm home for reminders, calendar, notes, projects, and Formula 1.",
+      "A calm, synced home for reminders, calendars, notes, projects, and more.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",
-    theme_color: "#007aff",
+    theme_color: "#fefefd",
     icons: [
       {
         src: "/lifever-logo.png",
