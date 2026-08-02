@@ -99,14 +99,16 @@ export function NewKanbanCardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(720px,calc(100dvh-2rem))] max-w-[500px] overflow-visible">
-        <DialogTitle>New card</DialogTitle>
-        <DialogDescription className="mt-1">
-          Capture the work now; refine its details whenever you need.
-        </DialogDescription>
+      <DialogContent className="max-h-[min(720px,calc(100dvh-2rem))] max-w-[500px] overflow-visible p-0">
+        <div className="px-5 pt-5 pr-12">
+          <DialogTitle>New card</DialogTitle>
+          <DialogDescription className="mt-1">
+            Capture the work now; refine its details whenever you need.
+          </DialogDescription>
+        </div>
 
         <form
-          className="mt-5 max-h-[min(590px,calc(100dvh-9rem))] space-y-4 overflow-y-auto pr-1"
+          className="mt-4 max-h-[min(590px,calc(100dvh-9rem))] space-y-4 overflow-y-auto px-5 pt-1 pb-5"
           onSubmit={(event) => {
             event.preventDefault();
             createCard();
