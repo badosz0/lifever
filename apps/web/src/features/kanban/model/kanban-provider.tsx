@@ -19,6 +19,7 @@ import {
   collaborationRoomKey,
   useLiveCollaboration,
 } from "@/features/collaboration/model/use-live-collaboration";
+import { reorderKanbanCards } from "@/features/kanban/lib/card-order";
 import { mergeKanbanStates } from "@/features/kanban/lib/merge-state";
 import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
@@ -955,52 +956,20 @@ export function KanbanProvider({ children }: PropsWithChildren) {
           return current;
         }
         if (!canEditProject(card.projectId)) return current;
-
-        const sourceCards = current.cards
-          .filter((item) => item.columnId === card.columnId && item.id !== id)
-          .sort((a, b) => a.position - b.position);
-        const destinationCards =
-          card.columnId === columnId
-            ? sourceCards
-            : current.cards
-                .filter((item) => item.columnId === columnId && item.id !== id)
-                .sort((a, b) => a.position - b.position);
-        const boundedIndex = Math.max(
-          0,
-          Math.min(destinationIndex, destinationCards.length),
-        );
-        const reorderedDestination = [...destinationCards];
-        reorderedDestination.splice(boundedIndex, 0, {
-          ...card,
+        const cards = reorderKanbanCards(
+          current.cards,
+          id,
           columnId,
-          updatedAt: new Date().toISOString(),
-        });
-        const destinationPositions = new Map(
-          reorderedDestination.map((item, index) => [item.id, index]),
+          destinationIndex,
         );
-        const sourcePositions =
-          card.columnId === columnId
-            ? new Map<string, number>()
-            : new Map(sourceCards.map((item, index) => [item.id, index]));
+        if (cards === current.cards) return current;
+        const updatedAt = new Date().toISOString();
 
         return {
           ...current,
-          cards: current.cards.map((item) => {
-            if (destinationPositions.has(item.id)) {
-              return {
-                ...item,
-                columnId,
-                position: destinationPositions.get(item.id)!,
-                ...(item.id === id
-                  ? { updatedAt: new Date().toISOString() }
-                  : {}),
-              };
-            }
-            if (sourcePositions.has(item.id)) {
-              return { ...item, position: sourcePositions.get(item.id)! };
-            }
-            return item;
-          }),
+          cards: cards.map((item) =>
+            item.id === id ? { ...item, updatedAt } : item,
+          ),
         };
       });
     },

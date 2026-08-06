@@ -14,13 +14,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import {
   KanbanCardSurface,
 } from "@/features/kanban/components/kanban-card";
-import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import { KanbanColumn } from "@/features/kanban/components/kanban-column";
+import { reorderKanbanCards } from "@/features/kanban/lib/card-order";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
 import type {
   KanbanCard,
@@ -108,6 +109,9 @@ export function KanbanBoard({
     setSelectedCardId,
   } = useKanban();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [previewCards, setPreviewCards] = useState<KanbanCard[] | null>(null);
+  const activeCardIdRef = useRef<string | null>(null);
+  const previewCardsRef = useRef<KanbanCard[] | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 7 },
@@ -121,57 +125,72 @@ export function KanbanBoard({
     () => new Map(columns.map((column) => [column.id, column])),
     [columns],
   );
+  const visibleCardIds = useMemo(
+    () => new Set(cards.map((card) => card.id)),
+    [cards],
+  );
+  const boardCards = previewCards ?? allCards;
+  const visibleBoardCards = previewCards
+    ? boardCards.filter((card) => visibleCardIds.has(card.id))
+    : cards;
   const activeCard =
-    allCards.find((card) => card.id === activeCardId) ?? null;
+    boardCards.find((card) => card.id === activeCardId) ?? null;
   const activeColumn = activeCard
     ? columnById.get(activeCard.columnId)
     : undefined;
 
+  const clearDrag = useCallback(() => {
+    activeCardIdRef.current = null;
+    previewCardsRef.current = null;
+    setActiveCardId(null);
+    setPreviewCards(null);
+    setCollaborationFocusCardId(null);
+  }, [setCollaborationFocusCardId]);
+
+  useEffect(() => {
+    if (
+      activeCardId &&
+      (!allCards.some((card) => card.id === activeCardId) || readOnly)
+    ) {
+      clearDrag();
+    }
+  }, [activeCardId, allCards, clearDrag, readOnly]);
+
   const getDestination = (
     event: DragOverEvent | DragEndEvent,
+    currentCards: KanbanCard[],
+    activeId: string,
   ): { columnId: string; index: number } | null => {
     const over = event.over;
     if (!over) return null;
-    const activeId = String(event.active.data.current?.cardId ?? "");
     const overData = over.data.current;
     if (overData?.type === "column") {
       const columnId = String(overData.columnId);
+      if (!columnById.has(columnId)) return null;
       return {
         columnId,
-        index: allCards.filter(
+        index: currentCards.filter(
           (card) => card.columnId === columnId && card.id !== activeId,
         ).length,
       };
     }
     if (overData?.type === "card") {
       const overCardId = String(overData.cardId);
-      const overCard = allCards.find((card) => card.id === overCardId);
+      const overCard = currentCards.find((card) => card.id === overCardId);
       if (!overCard) return null;
-      const cardsInColumn = allCards
-        .filter((card) => card.columnId === overCard.columnId)
-        .sort((a, b) => a.position - b.position);
-      const destinationCards = allCards
+      const destinationCards = currentCards
         .filter(
           (card) =>
             card.columnId === overCard.columnId && card.id !== activeId,
         )
         .sort((a, b) => a.position - b.position);
-      if (overCardId === activeId) {
-        const currentIndex = cardsInColumn.findIndex(
-          (card) => card.id === activeId,
-        );
-        return {
-          columnId: overCard.columnId,
-          index: Math.max(0, Math.min(currentIndex, destinationCards.length)),
-        };
-      }
       const overIndex = destinationCards.findIndex(
         (card) => card.id === overCardId,
       );
       if (overIndex < 0) return null;
       const activeRect =
-        event.active.rect.current.translated ??
-        event.active.rect.current.initial;
+        event.active.rect.current?.translated ??
+        event.active.rect.current?.initial;
       const activeCenter = activeRect
         ? activeRect.top + activeRect.height / 2
         : over.rect.top + over.rect.height / 2;
@@ -193,29 +212,46 @@ export function KanbanBoard({
   const handleDragStart = (event: DragStartEvent) => {
     if (readOnly) return;
     const cardId = event.active.data.current?.cardId;
-    if (typeof cardId === "string") {
-      setActiveCardId(cardId);
-      setCollaborationFocusCardId(cardId);
+    if (
+      typeof cardId !== "string" ||
+      !allCards.some((card) => card.id === cardId)
+    ) {
+      return;
     }
+    activeCardIdRef.current = cardId;
+    previewCardsRef.current = allCards;
+    setActiveCardId(cardId);
+    setCollaborationFocusCardId(cardId);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     if (readOnly) return;
-    const cardId = event.active.data.current?.cardId;
-    if (typeof cardId !== "string") return;
-    const card = allCards.find((item) => item.id === cardId);
-    const destination = getDestination(event);
+    const cardId = activeCardIdRef.current;
+    if (!cardId) return;
+    const currentCards = previewCardsRef.current ?? allCards;
+    const card = currentCards.find((item) => item.id === cardId);
+    const destination = getDestination(event, currentCards, cardId);
     if (!card || !destination || card.columnId === destination.columnId) return;
-    moveCard(card.id, destination.columnId, destination.index);
+    const nextCards = reorderKanbanCards(
+      currentCards,
+      card.id,
+      destination.columnId,
+      destination.index,
+    );
+    if (nextCards === currentCards) return;
+    previewCardsRef.current = nextCards;
+    setPreviewCards(nextCards);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (readOnly) return;
-    const cardId = event.active.data.current?.cardId;
-    const destination = getDestination(event);
-    setActiveCardId(null);
-    setCollaborationFocusCardId(null);
-    if (typeof cardId !== "string" || !destination) return;
+    const cardId = activeCardIdRef.current;
+    const currentCards = previewCardsRef.current ?? allCards;
+    const destination = cardId
+      ? getDestination(event, currentCards, cardId)
+      : null;
+    clearDrag();
+    if (!cardId || !destination) return;
     moveCard(cardId, destination.columnId, destination.index);
   };
 
@@ -230,10 +266,7 @@ export function KanbanBoard({
       }}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
-      onDragCancel={() => {
-        setActiveCardId(null);
-        setCollaborationFocusCardId(null);
-      }}
+      onDragCancel={clearDrag}
       onDragEnd={handleDragEnd}
     >
       <div className="flex min-h-full min-w-max items-start gap-4 px-4 pb-8 sm:px-6">
@@ -241,11 +274,11 @@ export function KanbanBoard({
           <KanbanColumn
             key={column.id}
             column={column}
-            cards={cards
+            cards={visibleBoardCards
               .filter((card) => card.columnId === column.id)
               .sort((a, b) => a.position - b.position)}
             totalCardCount={
-              allCards.filter((card) => card.columnId === column.id).length
+              boardCards.filter((card) => card.columnId === column.id).length
             }
             labels={labels}
             cardCollaborators={cardCollaborators}
