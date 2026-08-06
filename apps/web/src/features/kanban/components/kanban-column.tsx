@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -46,6 +46,7 @@ export function KanbanColumn({
   onManageWorkflow,
   readOnly = false,
 }: KanbanColumnProps) {
+  const { active, over } = useDndContext();
   const { isOver, setNodeRef } = useDroppable({
     id: `column:${column.id}`,
     data: { type: "column", columnId: column.id },
@@ -53,6 +54,9 @@ export function KanbanColumn({
   const atLimit =
     column.wipLimit !== null && totalCardCount >= column.wipLimit;
   const filtered = totalCardCount !== cards.length;
+  const isDragTarget =
+    active?.data.current?.type === "card" &&
+    over?.data.current?.columnId === column.id;
 
   return (
     <section className="group/column flex w-[min(280px,calc(100vw-2rem))] shrink-0 flex-col self-start">
@@ -110,7 +114,7 @@ export function KanbanColumn({
         ref={setNodeRef}
         className={cn(
           "min-h-14 rounded-xl p-1 transition-[background-color,box-shadow] duration-150",
-          isOver &&
+          (isOver || isDragTarget) &&
             "bg-[color-mix(in_srgb,var(--project-color)_7%,var(--background))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--project-color)_24%,transparent)]",
         )}
       >
@@ -138,11 +142,11 @@ export function KanbanColumn({
           <div
             className={cn(
               "flex h-14 w-full items-center justify-center rounded-lg border border-dashed border-transparent px-4 text-center text-[11px] font-medium text-muted-foreground transition-[border-color,color] duration-150",
-              isOver &&
+              (isOver || isDragTarget) &&
                 "border-[color-mix(in_srgb,var(--project-color)_28%,var(--border))] text-foreground",
             )}
           >
-            {isOver ? "Drop card here" : null}
+            {isOver || isDragTarget ? "Drop card here" : null}
           </div>
         ) : cards.length === 0 ? (
           <div className="flex h-14 w-full items-center justify-center px-4 text-center text-[11px] font-medium text-muted-foreground">
