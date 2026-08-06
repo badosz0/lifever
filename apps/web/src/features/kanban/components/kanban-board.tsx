@@ -41,53 +41,84 @@ type KanbanBoardProps = {
 const collisionDetection: CollisionDetection = (args) => {
   const containerFor = (id: string | number) =>
     args.droppableContainers.find((container) => container.id === id);
-  const isCardCollision = (id: string | number) =>
-    id !== args.active.id && containerFor(id)?.data.current?.type === "card";
 
-  const preferCardInColumn = (
+  const resolveColumnPlacement = (
     collisions: ReturnType<typeof pointerWithin>,
   ) => {
-    const eligibleCollisions = collisions.filter(
-      ({ id }) => id !== args.active.id,
+    const columnCollision = collisions.find(
+      ({ id }) => containerFor(id)?.data.current?.columnId,
     );
-    const cardCollisions = eligibleCollisions.filter(({ id }) =>
-      isCardCollision(id),
-    );
-    if (cardCollisions.length > 0) return cardCollisions;
+    if (!columnCollision) return collisions;
 
-    const columnCollision = eligibleCollisions.find(
-      ({ id }) => containerFor(id)?.data.current?.type === "column",
+    const columnId = String(
+      containerFor(columnCollision.id)?.data.current?.columnId,
     );
-    if (!columnCollision) return eligibleCollisions;
-
-    const columnId = containerFor(columnCollision.id)?.data.current?.columnId;
     const columnCards = args.droppableContainers.filter(
       (container) =>
-        container.id !== args.active.id &&
         container.data.current?.type === "card" &&
         container.data.current?.columnId === columnId,
-    );
-    const closestCard = closestCorners({
-      ...args,
-      droppableContainers: columnCards,
+    ).sort((a, b) => {
+      const aIndex = a.data.current?.sortable?.index;
+      const bIndex = b.data.current?.sortable?.index;
+      return typeof aIndex === "number" && typeof bIndex === "number"
+        ? aIndex - bIndex
+        : 0;
     });
 
-    return closestCard.length > 0 ? closestCard : [columnCollision];
+    const columnContainer = args.droppableContainers.find(
+      (container) =>
+        container.data.current?.type === "column" &&
+        container.data.current?.columnId === columnId,
+    );
+    if (columnCards.length === 0) {
+      return columnContainer
+        ? [{ id: columnContainer.id }]
+        : [columnCollision];
+    }
+
+    // A grab point can still be inside the card above while most of the
+    // dragged card is already below it. Rank the insertion slot from the
+    // dragged card's visual center so the preview matches the eventual drop.
+    const draggedCenter =
+      args.collisionRect.top + args.collisionRect.height / 2;
+    const otherCards = columnCards.filter(
+      (container) => container.id !== args.active.id,
+    );
+    let destinationIndex = 0;
+    for (const container of otherCards) {
+      const rect = args.droppableRects.get(container.id);
+      if (!rect) continue;
+      if (draggedCenter <= rect.top + rect.height / 2) break;
+      destinationIndex += 1;
+    }
+
+    const sourceColumnId = String(args.active.data.current?.columnId ?? "");
+    if (sourceColumnId === columnId) {
+      // Including the active container maps a no-op back to its original slot,
+      // while dnd-kit's sortable preview receives the exact destination index.
+      const target = columnCards[destinationIndex];
+      return target ? [{ id: target.id }] : [columnCollision];
+    }
+
+    const target = columnCards[destinationIndex];
+    if (target) return [{ id: target.id }];
+    return columnContainer ? [{ id: columnContainer.id }] : [columnCollision];
   };
 
   const pointerCollisions = pointerWithin(args);
   if (pointerCollisions.length > 0) {
-    const preferredPointerCollisions = preferCardInColumn(pointerCollisions);
+    const preferredPointerCollisions =
+      resolveColumnPlacement(pointerCollisions);
     if (preferredPointerCollisions.length > 0) {
       return preferredPointerCollisions;
     }
   }
   const intersections = rectIntersection(args);
   if (intersections.length > 0) {
-    const preferredIntersections = preferCardInColumn(intersections);
+    const preferredIntersections = resolveColumnPlacement(intersections);
     if (preferredIntersections.length > 0) return preferredIntersections;
   }
-  return preferCardInColumn(closestCorners(args));
+  return resolveColumnPlacement(closestCorners(args));
 };
 
 export function KanbanBoard({
@@ -163,32 +194,32 @@ export function KanbanBoard({
       const overCardId = String(overData.cardId);
       const overCard = allCards.find((card) => card.id === overCardId);
       if (!overCard) return null;
-      const destinationCards = allCards
+      const activeCard = allCards.find((card) => card.id === activeId);
+      if (overCardId === activeId) return null;
+
+      const columnCards = allCards
         .filter(
-          (card) =>
-            card.columnId === overCard.columnId && card.id !== activeId,
+          (card) => card.columnId === overCard.columnId,
         )
         .sort((a, b) => a.position - b.position);
-      const overIndex = destinationCards.findIndex(
+      const overIndex = columnCards.findIndex(
         (card) => card.id === overCardId,
       );
       if (overIndex < 0) return null;
-      const activeRect =
-        event.active.rect.current?.translated ??
-        event.active.rect.current?.initial;
-      const activeCenter = activeRect
-        ? activeRect.top + activeRect.height / 2
-        : over.rect.top + over.rect.height / 2;
-      const goesAfter = activeCenter > over.rect.top + over.rect.height / 2;
+
+      // Collision detection already maps the dragged card's visual center to
+      // an exact sortable slot. Commit that slot directly instead of measuring
+      // a sibling that may currently be transformed by the preview animation.
+      const destinationIndex =
+        activeCard?.columnId === overCard.columnId
+          ? overIndex
+          : columnCards.filter((card) => card.id !== activeId).findIndex(
+              (card) => card.id === overCardId,
+            );
+      if (destinationIndex < 0) return null;
       return {
         columnId: overCard.columnId,
-        index: Math.max(
-          0,
-          Math.min(
-            overIndex + (goesAfter ? 1 : 0),
-            destinationCards.length,
-          ),
-        ),
+        index: destinationIndex,
       };
     }
     return null;
