@@ -45,7 +45,6 @@ const releaseAssetsDirectory = path.join(
   desktopRoot,
   "target/release-assets",
 );
-const windowsReleaseWorkflow = "windows-release.yml";
 const releaseEnvironmentPath =
   process.env.LIFEVER_RELEASE_ENV_PATH ??
   path.join(homedir(), ".config/lifever/release.env");
@@ -62,7 +61,6 @@ Options:
   --notes <path>      Markdown release notes to use instead of generated notes
   --allow-ad-hoc      Publish without Developer ID signing (not recommended)
   --skip-deploy       Skip D1 migrations and Worker deployment (recovery only)
-  --skip-windows-wait Publish without waiting for the Windows installer
   --dry-run           Build and validate without publishing or deploying
   --yes               Skip the interactive production confirmation
   -h, --help          Show this help
@@ -84,7 +82,6 @@ function parseArguments(argv) {
     dryRun: false,
     notesPath: undefined,
     skipDeploy: false,
-    skipWindowsWait: false,
     yes: false,
   };
 
@@ -100,8 +97,6 @@ function parseArguments(argv) {
       if (!options.notesPath) throw new Error("--notes requires a path.");
     } else if (argument === "--skip-deploy") {
       options.skipDeploy = true;
-    } else if (argument === "--skip-windows-wait") {
-      options.skipWindowsWait = true;
     } else if (argument === "--dry-run") {
       options.dryRun = true;
     } else if (argument === "--yes") {
@@ -649,40 +644,6 @@ async function updateHomebrewCask({ sha256, version }) {
   await run("git", ["push", "origin", "main"]);
 }
 
-async function waitForWindowsInstaller(tag) {
-  const timeoutAt = Date.now() + 30 * 60 * 1_000;
-  const actionsUrl = `https://github.com/${releaseRepository}/actions/workflows/${windowsReleaseWorkflow}`;
-  console.log("\nWaiting for the Windows installer built by GitHub Actions...");
-
-  while (Date.now() < timeoutAt) {
-    const assets = await run(
-      "gh",
-      [
-        "release",
-        "view",
-        tag,
-        "--repo",
-        releaseRepository,
-        "--json",
-        "assets",
-        "--jq",
-        ".assets[].name",
-      ],
-      { allowFailure: true, capture: true },
-    );
-    if (assets.stdout.split("\n").includes(windowsReleaseAssetName)) {
-      console.log(`Windows release asset: ${windowsReleaseAssetName}`);
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
-  }
-
-  throw new Error(
-    `The Windows installer did not appear within 30 minutes. Check ${actionsUrl}, then rerun the workflow for ${tag}.`,
-  );
-}
-
 async function main() {
   if (process.platform !== "darwin") {
     throw new Error("Lifever macOS releases must be built on macOS.");
@@ -747,9 +708,6 @@ async function main() {
     tag: repository.tag,
     version,
   });
-  if (!options.skipWindowsWait) {
-    await waitForWindowsInstaller(repository.tag);
-  }
   await updateHomebrewCask({
     sha256: artifact.sha256,
     version,
@@ -759,6 +717,7 @@ async function main() {
   console.log(
     `Release: https://github.com/${releaseRepository}/releases/tag/${repository.tag}`,
   );
+  console.log("The Windows installer will attach asynchronously via GitHub Actions.");
   console.log("Install:");
   console.log(`  brew tap ${homebrewTapName} ${homebrewTapUrl}`);
   console.log("  brew install --cask lifever");

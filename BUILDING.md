@@ -217,8 +217,8 @@ The release command checks the workspace, builds and verifies an Intel and
 Apple-silicon DMG, applies D1 migrations, deploys the Worker, tags the source,
 and publishes the GitHub Release. Publishing triggers the
 [`Windows release`](.github/workflows/windows-release.yml) workflow, which
-builds the Windows x64 NSIS installer from the same tag. The release command
-waits for that installer before updating `Casks/lifever.rb`.
+builds and attaches the Windows x64 NSIS installer from the same tag
+asynchronously. The local release command does not wait for that workflow.
 
 Public releases require `APPLE_SIGNING_IDENTITY` plus one notarization method:
 
