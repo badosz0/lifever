@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
  * Runs initialization once for each closed-to-open transition.
  *
  * Keeping the latest callback in a ref lets dialogs read fresh provider data
- * without reinitializing drafts whenever live collaboration refreshes it.
+ * without reinitializing drafts whenever background sync refreshes it.
  */
 export function useOnOpen(open: boolean, onOpen: () => void) {
   const onOpenRef = useRef(onOpen);

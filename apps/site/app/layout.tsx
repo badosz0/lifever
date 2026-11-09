@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · Lifever",
   },
   description:
-    "A calm, synced home for reminders, calendars, notes, projects, Formula 1, and AI usage on macOS and Windows.",
+    "A calm, synced home for reminders, calendars, notes, projects, and Formula 1 on macOS and Windows.",
   applicationName: "Lifever",
   keywords: [
     "reminders",
@@ -20,8 +20,6 @@ export const metadata: Metadata = {
     "Google Calendar",
     "notes",
     "kanban",
-    "collaboration",
-    "AI usage",
     "macOS",
     "Windows",
     "productivity",

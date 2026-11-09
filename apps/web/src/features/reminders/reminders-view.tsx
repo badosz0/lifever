@@ -1,15 +1,8 @@
-import {
-  ArrowUpDown,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  AppHeader,
-  AppHeaderToolbar,
-} from "@/components/app-shell/app-header";
+import { AppHeader, AppHeaderToolbar } from "@/components/app-shell/app-header";
 import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,23 +11,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { EmptyReminders } from "@/features/reminders/components/empty-reminders";
 import { NewReminderComposer } from "@/features/reminders/components/new-reminder-composer";
 import { ReminderNavigation } from "@/features/reminders/components/reminder-navigation";
 import { ReminderRow } from "@/features/reminders/components/reminder-row";
+import { RemindersSettingsDialog } from "@/features/reminders/components/reminders-settings-dialog";
 import { ReminderSection } from "@/features/reminders/components/reminder-section";
 import { isBeforeToday, isSameLocalDay } from "@/features/reminders/lib/dates";
 import { useReminders } from "@/features/reminders/model/reminders-provider";
@@ -93,6 +75,7 @@ export function RemindersView({
     updateReminder,
   } = useReminders();
   const [composerOpen, setComposerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [clearCompletedOpen, setClearCompletedOpen] = useState(false);
   const [viewOptions, setViewOptions] = useState(readViewOptions);
   const openComposer = useCallback(() => {
@@ -115,7 +98,9 @@ export function RemindersView({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
+      const isTyping = target?.matches(
+        "input, textarea, select, [contenteditable='true']",
+      );
       const commandPressed = event.metaKey || event.ctrlKey;
 
       if (
@@ -126,7 +111,6 @@ export function RemindersView({
         event.preventDefault();
         openComposer();
       }
-
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -134,11 +118,11 @@ export function RemindersView({
   }, [openComposer]);
 
   const title =
-    ({
+    {
       today: "Today",
       all: "All Reminders",
       completed: "Completed",
-    }[activeView] || "Reminders");
+    }[activeView] || "Reminders";
 
   const { completed, overdue, pendingCount, remaining, today } = useMemo(() => {
     const filtered = reminders
@@ -206,7 +190,8 @@ export function RemindersView({
           Number(today.length > 0) +
           Number(remaining.length > 0);
   const showSectionHeaders = visibleSectionCount > 1;
-  const visibleCount = activeView === "completed" ? completed.length : pendingCount;
+  const visibleCount =
+    activeView === "completed" ? completed.length : pendingCount;
   const visibleEmpty = visibleCount === 0;
 
   return (
@@ -218,46 +203,10 @@ export function RemindersView({
         >
           <ReminderNavigation />
           <div className="flex-1" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <AppSettingsButton label="Reminder settings" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                  Sort By
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    value={viewOptions.sort}
-                    onValueChange={(sort) =>
-                      setViewOptions((current) => ({
-                        ...current,
-                        sort: sort as ReminderSort,
-                      }))
-                    }
-                  >
-                    <DropdownMenuRadioItem value="due">
-                      Due Date
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="created">
-                      Date Created
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={completedTotal === 0}
-                className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
-                onSelect={() => setClearCompletedOpen(true)}
-              >
-                <Trash2 className="size-3.5" />
-                Delete Completed…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <AppSettingsButton
+            label="Reminder settings"
+            onClick={() => setSettingsOpen(true)}
+          />
           <ShortcutTooltip label="New Reminder" shortcut={["⌘", "N"]}>
             <Button
               size="icon-sm"
@@ -289,7 +238,10 @@ export function RemindersView({
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 sm:px-6">
         <div className="mx-auto max-w-3xl pt-2">
-          <NewReminderComposer open={composerOpen} onOpenChange={setComposerOpen} />
+          <NewReminderComposer
+            open={composerOpen}
+            onOpenChange={setComposerOpen}
+          />
 
           {visibleEmpty ? (
             <EmptyReminders
@@ -386,12 +338,21 @@ export function RemindersView({
                   </ReminderSection>
                 </>
               )}
-
             </>
           )}
         </div>
       </div>
 
+      <RemindersSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        sort={viewOptions.sort}
+        onSortChange={(sort) =>
+          setViewOptions((current) => ({ ...current, sort }))
+        }
+        completedCount={completedTotal}
+        onClearCompleted={() => setClearCompletedOpen(true)}
+      />
       <Dialog open={clearCompletedOpen} onOpenChange={setClearCompletedOpen}>
         <DialogContent className="max-w-sm">
           <DialogTitle>Delete completed reminders?</DialogTitle>
@@ -401,7 +362,10 @@ export function RemindersView({
               : `All ${completedTotal} completed reminders will be permanently deleted.`}
           </DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setClearCompletedOpen(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => setClearCompletedOpen(false)}
+            >
               Cancel
             </Button>
             <Button

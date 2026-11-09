@@ -21,7 +21,6 @@ export type CalendarCollection = {
   primary?: boolean;
   sourceColor?: string;
   createdAt?: string;
-  access?: SharedResourceAccess;
 };
 
 export type CalendarEvent = {
@@ -69,4 +68,3 @@ export type CalendarEventPreview = {
 };
 
 export type CalendarViewMode = "year" | "month" | "week" | "day";
-import type { SharedResourceAccess } from "@/features/sharing/model/types";

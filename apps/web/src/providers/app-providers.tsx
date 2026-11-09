@@ -9,7 +9,6 @@ import { AppCalendarSourceRegistryProvider } from "@/features/apps/calendar-sour
 import { lifeverFeatureApps } from "@/features/apps/feature-app-registry";
 import { AppsProvider } from "@/features/apps/model/apps-provider";
 import { UserPreferencesProvider } from "@/features/settings/model/user-preferences-provider";
-import { SharingProvider } from "@/features/sharing/model/sharing-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const appProviders = lifeverFeatureApps.reduceRight<ReactNode>(
@@ -34,13 +33,11 @@ export function AppProviders({ children }: PropsWithChildren) {
 
   return (
     <UserPreferencesProvider>
-      <SharingProvider>
-        <AppsProvider>
-          <AppCalendarSourceRegistryProvider>
-            {appProviders}
-          </AppCalendarSourceRegistryProvider>
-        </AppsProvider>
-      </SharingProvider>
+      <AppsProvider>
+        <AppCalendarSourceRegistryProvider>
+          {appProviders}
+        </AppCalendarSourceRegistryProvider>
+      </AppsProvider>
     </UserPreferencesProvider>
   );
 }

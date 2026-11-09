@@ -1,12 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
-import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
-import {
-  canWriteResource,
-  getResourceAccess,
-} from "../sharing/sharing.service.js";
 import {
   createCalendarEventSchema,
   updateCalendarEventSchema,
@@ -39,31 +34,17 @@ export const createCalendarRoutes = ({
 
   calendarRoutes.get("/", async (context) => {
     const session = context.get("session");
-    const shares = await prisma.resourceShare.findMany({
-      where: { userId: session.user.id, resourceType: "calendar" },
-      select: { resourceId: true, permission: true },
-    });
-    const shareByCalendar = new Map(
-      shares.map((share) => [share.resourceId, share]),
-    );
     const events = await prisma.calendarEvent.findMany({
-      where: {
-        OR: [
-          { userId: session.user.id },
-          { calendarId: { in: shares.map((share) => share.resourceId) } },
-        ],
-      },
+      where: { userId: session.user.id },
       select: calendarEventSelect,
       orderBy: [{ startAt: "asc" }, { createdAt: "asc" }],
     });
 
     return context.json({
-      events: events.map(({ userId: ownerId, ...event }) => ({
+      events: events.map(({ userId: _ownerId, ...event }) => ({
         ...event,
         source: "lifever",
-        readOnly:
-          ownerId !== session.user.id &&
-          shareByCalendar.get(event.calendarId)?.permission !== "write",
+        readOnly: false,
       })),
     });
   });
@@ -80,23 +61,30 @@ export const createCalendarRoutes = ({
       );
     }
 
-    const access = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      parsed.data.calendarId,
-    );
-    if (!access) {
-      return context.json({ error: "Calendar not found" }, 400);
+    const existing = await prisma.calendarEvent.findUnique({
+      where: { id: parsed.data.id },
+      select: calendarEventSelect,
+    });
+    if (existing) {
+      if (existing.userId !== session.user.id) {
+        return context.json({ error: "Calendar event id is already in use" }, 409);
+      }
+      const { userId: _ownerId, ...event } = existing;
+      return context.json({
+        event: { ...event, source: "lifever" as const, readOnly: false },
+      });
     }
-    if (!canWriteResource(access)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
+
+    const calendar = await prisma.lifeverCalendar.findFirst({
+      where: { id: parsed.data.calendarId, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!calendar) return context.json({ error: "Calendar not found" }, 400);
     const category = await prisma.calendarCategory.findFirst({
       where: {
         id: parsed.data.categoryId,
         calendarId: parsed.data.calendarId,
-        userId: access.resource.ownerId,
+        userId: session.user.id,
       },
       select: { id: true },
     });
@@ -108,29 +96,24 @@ export const createCalendarRoutes = ({
         ...parsed.data,
         startAt: new Date(parsed.data.startAt),
         endAt: new Date(parsed.data.endAt),
-        userId: access.resource.ownerId,
+        userId: session.user.id,
       },
       select: calendarEventSelect,
     });
     const { userId: _ownerId, ...liveEvent } = event;
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: event.calendarId,
-      shared: access.shared,
-      change: {
-        action: "upsert",
-        entity: "calendar-event",
-        data: { event: liveEvent },
-      },
-    });
+    const clientEvent = {
+      ...liveEvent,
+      source: "lifever" as const,
+      readOnly: false,
+    };
 
-    return context.json({ event }, 201);
+    return context.json({ event: clientEvent }, 201);
   });
 
   calendarRoutes.patch("/:id", async (context) => {
     const session = context.get("session");
-    const existing = await prisma.calendarEvent.findUnique({
-      where: { id: context.req.param("id") },
+    const existing = await prisma.calendarEvent.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
       select: {
         id: true,
         startAt: true,
@@ -142,19 +125,6 @@ export const createCalendarRoutes = ({
     });
     if (!existing)
       return context.json({ error: "Calendar event not found" }, 404);
-    const currentAccess = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      existing.calendarId,
-    );
-    if (!currentAccess) {
-      return context.json({ error: "Calendar event not found" }, 404);
-    }
-    if (!canWriteResource(currentAccess)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
-
     const parsed = updateCalendarEventSchema.safeParse(
       await context.req.json(),
     );
@@ -167,27 +137,20 @@ export const createCalendarRoutes = ({
 
     const nextCalendarId = parsed.data.calendarId ?? existing.calendarId;
     const nextCategoryId = parsed.data.categoryId ?? existing.categoryId;
-    const nextAccess =
-      nextCalendarId === existing.calendarId
-        ? currentAccess
-        : await getResourceAccess(
-            prisma,
-            session.user.id,
-            "calendar",
-            nextCalendarId,
-          );
-    if (!canWriteResource(nextAccess)) {
-      return context.json({ error: "Choose a writable calendar." }, 403);
-    }
+    const calendar = await prisma.lifeverCalendar.findFirst({
+      where: { id: nextCalendarId, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!calendar) return context.json({ error: "Calendar not found" }, 400);
     if (parsed.data.calendarId || parsed.data.categoryId) {
       const category = await prisma.calendarCategory.findFirst({
-          where: {
-            id: nextCategoryId,
-            calendarId: nextCalendarId,
-            userId: nextAccess!.resource.ownerId,
-          },
-          select: { id: true },
-        });
+        where: {
+          id: nextCategoryId,
+          calendarId: nextCalendarId,
+          userId: session.user.id,
+        },
+        select: { id: true },
+      });
       if (!category) {
         return context.json(
           { error: "Choose a category from this calendar." },
@@ -215,79 +178,54 @@ export const createCalendarRoutes = ({
       existing.updatedAt.toISOString() !== baseUpdatedAt
     ) {
       const latest = await prisma.calendarEvent.findUnique({
-        where: { id: existing.id },
+        where: { id: existing.id, userId: session.user.id },
         select: calendarEventSelect,
       });
-      return context.json({ error: "Event changed", event: latest }, 409);
+      if (!latest) {
+        return context.json({ error: "Calendar event not found" }, 404);
+      }
+      const { userId: _ownerId, ...latestEvent } = latest;
+      return context.json(
+        {
+          error: "Event changed",
+          event: {
+            ...latestEvent,
+            source: "lifever" as const,
+            readOnly: false,
+          },
+        },
+        409,
+      );
     }
     const event = await prisma.calendarEvent.update({
-      where: { id: existing.id },
+      where: { id: existing.id, userId: session.user.id },
       data: {
         ...patch,
         ...(patch.startAt ? { startAt } : {}),
         ...(patch.endAt ? { endAt } : {}),
-        ...(nextCalendarId !== existing.calendarId
-          ? { userId: nextAccess!.resource.ownerId }
-          : {}),
       },
       select: calendarEventSelect,
     });
     const { userId: _ownerId, ...liveEvent } = event;
-    if (existing.calendarId !== event.calendarId) {
-      publishCollaborationChange(context, {
-        resourceType: "calendar",
-        resourceId: existing.calendarId,
-        shared: currentAccess.shared,
-        change: {
-          action: "delete",
-          entity: "calendar-event",
-          data: { eventId: event.id },
-        },
-      });
-    }
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: event.calendarId,
-      shared: nextAccess!.shared,
-      change: {
-        action: "upsert",
-        entity: "calendar-event",
-        data: { event: liveEvent },
-      },
-    });
-
-    return context.json({ event });
+    const clientEvent = {
+      ...liveEvent,
+      source: "lifever" as const,
+      readOnly: false,
+    };
+    return context.json({ event: clientEvent });
   });
 
   calendarRoutes.delete("/:id", async (context) => {
     const session = context.get("session");
-    const event = await prisma.calendarEvent.findUnique({
-      where: { id: context.req.param("id") },
+    const event = await prisma.calendarEvent.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
       select: { id: true, calendarId: true },
     });
     if (!event) {
       return context.json({ error: "Calendar event not found" }, 404);
     }
-    const access = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      event.calendarId,
-    );
-    if (!access) return context.json({ error: "Calendar event not found" }, 404);
-    if (!canWriteResource(access)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
-    await prisma.calendarEvent.delete({ where: { id: event.id } });
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: event.calendarId,
-      shared: access.shared,
-      change: {
-        action: "delete",
-        entity: "calendar-event",
-        data: { eventId: event.id },
-      },
+    await prisma.calendarEvent.delete({
+      where: { id: event.id, userId: session.user.id },
     });
     return context.body(null, 204);
   });

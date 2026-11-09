@@ -31,13 +31,10 @@
 - **Notes** — fast search, categories, pinning, Markdown, and focused writing.
 - **Kanban** — multiple projects, custom properties, labels, limits, and precise drag and drop.
 - **Formula 1** — race weekends, standings, local session times, and live countdowns.
-- **AI** — Codex limits, token history, model usage, and RTK savings in one dashboard.
 
-Formula 1 and AI are opt-in. Everything else is ready on first launch.
+Formula 1 is opt-in. Everything else is ready on first launch.
 
-| Home | AI usage |
-| --- | --- |
-| ![Lifever Home overview](docs/screenshots/home-overview.jpg) | ![Lifever AI usage dashboard](docs/screenshots/ai-usage.jpg) |
+![Lifever Home overview](docs/screenshots/home-overview.jpg)
 
 | Reminders | Kanban |
 | --- | --- |
@@ -50,9 +47,8 @@ Formula 1 and AI are opt-in. Everything else is ready on first launch.
 ## Built to stay in sync
 
 Lifever requires an account, so your reminders, calendars, notes, projects,
-and preferences follow you between devices. Share individual notes, calendars,
-or Kanban projects with read-only or editing access; shared work updates live
-while everyone is viewing it.
+and preferences follow you between devices. Your notes, calendars, and Kanban
+projects stay private to your account.
 
 ## Install
 

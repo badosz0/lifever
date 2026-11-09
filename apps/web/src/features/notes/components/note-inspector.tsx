@@ -3,7 +3,6 @@ import {
   FilePenLine,
   FileText,
   Pin,
-  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,9 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LivePresence } from "@/features/collaboration/components/live-presence";
 import { NoteMarkdown } from "@/features/notes/components/note-markdown";
-import { ShareDialog } from "@/features/sharing/components/share-dialog";
 import {
   countNoteWords,
   noteDisplayTitle,
@@ -39,7 +36,6 @@ type EditorMode = "edit" | "preview";
 export function NoteInspector({ className }: NoteInspectorProps) {
   const {
     categories,
-    liveCollaborators,
     notes,
     removeNote,
     restoreNote,
@@ -53,7 +49,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
   const [mode, setMode] = useState<EditorMode>(
     settings.openInPreview ? "preview" : "edit",
   );
-  const [shareOpen, setShareOpen] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -102,12 +97,7 @@ export function NoteInspector({ className }: NoteInspectorProps) {
 
   const category =
     categories.find((item) => item.id === note.categoryId) ?? categories[0]!;
-  const editableCategories = categories.filter(
-    (item) => item.owned !== false,
-  );
   const updatedAt = new Date(note.updatedAt);
-  const canEdit = note.access?.permission !== "read";
-  const isOwner = note.access?.role !== "collaborator";
 
   const deleteNote = () => {
     const removed = removeNote(note.id);
@@ -124,8 +114,7 @@ export function NoteInspector({ className }: NoteInspectorProps) {
   };
 
   return (
-    <>
-      <aside
+    <aside
       className={cn(
         "flex h-full w-full flex-col overflow-hidden border-l border-border bg-card",
         className,
@@ -142,7 +131,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
             note.pinned && "text-amber-600 dark:text-amber-400",
           )}
           onClick={() => updateNote(note.id, { pinned: !note.pinned })}
-          disabled={!canEdit}
           aria-label={note.pinned ? "Unpin note" : "Pin note"}
           aria-pressed={note.pinned}
         >
@@ -151,18 +139,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
             fill={note.pinned ? "currentColor" : "none"}
           />
         </Button>
-
-        {note.access ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="size-8 text-muted-foreground"
-            onClick={() => setShareOpen(true)}
-            aria-label="Share note"
-          >
-            <Share2 className="size-4" />
-          </Button>
-        ) : null}
 
         <div className="mx-auto flex rounded-lg bg-muted p-0.5" role="tablist">
           <button
@@ -197,8 +173,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
           </button>
         </div>
 
-        <LivePresence peers={liveCollaborators} />
-
         <Button
           variant="ghost"
           size="icon-sm"
@@ -221,7 +195,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
               }
               placeholder="Untitled Note"
               maxLength={160}
-              readOnly={!canEdit}
               className="w-full bg-transparent text-[26px] leading-[1.15] font-bold tracking-[-0.025em] outline-none placeholder:text-muted-foreground/45 sm:text-[30px]"
               aria-label="Note title"
             />
@@ -234,7 +207,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
             <Select
               value={note.categoryId}
-              disabled={!isOwner}
               onValueChange={(categoryId) =>
                 updateNote(note.id, { categoryId })
               }
@@ -248,7 +220,7 @@ export function NoteInspector({ className }: NoteInspectorProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {editableCategories.map((item) => (
+                {categories.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.name}
                   </SelectItem>
@@ -275,7 +247,6 @@ export function NoteInspector({ className }: NoteInspectorProps) {
             onChange={(event) => updateNote(note.id, { body: event.target.value })}
             placeholder={"Start writing…\n\nMarkdown is supported."}
             spellCheck={settings.spellcheck}
-            readOnly={!canEdit}
             className="mt-4 min-h-0 flex-1 resize-none bg-transparent px-5 pb-24 text-[15px] leading-7 text-foreground outline-none placeholder:text-muted-foreground/45 sm:px-7"
             aria-label="Note body"
           />
@@ -306,34 +277,17 @@ export function NoteInspector({ className }: NoteInspectorProps) {
         <span className="text-[10px] text-muted-foreground">
           Markdown · ⌘⇧P to toggle preview
         </span>
-        {isOwner ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={deleteNote}
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </Button>
-        ) : (
-          <span className="text-[10px] text-muted-foreground">
-            Shared by {note.access?.owner.name}
-          </span>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[11px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={deleteNote}
+        >
+          <Trash2 className="size-3.5" />
+          Delete
+        </Button>
         </div>
       </div>
-      </aside>
-      {note.access ? (
-        <ShareDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          resourceType="note"
-          resourceId={note.id}
-          resourceName={noteDisplayTitle(note)}
-          onLeft={() => setSelectedNoteId(null)}
-        />
-      ) : null}
-    </>
+    </aside>
   );
 }

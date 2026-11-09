@@ -11,14 +11,6 @@ import {
 import { toast } from "sonner";
 
 import { useApps } from "@/features/apps/model/apps-provider";
-import type {
-  CollaborationPeer,
-} from "@/features/collaboration/model/types";
-import {
-  collaborationRoomKey,
-  useLiveCollaboration,
-} from "@/features/collaboration/model/use-live-collaboration";
-import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { authClient } from "@/lib/auth-client";
 import { ApiRequestError, apiRequest } from "@/lib/api";
@@ -45,7 +37,6 @@ type NotesContextValue = {
   settings: NotesSettings;
   activeFilter: NotesFilter;
   selectedNoteId: string | null;
-  liveCollaborators: CollaborationPeer[];
   setActiveFilter: (filter: NotesFilter) => void;
   setSelectedNoteId: (id: string | null) => void;
   addNote: () => Note;
@@ -56,8 +47,6 @@ type NotesContextValue = {
   updateCategory: (id: string, patch: Partial<NoteCategory>) => void;
   removeCategory: (id: string) => boolean;
   updateSettings: (patch: Partial<NotesSettings>) => void;
-  canEditNote: (id: string) => boolean;
-  isNoteOwner: (id: string) => boolean;
 };
 
 type HydratedNotesState = {
@@ -185,156 +174,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
     [loadRemote],
   );
 
-  const selectedSharedNote = useMemo(
-    () =>
-      notes.find(
-        (note) => note.id === selectedNoteId && note.access?.shared,
-      ) ?? null,
-    [notes, selectedNoteId],
-  );
-  const collaborationRooms = useMemo(
-    () =>
-      activeApp === "notes" && selectedSharedNote
-        ? [
-            {
-              resourceType: "note" as const,
-              resourceId: selectedSharedNote.id,
-              focus: {
-                kind: "note" as const,
-                id: selectedSharedNote.id,
-              },
-            },
-          ]
-        : [],
-    [activeApp, selectedSharedNote],
-  );
-  const handleCollaborationChange = useCallback(
-    (message: {
-      change: { action: "delete" | "upsert"; data: unknown; entity: string };
-      resourceId: string;
-    }) => {
-      if (message.change.entity === "note-category") {
-        if (message.change.action === "delete") {
-          const data = message.change.data as {
-            categoryId?: unknown;
-            replacementCategoryId?: unknown;
-          };
-          if (
-            typeof data.categoryId !== "string" ||
-            typeof data.replacementCategoryId !== "string"
-          ) {
-            return;
-          }
-          setCategories((current) =>
-            current.filter(
-              (category) => category.id !== data.categoryId,
-            ),
-          );
-          setNotes((current) =>
-            current.map((note) =>
-              note.categoryId === data.categoryId
-                ? {
-                    ...note,
-                    categoryId: data.replacementCategoryId as string,
-                  }
-                : note,
-            ),
-          );
-          return;
-        }
-        const category = (
-          message.change.data as { category?: NoteCategory }
-        ).category;
-        if (!category) return;
-        setCategories((current) =>
-          current.some((item) => item.id === category.id)
-            ? current.map((item) =>
-                item.id === category.id
-                  ? { ...category, owned: item.owned }
-                  : item,
-              )
-            : [
-                ...current,
-                {
-                  ...category,
-                  owned: selectedSharedNote?.access?.role !== "collaborator",
-                },
-              ],
-        );
-        return;
-      }
-      if (message.change.entity !== "note") return;
-      if (message.change.action === "delete") {
-        const noteId = (message.change.data as { noteId?: unknown }).noteId;
-        if (typeof noteId !== "string") return;
-        const pending = pendingUpdates.current.get(noteId);
-        if (pending) window.clearTimeout(pending.timeout);
-        pendingUpdates.current.delete(noteId);
-        noteVersions.current.delete(noteId);
-        setNotes((current) =>
-          current.filter((note) => note.id !== noteId),
-        );
-        setSelectedNoteId((current) =>
-          current === noteId ? null : current,
-        );
-        return;
-      }
-
-      const changeData = message.change.data as {
-        category?: NoteCategory;
-        note?: Note;
-      };
-      const remoteNote = changeData.note;
-      if (!remoteNote || remoteNote.id !== message.resourceId) return;
-      if (changeData.category) {
-        const category = changeData.category;
-        setCategories((current) =>
-          current.some((item) => item.id === category.id)
-            ? current.map((item) =>
-                item.id === category.id
-                  ? { ...category, owned: item.owned }
-                  : item,
-              )
-            : [
-                ...current,
-                {
-                  ...category,
-                  owned:
-                    selectedSharedNote?.access?.role !== "collaborator",
-                },
-              ],
-        );
-      }
-      const hasLocalWrite =
-        pendingUpdates.current.has(remoteNote.id) ||
-        noteWriteChains.current.has(remoteNote.id);
-      if (hasLocalWrite) return;
-      noteVersions.current.set(remoteNote.id, remoteNote.updatedAt);
-      setNotes((current) =>
-        current.map((note) =>
-          note.id === remoteNote.id
-            ? { ...remoteNote, access: note.access }
-            : note,
-        ),
-      );
-    },
-    [selectedSharedNote?.access?.role],
-  );
-  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
-    currentUserId: session?.user.id,
-    enabled: Boolean(session && collaborationRooms.length > 0),
-    rooms: collaborationRooms,
-    onResourceChange: handleCollaborationChange,
-    onAccessChanged: () => {
-      if (session?.user.id) void loadRemote(session.user.id, true);
-    },
-  });
-  const liveCollaborators = selectedSharedNote
-    ? collaborationPeers[
-        collaborationRoomKey("note", selectedSharedNote.id)
-      ] ?? []
-    : [];
-
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
@@ -406,10 +245,8 @@ export function NotesProvider({ children }: PropsWithChildren) {
         refresh();
       }
     }, 30_000);
-    window.addEventListener(SHARING_CHANGED_EVENT, refresh);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
   }, [activeApp, loadRemote, session?.user.id]);
 
@@ -444,11 +281,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
         .then(({ note }) => {
           noteVersions.current.set(id, note.updatedAt);
           setNotes((current) =>
-            current.map((item) =>
-              item.id === id
-                ? { ...note, access: item.access ?? note.access }
-                : item,
-            ),
+            current.map((item) => item.id === id ? note : item),
           );
         })
         .catch(() => {
@@ -553,22 +386,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
       pinned: false,
       createdAt: now,
       updatedAt: now,
-      ...(session
-        ? {
-            access: {
-              role: "owner" as const,
-              permission: "write" as const,
-              shareId: null,
-              shared: false,
-              owner: {
-                id: session.user.id,
-                name: session.user.name,
-                email: session.user.email,
-                image: session.user.image ?? null,
-              },
-            },
-          }
-        : {}),
     };
     mutationVersion.current += 1;
     setNotes((current) => [note, ...current]);
@@ -601,7 +418,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const updateNote = useCallback(
     (id: string, patch: Partial<Note>) => {
       const existing = notesRef.current.find((note) => note.id === id);
-      if (!existing || existing.access?.permission === "read") return;
+      if (!existing) return;
       const updatedAt = new Date().toISOString();
       mutationVersion.current += 1;
       setNotes((current) =>
@@ -636,7 +453,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
     (id: string) => {
       const removed = notes.find((note) => note.id === id) ?? null;
       if (!removed) return null;
-      if (removed.access?.role === "collaborator") return null;
       const nextNote = notes.find((note) => note.id !== id) ?? null;
       mutationVersion.current += 1;
       const pending = pendingUpdates.current.get(id);
@@ -720,7 +536,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const updateCategory = useCallback(
     (id: string, patch: Partial<NoteCategory>) => {
       const category = categoriesRef.current.find((item) => item.id === id);
-      if (!category || category.owned === false) return;
+      if (!category) return;
       mutationVersion.current += 1;
       setCategories((current) =>
         current.map((category) =>
@@ -759,16 +575,13 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   const removeCategory = useCallback(
     (id: string) => {
-      const ownedCategories = categories.filter(
-        (category) => category.owned !== false,
-      );
       if (
-        ownedCategories.length <= 1 ||
-        !ownedCategories.some((category) => category.id === id)
+        categories.length <= 1 ||
+        !categories.some((category) => category.id === id)
       ) {
         return false;
       }
-      const fallback = ownedCategories.find((category) => category.id !== id);
+      const fallback = categories.find((category) => category.id !== id);
       if (!fallback) return false;
       mutationVersion.current += 1;
       setCategories((current) =>
@@ -856,7 +669,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
       settings,
       activeFilter,
       selectedNoteId,
-      liveCollaborators,
       setActiveFilter,
       setSelectedNoteId,
       addNote,
@@ -867,10 +679,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
       updateCategory,
       removeCategory,
       updateSettings,
-      canEditNote: (id) =>
-        notes.find((note) => note.id === id)?.access?.permission !== "read",
-      isNoteOwner: (id) =>
-        notes.find((note) => note.id === id)?.access?.role !== "collaborator",
     }),
     [
       activeFilter,
@@ -878,7 +686,6 @@ export function NotesProvider({ children }: PropsWithChildren) {
       addNote,
       categories,
       hydratedMode,
-      liveCollaborators,
       notes,
       removeCategory,
       removeNote,

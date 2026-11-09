@@ -1,15 +1,23 @@
 import {
   ArrowDown,
   ArrowUp,
-  Check,
-  CircleCheck,
+  Columns3,
+  FolderKanban,
   Plus,
-  Share2,
+  SlidersHorizontal,
+  Tags,
   Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { SettingsCollectionRow } from "@/components/settings/settings-collection-row";
+import {
+  SettingsGroup,
+  SettingsModal,
+  SettingsSection,
+  type SettingsDialogProps,
+} from "@/components/settings/settings-modal";
 import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
 import {
@@ -19,32 +27,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { kanbanColorPresets } from "@/features/kanban/lib/properties";
 import { useKanban } from "@/features/kanban/model/kanban-provider";
-import { ShareDialog } from "@/features/sharing/components/share-dialog";
-import { cn } from "@/lib/cn";
-
-type KanbanProjectSettingsDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-};
 
 export function KanbanProjectSettingsDialog({
   open,
   onOpenChange,
-}: KanbanProjectSettingsDialogProps) {
+}: SettingsDialogProps) {
   const {
     activeProjectId,
     addColumn,
     addLabel,
-    canEditProject,
     columns,
     labels,
-    projectAccess,
     projects,
     moveColumn,
-    isProjectOwner,
     removeColumn,
     removeLabel,
     removeProject,
@@ -53,7 +52,7 @@ export function KanbanProjectSettingsDialog({
     updateProject,
   } = useKanban();
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [newItemId, setNewItemId] = useState<string | null>(null);
   const project = projects.find((item) => item.id === activeProjectId);
   const projectColumns = useMemo(
     () =>
@@ -69,330 +68,266 @@ export function KanbanProjectSettingsDialog({
         .sort((a, b) => a.position - b.position),
     [activeProjectId, labels],
   );
-
   if (!project) return null;
-  const canEdit = canEditProject(project.id);
-  const isOwner = isProjectOwner(project.id);
-  const ownedProjectCount = projects.filter((item) =>
-    isProjectOwner(item.id),
-  ).length;
-
-  const deleteColumn = (id: string) => {
-    if (!removeColumn(id)) {
-      toast.error("A project needs at least one status");
-    }
-  };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[min(780px,calc(100dvh-2rem))] max-w-[680px] flex-col overflow-hidden p-0">
-          <div className="shrink-0 px-5 pt-5 pb-4">
-            <DialogTitle>Project settings</DialogTitle>
-            <DialogDescription className="mt-1">
-              Shape this project’s workflow and the properties available on its
-              cards.
-            </DialogDescription>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto border-y border-border/65 px-5 py-5">
-            <fieldset disabled={!canEdit} className="contents">
-              <section>
-                <div className="mb-3">
-                  <h3 className="text-[13px] font-semibold">General</h3>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    A distinct name and color make projects easy to spot.
-                  </p>
-                </div>
-                <div className="max-w-xl space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      Name
-                    </label>
-                    <div className="flex gap-2">
-                      <ColorPicker
-                        value={project.color}
-                        onValueChange={(color) =>
-                          updateProject(project.id, { color })
-                        }
-                        presets={kanbanColorPresets}
-                        ariaLabel="Choose project color"
-                      />
-                      <Input
-                        value={project.name}
-                        onChange={(event) =>
-                          updateProject(project.id, {
-                            name: event.target.value,
-                          })
-                        }
-                      />
+      <SettingsModal
+        open={open}
+        onOpenChange={(next) => {
+          onOpenChange(next);
+          if (!next) setNewItemId(null);
+        }}
+        title="Project settings"
+        description={project.name}
+        icon={FolderKanban}
+        iconClassName="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+        pages={[
+          {
+            id: "general",
+            label: "General",
+            icon: SlidersHorizontal,
+            description: "Give this project an identity and a clear purpose.",
+            content: (
+              <>
+                <SettingsSection title="Project details">
+                  <SettingsGroup>
+                    <div className="space-y-5 p-5">
+                      <div>
+                        <label
+                          htmlFor="project-settings-name"
+                          className="mb-2 block text-[13px] font-medium"
+                        >
+                          Project name
+                        </label>
+                        <div className="flex gap-3">
+                          <ColorPicker
+                            value={project.color}
+                            onValueChange={(color) =>
+                              updateProject(project.id, { color })
+                            }
+                            presets={kanbanColorPresets}
+                            ariaLabel="Choose project color"
+                          />
+                          <Input
+                            id="project-settings-name"
+                            value={project.name}
+                            maxLength={120}
+                            onChange={(event) =>
+                              updateProject(project.id, {
+                                name: event.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="project-settings-description"
+                          className="mb-2 block text-[13px] font-medium"
+                        >
+                          Description
+                        </label>
+                        <Textarea
+                          id="project-settings-description"
+                          value={project.description}
+                          maxLength={5000}
+                          onChange={(event) =>
+                            updateProject(project.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          className="min-h-28"
+                          placeholder="What are you working toward?"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      Description
-                    </label>
-                    <Textarea
-                      value={project.description}
-                      onChange={(event) =>
-                        updateProject(project.id, {
-                          description: event.target.value,
-                        })
-                      }
-                      className="min-h-20"
-                      placeholder="What is this project for?"
-                    />
-                  </div>
-                </div>
-              </section>
-            </fieldset>
-
-            <section className="mt-7 border-t border-border/65 pt-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-[13px] font-semibold">Collaboration</h3>
-                  <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                    {isOwner
-                      ? "Invite people to view or edit this project."
-                      : `Shared by ${projectAccess[project.id]?.owner.name ?? "the owner"}.`}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShareOpen(true)}
+                  </SettingsGroup>
+                </SettingsSection>
+                <SettingsSection
+                  title="Delete project"
+                  destructive
+                  description="Permanently remove this project and every status, label, and card inside it."
                 >
-                  <Share2 className="size-3.5" />
-                  Manage access
-                </Button>
-              </div>
-            </section>
-
-            <fieldset disabled={!canEdit} className="contents">
-            <section className="mt-7 border-t border-border/65 pt-6">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <h3 className="text-[13px] font-semibold">Workflow</h3>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Set card limits and mark the statuses that count as complete.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => addColumn(project.id)}
-                >
-                  <Plus className="size-3" />
-                  Add status
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                {projectColumns.map((column, index) => (
-                  <div
-                    key={column.id}
-                    className="grid items-center gap-2 rounded-xl border border-border bg-background p-2 sm:grid-cols-[auto_minmax(110px,1fr)_82px_auto_auto]"
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
+                    <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
+                      {projects.length <= 1
+                        ? "Create another project before deleting this one."
+                        : "This action can’t be undone."}
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/25 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={projects.length <= 1}
+                      onClick={() => setDeleteProjectOpen(true)}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete project…
+                    </Button>
+                  </div>
+                </SettingsSection>
+              </>
+            ),
+          },
+          {
+            id: "workflow",
+            label: "Workflow",
+            icon: Columns3,
+            description:
+              "Arrange your statuses, set card limits, and define what counts as done.",
+            content: (
+              <SettingsSection
+                title="Board statuses"
+                description="Statuses appear on your board in this order."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => setNewItemId(addColumn(project.id).id)}
                   >
-                    <ColorPicker
-                      value={column.color}
-                      onValueChange={(color) =>
-                        updateColumn(column.id, { color })
-                      }
-                      presets={kanbanColorPresets}
-                      ariaLabel={`Choose ${column.name} color`}
-                    />
-                    <Input
-                      value={column.name}
-                      onChange={(event) =>
-                        updateColumn(column.id, { name: event.target.value })
-                      }
-                      aria-label="Status name"
-                    />
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={column.wipLimit ?? ""}
-                        placeholder="No limit"
-                        className="px-2 text-[11px] tabular-nums"
-                        aria-label={`${column.name} card limit`}
-                        onChange={(event) =>
-                          updateColumn(column.id, {
-                            wipLimit: event.target.value
-                              ? Math.max(1, Number(event.target.value))
-                              : null,
-                          })
-                        }
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateColumn(column.id, { isDone: !column.isDone })
-                      }
-                      className={cn(
-                        "flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium outline-none transition-[background-color,border-color,color,transform] duration-150 active:scale-[.97] focus-visible:ring-2 focus-visible:ring-ring",
-                        column.isDone
-                          ? "border-green-500/25 bg-green-500/10 text-green-700 dark:text-green-400"
-                          : "border-border bg-muted text-muted-foreground hover:text-foreground",
-                      )}
-                      aria-pressed={column.isDone}
-                    >
-                      {column.isDone ? (
-                        <CircleCheck className="size-3.5" />
-                      ) : (
-                        <Check className="size-3.5 opacity-50" />
-                      )}
-                      Done
-                    </button>
-                    <div className="flex justify-end gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-7 text-muted-foreground"
-                        onClick={() => moveColumn(column.id, index - 1)}
-                        disabled={index === 0}
-                        aria-label={`Move ${column.name} left`}
-                      >
-                        <ArrowUp className="size-3.5 -rotate-90" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-7 text-muted-foreground"
-                        onClick={() => moveColumn(column.id, index + 1)}
-                        disabled={index === projectColumns.length - 1}
-                        aria-label={`Move ${column.name} right`}
-                      >
-                        <ArrowDown className="size-3.5 -rotate-90" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => deleteColumn(column.id)}
-                        disabled={projectColumns.length <= 1}
-                        aria-label={`Delete ${column.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="mt-7 border-t border-border/65 pt-6">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <h3 className="text-[13px] font-semibold">Labels</h3>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Labels belong to this project and can be combined on any
-                    card.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => addLabel(project.id)}
-                >
-                  <Plus className="size-3" />
-                  Add label
-                </Button>
-              </div>
-
-              {projectLabels.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {projectLabels.map((label) => (
+                    <Plus className="size-4" />
+                    Add status
+                  </Button>
+                }
+              >
+                <div className="space-y-3">
+                  {projectColumns.map((column, index) => (
                     <div
-                      key={label.id}
-                      className="flex items-center gap-2 rounded-xl border border-border bg-background p-2"
+                      key={column.id}
+                      className="overflow-hidden rounded-2xl border border-border/70 bg-card"
                     >
-                      <ColorPicker
-                        value={label.color}
-                        onValueChange={(color) =>
-                          updateLabel(label.id, { color })
-                        }
+                      <SettingsCollectionRow
+                        name={column.name}
+                        color={column.color}
                         presets={kanbanColorPresets}
-                        ariaLabel={`Choose ${label.name} color`}
-                      />
-                      <Input
-                        value={label.name}
-                        onChange={(event) =>
-                          updateLabel(label.id, { name: event.target.value })
+                        maxLength={80}
+                        detail={`Status ${index + 1} of ${projectColumns.length}`}
+                        autoFocus={newItemId === column.id}
+                        onNameChange={(name) => {
+                          updateColumn(column.id, { name });
+                          setNewItemId(null);
+                        }}
+                        onColorChange={(color) =>
+                          updateColumn(column.id, { color })
                         }
-                        aria-label="Label name"
+                        canDelete={projectColumns.length > 1}
+                        onDelete={() => {
+                          if (!removeColumn(column.id))
+                            toast.error("A project needs at least one status");
+                        }}
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => removeLabel(label.id)}
-                        aria-label={`Delete ${label.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border/50 px-4 py-3">
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          Card limit
+                          <Input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={column.wipLimit ?? ""}
+                            placeholder="None"
+                            className="h-8 w-[72px] px-2 text-xs tabular-nums"
+                            aria-label={`${column.name} card limit`}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              updateColumn(column.id, {
+                                wipLimit: value
+                                  ? Math.min(99, Math.max(1, Number(value)))
+                                  : null,
+                              });
+                            }}
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          Completed
+                          <Switch
+                            checked={column.isDone}
+                            onCheckedChange={(isDone) =>
+                              updateColumn(column.id, { isDone })
+                            }
+                            aria-label={`${column.name} counts as complete`}
+                          />
+                        </label>
+                        <div className="ml-auto flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={index === 0}
+                            onClick={() => moveColumn(column.id, index - 1)}
+                            aria-label={`Move ${column.name} earlier`}
+                          >
+                            <ArrowUp className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={index === projectColumns.length - 1}
+                            onClick={() => moveColumn(column.id, index + 1)}
+                            aria-label={`Move ${column.name} later`}
+                          >
+                            <ArrowDown className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => addLabel(project.id)}
-                  className="flex h-16 w-full items-center justify-center rounded-xl border border-dashed border-border bg-background text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-foreground/20 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Add your first label
-                </button>
-              )}
-            </section>
-            </fieldset>
-
-            {isOwner ? (
-            <section className="mt-7 border-t border-border/65 pt-6">
-              <h3 className="text-[13px] font-semibold text-destructive">
-                Delete project
-              </h3>
-              <p className="mt-1 max-w-lg text-[11px] leading-5 text-muted-foreground">
-                This permanently removes every status, label, and card in this
-                project.
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                disabled={ownedProjectCount <= 1}
-                onClick={() => setDeleteProjectOpen(true)}
+              </SettingsSection>
+            ),
+          },
+          {
+            id: "labels",
+            label: "Labels",
+            icon: Tags,
+            description: "Make cards easier to recognize, filter, and group.",
+            content: (
+              <SettingsSection
+                title="Project labels"
+                description="Labels belong to this project. You can use more than one on a card."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => setNewItemId(addLabel(project.id).id)}
+                  >
+                    <Plus className="size-4" />
+                    Add label
+                  </Button>
+                }
               >
-                <Trash2 className="size-3.5" />
-                Delete project…
-              </Button>
-              {ownedProjectCount <= 1 ? (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Create another project before deleting this one.
-                </p>
-              ) : null}
-            </section>
-            ) : null}
-          </div>
-
-          <div className="flex shrink-0 justify-end px-5 py-3">
-            <Button onClick={() => onOpenChange(false)}>Done</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <ShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        resourceType="kanbanProject"
-        resourceId={project.id}
-        resourceName={project.name}
-        onLeft={() => onOpenChange(false)}
+                {projectLabels.length ? (
+                  <SettingsGroup>
+                    {projectLabels.map((label) => (
+                      <SettingsCollectionRow
+                        key={label.id}
+                        name={label.name}
+                        color={label.color}
+                        presets={kanbanColorPresets}
+                        maxLength={80}
+                        autoFocus={newItemId === label.id}
+                        onNameChange={(name) => {
+                          updateLabel(label.id, { name });
+                          setNewItemId(null);
+                        }}
+                        onColorChange={(color) =>
+                          updateLabel(label.id, { color })
+                        }
+                        onDelete={() => removeLabel(label.id)}
+                      />
+                    ))}
+                  </SettingsGroup>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setNewItemId(addLabel(project.id).id)}
+                    className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card text-sm text-muted-foreground outline-none hover:border-primary/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Tags className="mb-1 size-6" />
+                    Add your first label
+                  </button>
+                )}
+              </SettingsSection>
+            ),
+          },
+        ]}
       />
-
       <Dialog open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
         <DialogContent className="max-w-sm">
           <DialogTitle>Delete “{project.name}”?</DialogTitle>
@@ -401,10 +336,7 @@ export function KanbanProjectSettingsDialog({
             can’t be undone.
           </DialogDescription>
           <div className="mt-5 flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setDeleteProjectOpen(false)}
-            >
+            <Button variant="ghost" onClick={() => setDeleteProjectOpen(false)}>
               Cancel
             </Button>
             <Button

@@ -15,7 +15,6 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import {
   KanbanCardSurface,
 } from "@/features/kanban/components/kanban-card";
@@ -32,7 +31,6 @@ type KanbanBoardProps = {
   cards: KanbanCard[];
   allCards: KanbanCard[];
   labels: KanbanLabel[];
-  cardCollaborators: Record<string, CollaborationPeer[]>;
   onAddCard: (columnId: string) => void;
   onManageWorkflow: () => void;
   readOnly?: boolean;
@@ -126,7 +124,6 @@ export function KanbanBoard({
   cards,
   allCards,
   labels,
-  cardCollaborators,
   onAddCard,
   onManageWorkflow,
   readOnly = false,
@@ -134,7 +131,6 @@ export function KanbanBoard({
   const {
     moveCard,
     selectedCardId,
-    setCollaborationFocusCardId,
     setSelectedCardId,
   } = useKanban();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -161,8 +157,7 @@ export function KanbanBoard({
   const clearDrag = useCallback(() => {
     activeCardIdRef.current = null;
     setActiveCardId(null);
-    setCollaborationFocusCardId(null);
-  }, [setCollaborationFocusCardId]);
+  }, []);
 
   useEffect(() => {
     if (
@@ -236,7 +231,6 @@ export function KanbanBoard({
     }
     activeCardIdRef.current = cardId;
     setActiveCardId(cardId);
-    setCollaborationFocusCardId(cardId);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -277,7 +271,6 @@ export function KanbanBoard({
               allCards.filter((card) => card.columnId === column.id).length
             }
             labels={labels}
-            cardCollaborators={cardCollaborators}
             selectedCardId={selectedCardId}
             onSelectCard={setSelectedCardId}
             onAddCard={onAddCard}

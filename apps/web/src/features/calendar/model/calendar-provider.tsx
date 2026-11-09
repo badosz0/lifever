@@ -12,14 +12,6 @@ import { toast } from "sonner";
 
 import { useAppCalendarSources } from "@/features/apps/calendar-source-registry";
 import { useApps } from "@/features/apps/model/apps-provider";
-import type {
-  CollaborationPeer,
-  CollaborationResourceMessage,
-} from "@/features/collaboration/model/types";
-import {
-  collaborationRoomKey,
-  useLiveCollaboration,
-} from "@/features/collaboration/model/use-live-collaboration";
 import {
   categoryIdForLegacyColor,
   defaultCalendarCategories,
@@ -35,7 +27,6 @@ import type {
   CalendarEvent,
   NewCalendarEvent,
 } from "@/features/calendar/model/types";
-import { SHARING_CHANGED_EVENT } from "@/features/sharing/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
 import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { ApiRequestError, apiRequest, apiUrl } from "@/lib/api";
@@ -54,8 +45,6 @@ type CalendarContextValue = {
   calendars: CalendarCollection[];
   events: CalendarEvent[];
   nativeEvents: CalendarEvent[];
-  liveCollaborators: CollaborationPeer[];
-  eventCollaborators: Record<string, CollaborationPeer[]>;
   activeCalendarId: string | null;
   selectedEventId: string | null;
   google: GoogleCalendarStatus & { syncing: boolean };
@@ -139,8 +128,6 @@ type RemoteCalendar = {
   position: number;
   visible: boolean;
   createdAt: string;
-  writable?: boolean;
-  access?: CalendarCollection["access"];
 };
 
 type RemoteGoogleCalendar = RemoteCalendar & {
@@ -198,7 +185,7 @@ const normalizeNativeCalendar = (
 ): CalendarCollection => ({
   ...calendar,
   source: "lifever",
-  writable: calendar.writable !== false,
+  writable: true,
 });
 
 const normalizeGoogleCalendar = (
@@ -500,179 +487,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
     [],
   );
 
-  const selectedNativeEvent = nativeEvents.find(
-    (event) => event.id === selectedEventId,
-  );
-  const collaborationRooms = useMemo(
-    () =>
-      activeApp === "calendar"
-        ? nativeCalendars
-            .filter(
-              (calendar) =>
-                calendar.visible && calendar.access?.shared === true,
-            )
-            .map((calendar) => ({
-              resourceType: "calendar" as const,
-              resourceId: calendar.id,
-              focus:
-                selectedNativeEvent?.calendarId === calendar.id
-                  ? {
-                      kind: "calendar-event" as const,
-                      id: selectedNativeEvent.id,
-                    }
-                  : {
-                      kind: "resource" as const,
-                      id: calendar.id,
-                    },
-            }))
-        : [],
-    [activeApp, nativeCalendars, selectedNativeEvent],
-  );
-  const handleCollaborationChange = useCallback(
-    (message: CollaborationResourceMessage) => {
-      const data = message.change.data as Record<string, unknown>;
-
-      if (message.change.entity === "calendar-event") {
-        const eventId =
-          typeof data.eventId === "string" ? data.eventId : null;
-        if (message.change.action === "delete") {
-          if (!eventId) return;
-          setNativeEvents((current) =>
-            current.filter((event) => event.id !== eventId),
-          );
-          setSelectedEventId((current) =>
-            current === eventId ? null : current,
-          );
-          return;
-        }
-
-        const remoteEvent = data.event as CalendarEvent | undefined;
-        const calendar = nativeCalendarsRef.current.find(
-          (item) => item.id === remoteEvent?.calendarId,
-        );
-        if (!remoteEvent || !calendar) return;
-        if (
-          pendingEventUpdates.current.has(remoteEvent.id) ||
-          eventWriteChains.current.has(remoteEvent.id)
-        ) {
-          return;
-        }
-        const normalized = {
-          ...normalizeCalendarEvent(remoteEvent, remoteEvent.calendarId),
-          source: "lifever" as const,
-          readOnly: !calendar.writable,
-        };
-        setNativeEvents((current) =>
-          current.some((event) => event.id === normalized.id)
-            ? current.map((event) =>
-                event.id === normalized.id ? normalized : event,
-              )
-            : [...current, normalized],
-        );
-        return;
-      }
-
-      if (message.change.entity === "calendar-category") {
-        if (message.change.action === "delete") {
-          const categoryId =
-            typeof data.categoryId === "string" ? data.categoryId : null;
-          const replacementCategoryId =
-            typeof data.replacementCategoryId === "string"
-              ? data.replacementCategoryId
-              : null;
-          if (!categoryId || !replacementCategoryId) return;
-          setCategories((current) =>
-            current.filter((category) => category.id !== categoryId),
-          );
-          setNativeEvents((current) =>
-            current.map((event) =>
-              event.categoryId === categoryId
-                ? { ...event, categoryId: replacementCategoryId }
-                : event,
-            ),
-          );
-          return;
-        }
-        const category = data.category as CalendarCategory | undefined;
-        if (!category) return;
-        setCategories((current) =>
-          current.some((item) => item.id === category.id)
-            ? current.map((item) =>
-                item.id === category.id ? category : item,
-              )
-            : [...current, category],
-        );
-        return;
-      }
-
-      if (message.change.entity === "calendar") {
-        if (message.change.action === "delete") {
-          const calendarId =
-            typeof data.calendarId === "string" ? data.calendarId : null;
-          if (!calendarId) return;
-          setNativeCalendars((current) =>
-            current.filter((calendar) => calendar.id !== calendarId),
-          );
-          setCategories((current) =>
-            current.filter(
-              (category) => category.calendarId !== calendarId,
-            ),
-          );
-          setNativeEvents((current) =>
-            current.filter((event) => event.calendarId !== calendarId),
-          );
-          setSelectedEventId((current) =>
-            current &&
-            nativeEventsRef.current.some(
-              (event) =>
-                event.id === current && event.calendarId === calendarId,
-            )
-              ? null
-              : current,
-          );
-          return;
-        }
-        const calendar = data.calendar as
-          | Pick<CalendarCollection, "id" | "name" | "color" | "position">
-          | undefined;
-        if (!calendar) return;
-        setNativeCalendars((current) =>
-          current.map((item) =>
-            item.id === calendar.id ? { ...item, ...calendar } : item,
-          ),
-        );
-      }
-    },
-    [],
-  );
-  const { peersByRoom: collaborationPeers } = useLiveCollaboration({
-    currentUserId: session?.user.id,
-    enabled: Boolean(session && collaborationRooms.length > 0),
-    rooms: collaborationRooms,
-    onResourceChange: handleCollaborationChange,
-    onAccessChanged: () => {
-      if (session?.user.id) void loadRemote(session.user.id, true);
-    },
-  });
-  const liveCollaborators = useMemo(
-    () =>
-      collaborationRooms.flatMap(
-        (room) =>
-          collaborationPeers[
-            collaborationRoomKey(room.resourceType, room.resourceId)
-          ] ?? [],
-      ),
-    [collaborationPeers, collaborationRooms],
-  );
-  const eventCollaborators = useMemo(() => {
-    const result: Record<string, CollaborationPeer[]> = {};
-    for (const peer of liveCollaborators) {
-      if (peer.focus?.kind !== "calendar-event") continue;
-      (result[peer.focus.id] ??= []).push(peer);
-    }
-    return result;
-  }, [liveCollaborators]);
-
   useEffect(() => {
     if (isPending) return;
     const userId = session?.user.id;
@@ -795,10 +609,8 @@ export function CalendarProvider({ children }: PropsWithChildren) {
         refresh();
       }
     }, 30_000);
-    window.addEventListener(SHARING_CHANGED_EVENT, refresh);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener(SHARING_CHANGED_EVENT, refresh);
     };
   }, [activeApp, loadGoogleEvents, loadRemote, session?.user.id]);
 
@@ -1473,7 +1285,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       );
       if (
         !target ||
-        target.access?.role === "collaborator" ||
         !replacement ||
         !replacementCategory
       ) {
@@ -1742,8 +1553,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       calendars,
       events,
       nativeEvents,
-      liveCollaborators,
-      eventCollaborators,
       activeCalendarId,
       selectedEventId,
       google: { ...googleStatus, syncing: googleSyncing },
@@ -1783,8 +1592,6 @@ export function CalendarProvider({ children }: PropsWithChildren) {
       googleStatus,
       googleSyncing,
       hydratedMode,
-      eventCollaborators,
-      liveCollaborators,
       nativeCalendars.length,
       nativeEvents,
       refreshGoogle,

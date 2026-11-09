@@ -1,16 +1,9 @@
-import {
-  AlertCircle,
-  Flag,
-  RefreshCw,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { AlertCircle, Flag, RefreshCw, Trophy, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  AppHeader,
-  AppHeaderToolbar,
-} from "@/components/app-shell/app-header";
+import { AppHeader, AppHeaderToolbar } from "@/components/app-shell/app-header";
+import { AppSettingsButton } from "@/components/app-shell/app-settings-button";
+import { Formula1SettingsDialog } from "@/features/formula1/components/formula1-settings-dialog";
 import { Button } from "@/components/ui/button";
 import { Formula1Countdown } from "@/features/formula1/components/formula1-countdown";
 import { Formula1Flag } from "@/features/formula1/components/formula1-flag";
@@ -72,6 +65,7 @@ export function Formula1View({
   } = useFormula1();
   const { dateFormat, timeFormat } = useUserPreferences();
   const now = useCurrentTime();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setViewState] = useState<Formula1ViewMode>(readViewMode);
 
   const setView = (next: Formula1ViewMode) => {
@@ -87,9 +81,7 @@ export function Formula1View({
     () => getSpotlightRace(snapshot?.races ?? [], now),
     [now, snapshot?.races],
   );
-  const nextSession = spotlightRace
-    ? getNextSession(spotlightRace, now)
-    : null;
+  const nextSession = spotlightRace ? getNextSession(spotlightRace, now) : null;
   const nextSessionStartsAt =
     nextSession?.startsAt ?? spotlightRace?.startsAt ?? null;
   const upcomingRaces =
@@ -142,6 +134,10 @@ export function Formula1View({
             ))}
           </div>
 
+          <AppSettingsButton
+            label="Formula 1 settings"
+            onClick={() => setSettingsOpen(true)}
+          />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -151,7 +147,9 @@ export function Formula1View({
             aria-label="Refresh Formula 1 data"
             title="Refresh data"
           >
-            <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+            <RefreshCw
+              className={cn("size-3.5", refreshing && "animate-spin")}
+            />
           </Button>
         </AppHeaderToolbar>
       </AppHeader>
@@ -220,10 +218,7 @@ export function Formula1View({
                           </p>
                           <p className="mt-0.5 text-[26px] leading-none font-bold tracking-[-0.035em] tabular-nums">
                             {nextSessionStartsAt
-                              ? formatUserTime(
-                                  nextSessionStartsAt,
-                                  timeFormat,
-                                )
+                              ? formatUserTime(nextSessionStartsAt, timeFormat)
                               : "TBC"}
                           </p>
                           {nextSessionStartsAt ? (
@@ -322,7 +317,9 @@ export function Formula1View({
           ) : (
             <div className="flex min-h-72 flex-col items-center justify-center text-center">
               <AlertCircle className="size-6 text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium">Couldn’t load the season</p>
+              <p className="mt-3 text-sm font-medium">
+                Couldn’t load the season
+              </p>
               <p className="mt-1 max-w-64 text-xs leading-5 text-muted-foreground">
                 Check your connection and try refreshing Formula 1 data.
               </p>
@@ -338,6 +335,10 @@ export function Formula1View({
           )}
         </div>
       </div>
+      <Formula1SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
     </main>
   );
 }

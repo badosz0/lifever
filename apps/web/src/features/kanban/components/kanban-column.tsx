@@ -12,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CollaborationPeer } from "@/features/collaboration/model/types";
 import { KanbanSortableCard } from "@/features/kanban/components/kanban-card";
 import type {
   KanbanCard,
@@ -26,7 +25,6 @@ type KanbanColumnProps = {
   cards: KanbanCard[];
   totalCardCount: number;
   labels: KanbanLabel[];
-  cardCollaborators: Record<string, CollaborationPeer[]>;
   selectedCardId: string | null;
   onSelectCard: (id: string) => void;
   onAddCard: (columnId: string) => void;
@@ -39,7 +37,6 @@ export function KanbanColumn({
   cards,
   totalCardCount,
   labels,
-  cardCollaborators,
   selectedCardId,
   onSelectCard,
   onAddCard,
@@ -128,7 +125,6 @@ export function KanbanColumn({
                 key={card.id}
                 card={card}
                 labels={labels}
-                collaborators={cardCollaborators[card.id] ?? []}
                 completed={column.isDone}
                 selected={selectedCardId === card.id}
                 onSelect={onSelectCard}

@@ -10,13 +10,11 @@ import { createSessionMiddleware } from "./modules/auth/session.js";
 import { createCalendarCalendarsRoutes } from "./modules/calendar/calendar-calendars.routes.js";
 import { createCalendarCategoriesRoutes } from "./modules/calendar/calendar-categories.routes.js";
 import { createCalendarRoutes } from "./modules/calendar/calendar.routes.js";
-import { createCollaborationRoutes } from "./modules/collaboration/collaboration.routes.js";
 import { createGoogleCalendarRoutes } from "./modules/google-calendar/google-calendar.routes.js";
 import { createKanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { createNotesRoutes } from "./modules/notes/notes.routes.js";
 import { createPreferencesRoutes } from "./modules/preferences/preferences.routes.js";
 import { createRemindersRoutes } from "./modules/reminders/reminders.routes.js";
-import { createSharingRoutes } from "./modules/sharing/sharing.routes.js";
 
 type ApiDependencies = {
   config: ApiConfig;
@@ -43,7 +41,6 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
       allowHeaders: [
         "Content-Type",
         "Authorization",
-        "X-Lifever-Client-Id",
       ],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
@@ -73,17 +70,12 @@ export const createApp = ({ config, prisma }: ApiDependencies) => {
   );
   app.route("/api/calendar-events", createCalendarRoutes(routeDependencies));
   app.route(
-    "/api/collaboration",
-    createCollaborationRoutes(routeDependencies),
-  );
-  app.route(
     "/api/calendar-integrations/google",
     createGoogleCalendarRoutes(routeDependencies),
   );
   app.route("/api/kanban", createKanbanRoutes(routeDependencies));
   app.route("/api/notes", createNotesRoutes(routeDependencies));
   app.route("/api/preferences", createPreferencesRoutes(routeDependencies));
-  app.route("/api/sharing", createSharingRoutes(routeDependencies));
 
   app.notFound((context) => context.json({ error: "Not found" }, 404));
 

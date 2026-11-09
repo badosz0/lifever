@@ -2,7 +2,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { DragEventHandler } from "react";
 
 import { CalendarEventContextMenu } from "@/features/calendar/components/calendar-event-context-menu";
-import { LivePresence } from "@/features/collaboration/components/live-presence";
 import {
   durationInMinutes,
   formatDurationMinutes,
@@ -51,8 +50,6 @@ export function CalendarMonthEventCard({
   onDragStart,
 }: CalendarMonthEventCardProps) {
   const { timeFormat } = useUserPreferences();
-  const { eventCollaborators } = useCalendar();
-  const collaborators = event ? eventCollaborators[event.id] ?? [] : [];
   const durationLabel = formatDurationMinutes(
     Math.max(15, durationInMinutes(startAt, endAt)),
   );
@@ -82,9 +79,6 @@ export function CalendarMonthEventCard({
       <span className="min-w-0 flex-1 truncate text-[9px] leading-3 font-semibold">
         {title || "New event"}
       </span>
-      {collaborators.length > 0 ? (
-        <LivePresence peers={collaborators} size="xs" />
-      ) : null}
       <span className="shrink-0 text-[7px] leading-3 font-medium tabular-nums opacity-55">
         {durationLabel}
       </span>

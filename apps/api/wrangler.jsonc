@@ -27,18 +27,14 @@
       "migrations_dir": "../../prisma/d1-migrations",
     },
   ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "COLLABORATION_ROOMS",
-        "class_name": "CollaborationRoom",
-      },
-    ],
-  },
   "migrations": [
     {
       "tag": "collaboration-v1",
       "new_sqlite_classes": ["CollaborationRoom"],
+    },
+    {
+      "tag": "remove-collaboration-v1",
+      "deleted_classes": ["CollaborationRoom"],
     },
   ],
 }

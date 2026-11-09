@@ -1,14 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
-import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
-import {
-  canWriteResource,
-  deleteResourceSharing,
-  getResourceAccess,
-  serializeResourceAccess,
-} from "../sharing/sharing.service.js";
 import {
   createLifeverCalendarSchema,
   updateLifeverCalendarSchema,
@@ -55,72 +48,13 @@ export const createCalendarCalendarsRoutes = ({
   routes.get("/", async (context) => {
     const userId = context.get("session").user.id;
     await ensureDefaultCalendar(prisma, userId);
-    const shares = await prisma.resourceShare.findMany({
-      where: {
-        resourceType: "calendar",
-        OR: [{ userId }, { ownerId: userId }],
-      },
-      select: {
-        id: true,
-        ownerId: true,
-        resourceId: true,
-        permission: true,
-        userId: true,
-        visible: true,
-        owner: {
-          select: { id: true, name: true, email: true, image: true },
-        },
-      },
-    });
-    const collaboratorShares = shares.filter(
-      (share) => share.userId === userId,
-    );
-    const shareByCalendar = new Map(
-      collaboratorShares.map((share) => [share.resourceId, share]),
-    );
-    const sharedOwnedCalendarIds = new Set(
-      shares
-        .filter((share) => share.ownerId === userId)
-        .map((share) => share.resourceId),
-    );
     const calendars = await prisma.lifeverCalendar.findMany({
-      where: {
-        OR: [
-          { userId },
-          {
-            id: {
-              in: collaboratorShares.map((share) => share.resourceId),
-            },
-          },
-        ],
-      },
-      select: {
-        ...calendarSelect,
-        userId: true,
-        user: {
-          select: { id: true, name: true, email: true, image: true },
-        },
-      },
+      where: { userId },
+      select: calendarSelect,
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
     return context.json({
-      calendars: calendars.map(({ userId: ownerId, user, ...calendar }) => {
-        const own = ownerId === userId;
-        const share = shareByCalendar.get(calendar.id);
-        return {
-          ...calendar,
-          visible: own ? calendar.visible : share?.visible !== false,
-          writable: own || share?.permission === "write",
-          access: {
-            role: own ? "owner" : "collaborator",
-            permission:
-              own || share?.permission === "write" ? "write" : "read",
-            shareId: own ? null : share?.id ?? null,
-            shared: own ? sharedOwnedCalendarIds.has(calendar.id) : true,
-            owner: user,
-          },
-        };
-      }),
+      calendars: calendars.map((calendar) => ({ ...calendar, writable: true })),
     });
   });
 
@@ -161,7 +95,7 @@ export const createCalendarCalendarsRoutes = ({
         },
       }),
     ]);
-    return context.json({ calendar, category }, 201);
+    return context.json({ calendar: { ...calendar, writable: true }, category }, 201);
   });
 
   routes.patch("/:id", async (context) => {
@@ -176,79 +110,17 @@ export const createCalendarCalendarsRoutes = ({
       );
     }
 
-    const access = await getResourceAccess(
-      prisma,
-      userId,
-      "calendar",
-      context.req.param("id"),
-    );
-    const existing = access
-      ? await prisma.lifeverCalendar.findUnique({
-          where: { id: context.req.param("id") },
-          select: { id: true },
-        })
-      : null;
-    if (!existing) return context.json({ error: "Calendar not found" }, 404);
-    if (!canWriteResource(access)) {
-      const { visible } = parsed.data;
-      if (visible === undefined || Object.keys(parsed.data).length !== 1) {
-        return context.json({ error: "You only have read access." }, 403);
-      }
-    }
-
-    if (access!.role === "collaborator" && parsed.data.visible !== undefined) {
-      await prisma.resourceShare.update({
-        where: { id: access!.shareId! },
-        data: { visible: parsed.data.visible },
-      });
-    }
-    const { visible: requestedVisibility, ...sharedPatch } = parsed.data;
-    const ownerPatch =
-      access!.role === "owner"
-        ? parsed.data
-        : sharedPatch;
-
-    const calendar =
-      Object.keys(ownerPatch).length > 0
-        ? await prisma.lifeverCalendar.update({
-            where: { id: existing.id },
-            data: ownerPatch,
-            select: calendarSelect,
-          })
-        : await prisma.lifeverCalendar.findUniqueOrThrow({
-            where: { id: existing.id },
-            select: calendarSelect,
-          });
-    if (Object.keys(sharedPatch).length > 0) {
-      publishCollaborationChange(context, {
-        resourceType: "calendar",
-        resourceId: calendar.id,
-        shared: access!.shared,
-        change: {
-          action: "upsert",
-          entity: "calendar",
-          data: {
-            calendar: {
-              id: calendar.id,
-              name: calendar.name,
-              color: calendar.color,
-              position: calendar.position,
-            },
-          },
-        },
-      });
-    }
-    return context.json({
-      calendar: {
-        ...calendar,
-        ...(access!.role === "collaborator" &&
-        requestedVisibility !== undefined
-          ? { visible: requestedVisibility }
-          : {}),
-        writable: canWriteResource(access),
-        access: serializeResourceAccess(access!),
-      },
+    const existing = await prisma.lifeverCalendar.findFirst({
+      where: { id: context.req.param("id"), userId },
+      select: { id: true },
     });
+    if (!existing) return context.json({ error: "Calendar not found" }, 404);
+    const calendar = await prisma.lifeverCalendar.update({
+      where: { id: existing.id, userId },
+      data: parsed.data,
+      select: calendarSelect,
+    });
+    return context.json({ calendar: { ...calendar, writable: true } });
   });
 
   routes.delete("/:id", async (context) => {
@@ -282,12 +154,6 @@ export const createCalendarCalendarsRoutes = ({
       );
     }
 
-    const access = await getResourceAccess(
-      prisma,
-      userId,
-      "calendar",
-      target.id,
-    );
     await prisma.$transaction([
       prisma.calendarEvent.updateMany({
         where: { userId, calendarId: target.id },
@@ -296,19 +162,8 @@ export const createCalendarCalendarsRoutes = ({
           categoryId: replacementCategory.id,
         },
       }),
-      ...deleteResourceSharing(prisma, "calendar", target.id),
-      prisma.lifeverCalendar.delete({ where: { id: target.id } }),
+      prisma.lifeverCalendar.delete({ where: { id: target.id, userId } }),
     ]);
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: target.id,
-      shared: access?.shared === true,
-      change: {
-        action: "delete",
-        entity: "calendar",
-        data: { calendarId: target.id },
-      },
-    });
     return context.json({ replacementCalendarId: replacement.id });
   });
 

@@ -1,195 +1,75 @@
 import {
+  CalendarDays,
   Cloud,
   MousePointerClick,
   Plus,
   RefreshCw,
-  Share2,
-  Settings2,
-  Trash2,
+  Tags,
   Unplug,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { SettingsCollectionRow } from "@/components/settings/settings-collection-row";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+  SettingsGroup,
+  SettingsModal,
+  SettingsRow,
+  SettingsSection,
+  SettingsToggle,
+  type SettingsDialogProps,
+} from "@/components/settings/settings-modal";
+import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/color-picker";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { CategoryColorPicker } from "@/features/calendar/components/category-color-picker";
 import { calendarColorPresets } from "@/features/calendar/lib/categories";
 import { useCalendar } from "@/features/calendar/model/calendar-provider";
-import type {
-  CalendarCategory,
-  CalendarCollection,
-} from "@/features/calendar/model/types";
+import type { CalendarCollection } from "@/features/calendar/model/types";
 import { useUserPreferences } from "@/features/settings/model/user-preferences-provider";
-import { ShareDialog } from "@/features/sharing/components/share-dialog";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
-
-type CalendarSettingsDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-};
-
-type EditableRowProps = {
-  item: Pick<CalendarCategory, "id" | "name" | "color">;
-  countLabel: string;
-  canDelete: boolean;
-  autoFocus: boolean;
-  onCommitName: (name: string) => void;
-  onColorChange: (color: string) => void;
-  onDelete: () => void;
-  visibility?: {
-    checked: boolean;
-    onCheckedChange: (checked: boolean) => void;
-  };
-  editable?: boolean;
-  onShare?: () => void;
-};
-
-function EditableRow({
-  item,
-  countLabel,
-  canDelete,
-  autoFocus,
-  onCommitName,
-  onColorChange,
-  onDelete,
-  visibility,
-  editable = true,
-  onShare,
-}: EditableRowProps) {
-  const [name, setName] = useState(item.name);
-
-  useEffect(() => setName(item.name), [item.name]);
-
-  const commitName = () => {
-    const cleanName = name.trim();
-    if (!cleanName) {
-      setName(item.name);
-      return;
-    }
-    if (cleanName !== item.name) onCommitName(cleanName);
-  };
-
-  return (
-    <div className="flex min-h-12 items-center gap-2 border-b border-border/55 px-1 last:border-b-0">
-      <CategoryColorPicker
-        value={item.color}
-        onValueChange={(color) => {
-          if (editable) onColorChange(color);
-        }}
-        ariaLabel={`Choose color for ${item.name}`}
-        disabled={!editable}
-      />
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        onBlur={commitName}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") {
-            setName(item.name);
-            event.currentTarget.blur();
-          }
-        }}
-        autoFocus={autoFocus}
-        maxLength={40}
-        className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[13px] font-medium shadow-none focus:ring-0"
-        aria-label={`${item.name} name`}
-        disabled={!editable}
-      />
-      <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">
-        {countLabel}
-      </span>
-      {visibility ? (
-        <Switch
-          checked={visibility.checked}
-          onCheckedChange={visibility.onCheckedChange}
-          aria-label={`Show ${item.name}`}
-        />
-      ) : null}
-      {onShare ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-8 shrink-0 text-muted-foreground"
-          onClick={onShare}
-          aria-label={`Share ${item.name}`}
-        >
-          <Share2 className="size-3.5" />
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        onClick={onDelete}
-        disabled={!canDelete || !editable}
-        aria-label={`Delete ${item.name}`}
-      >
-        <Trash2 className="size-3.5" />
-      </Button>
-    </div>
-  );
-}
-
-type SourceRowProps = {
-  calendar: CalendarCollection;
-  onColorChange: (color: string) => void;
-  onVisibilityChange: (visible: boolean) => void;
-};
 
 function SourceRow({
   calendar,
   onColorChange,
   onVisibilityChange,
-}: SourceRowProps) {
+}: {
+  calendar: CalendarCollection;
+  onColorChange: (color: string) => void;
+  onVisibilityChange: (visible: boolean) => void;
+}) {
   const sourceColor = calendar.sourceColor ?? calendar.color;
-  const sourceColorPreset = {
-    color: sourceColor,
-    label: `${calendar.name} default`,
-  };
-  const colorPresets = calendarColorPresets.some(
+  const presets = calendarColorPresets.some(
     (preset) => preset.color.toLowerCase() === sourceColor.toLowerCase(),
   )
     ? calendarColorPresets
-    : [sourceColorPreset, ...calendarColorPresets.slice(0, -1)];
-
+    : [
+        { color: sourceColor, label: `${calendar.name} default` },
+        ...calendarColorPresets.slice(0, -1),
+      ];
   return (
-    <div className="flex min-h-12 items-center gap-3 border-b border-border/55 px-1 last:border-b-0">
-      <CategoryColorPicker
+    <div className="flex min-h-[76px] items-center gap-3 px-4 py-3">
+      <ColorPicker
         value={calendar.color}
+        presets={presets}
         onValueChange={onColorChange}
-        presets={colorPresets}
         ariaLabel={`Choose color for ${calendar.name}`}
       />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium [overflow-wrap:anywhere]">
           {calendar.name}
-        </span>
-        <span className="mt-0.5 block text-[10px] text-muted-foreground">
-          {calendar.source === "google"
-            ? calendar.writable
-              ? "Can edit"
-              : "Read only"
-            : "Read only"}
-        </span>
-      </span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {calendar.writable ? "Can edit" : "Read only"}
+        </p>
+      </div>
       <Switch
         checked={calendar.visible}
         onCheckedChange={onVisibilityChange}
@@ -202,7 +82,7 @@ function SourceRow({
 export function CalendarSettingsDialog({
   open,
   onOpenChange,
-}: CalendarSettingsDialogProps) {
+}: SettingsDialogProps) {
   const {
     activeCalendarId,
     addCalendar,
@@ -226,21 +106,12 @@ export function CalendarSettingsDialog({
     useUserPreferences();
   const [newCalendarId, setNewCalendarId] = useState<string | null>(null);
   const [newCategoryId, setNewCategoryId] = useState<string | null>(null);
-  const [section, setSection] = useState<
-    "general" | "calendars" | "categories"
-  >("general");
   const [categoryCalendarId, setCategoryCalendarId] = useState<string | null>(
-    null,
-  );
-  const [sharingCalendarId, setSharingCalendarId] = useState<string | null>(
     null,
   );
   const previousOpen = useRef(open);
   const nativeCalendars = calendars.filter(
     (calendar) => calendar.source === "lifever",
-  );
-  const ownedNativeCalendars = nativeCalendars.filter(
-    (calendar) => calendar.access?.role !== "collaborator",
   );
   const googleCalendars = calendars.filter(
     (calendar) => calendar.source === "google",
@@ -249,9 +120,7 @@ export function CalendarSettingsDialog({
     (calendar) => calendar.source === "app",
   );
   const categoryCalendar =
-    nativeCalendars.find(
-      (calendar) => calendar.id === categoryCalendarId,
-    ) ??
+    nativeCalendars.find((calendar) => calendar.id === categoryCalendarId) ??
     nativeCalendars.find((calendar) => calendar.id === activeCalendarId) ??
     nativeCalendars[0];
   const calendarCategories = categories.filter(
@@ -328,322 +197,282 @@ export function CalendarSettingsDialog({
     }
   };
 
+  const sourceRow = (calendar: CalendarCollection) => (
+    <SourceRow
+      key={calendar.id}
+      calendar={calendar}
+      onColorChange={(color) => setExternalCalendarColor(calendar.id, color)}
+      onVisibilityChange={(visible) =>
+        setCalendarVisibility(calendar.id, visible)
+      }
+    />
+  );
+
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[580px] overflow-visible bg-popover p-0">
-        <div className="px-5 pt-5 pb-3">
-          <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Settings2 className="size-[18px]" />
-          </div>
-          <DialogTitle>Calendar settings</DialogTitle>
-          <DialogDescription className="mt-1">
-            Behavior, calendars, and categories.
-          </DialogDescription>
-        </div>
-
-        <div className="border-b border-border/65 px-5 pb-3">
-          <div className="flex h-8 w-fit items-center rounded-lg bg-muted p-0.5">
-            {(["general", "calendars", "categories"] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setSection(item)}
-                className={cn(
-                  "h-7 rounded-md px-3 text-[11px] font-semibold capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                  section === item
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-pressed={section === item}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="max-h-[min(62vh,540px)] overflow-y-auto px-5 py-3">
-          {section === "general" ? (
-            <div className="flex min-h-14 items-center gap-3 px-1">
-              <MousePointerClick className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium">
-                  Create events by clicking
-                </span>
-                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
-                  Click empty time for a quick event. Drag to choose its
-                  duration.
-                </span>
-              </span>
-              <Switch
-                checked={calendarClickToCreate}
-                onCheckedChange={setCalendarClickToCreate}
-                aria-label="Create events by clicking"
-              />
-            </div>
-          ) : section === "calendars" ? (
+    <SettingsModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Calendar settings"
+      description="Manage your calendars, categories, and connections."
+      icon={CalendarDays}
+      pages={[
+        {
+          id: "general",
+          label: "General",
+          icon: MousePointerClick,
+          description:
+            "Choose how you create events and interact with your schedule.",
+          content: (
+            <SettingsSection title="Creating events">
+              <SettingsGroup>
+                <SettingsToggle
+                  title="Create events by clicking"
+                  description="Click an empty time to create an event. Drag to choose its duration."
+                  checked={calendarClickToCreate}
+                  onCheckedChange={setCalendarClickToCreate}
+                />
+              </SettingsGroup>
+            </SettingsSection>
+          ),
+        },
+        {
+          id: "calendars",
+          label: "Calendars",
+          icon: CalendarDays,
+          description:
+            "Give each part of your life its own calendar, color, and space.",
+          content: (
             <>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-semibold text-muted-foreground">
-                  MY CALENDARS
-                </h3>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-1.5 text-[11px] text-muted-foreground"
-                  onClick={addNewCalendar}
-                >
-                  <Plus className="size-3.5" />
-                  Add
-                </Button>
-              </div>
-              <div>
-                {nativeCalendars.map((calendar) => (
-                  <EditableRow
-                    key={calendar.id}
-                    item={calendar}
-                    countLabel={`${nativeEvents.filter((event) => event.calendarId === calendar.id).length}`}
-                    canDelete={
-                      calendar.access?.role !== "collaborator" &&
-                      ownedNativeCalendars.length > 1
-                    }
-                    editable={calendar.writable}
-                    onShare={() => setSharingCalendarId(calendar.id)}
-                    autoFocus={newCalendarId === calendar.id}
-                    visibility={{
-                      checked: calendar.visible,
-                      onCheckedChange: (visible) =>
-                        setCalendarVisibility(calendar.id, visible),
-                    }}
-                    onCommitName={(name) => {
-                      updateCalendar(calendar.id, { name });
-                      setNewCalendarId(null);
-                    }}
-                    onColorChange={(color) =>
-                      updateCalendar(calendar.id, { color })
-                    }
-                    onDelete={() => {
-                      if (!removeCalendar(calendar.id)) return;
-                      if (categoryCalendarId === calendar.id) {
-                        setCategoryCalendarId(
-                          nativeCalendars.find(
-                            (item) => item.id !== calendar.id,
-                          )?.id ?? null,
-                        );
-                      }
-                      toast("Calendar deleted", {
-                        description:
-                          "Its events were moved to another Lifever calendar.",
-                      });
-                    }}
-                  />
-                ))}
-              </div>
-
-              <h3 className="mt-5 text-[11px] font-semibold text-muted-foreground">
-                GOOGLE
-              </h3>
-              <div className="mt-1 flex min-h-12 items-center gap-3 border-b border-border/55 px-1">
-                <Cloud className="size-4 shrink-0 text-[#4285F4]" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium">
-                    Google Calendar
-                  </span>
-                  <span className="block text-[10px] text-muted-foreground">
-                    {google.connected
-                      ? `${googleCalendars.length} connected`
-                      : !session
-                        ? "Sign in to connect"
-                        : google.configured
-                          ? "Not connected"
-                          : "Server setup required"}
-                  </span>
-                </span>
-                {session && google.configured && !google.connected ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-[11px]"
-                    onClick={() => void connect()}
-                  >
-                    Connect
+              <SettingsSection
+                title="My calendars"
+                description="Rename calendars, choose colors, or hide them from your schedule."
+                action={
+                  <Button variant="outline" onClick={addNewCalendar}>
+                    <Plus className="size-4" />
+                    Add calendar
                   </Button>
-                ) : google.connected ? (
-                  <div className="flex items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-7 text-muted-foreground"
-                      onClick={() => void refresh()}
-                      disabled={google.syncing}
-                      aria-label="Refresh Google calendars"
-                    >
-                      <RefreshCw
-                        className={cn(
-                          "size-3.5",
-                          google.syncing && "animate-spin",
-                        )}
-                      />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-7 text-muted-foreground hover:text-destructive"
-                      onClick={() => void disconnect()}
-                      disabled={google.syncing}
-                      aria-label="Disconnect Google Calendar"
-                    >
-                      <Unplug className="size-3.5" />
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-              {google.connected
-                ? googleCalendars.map((calendar) => (
-                    <SourceRow
-                      key={calendar.id}
-                      calendar={calendar}
-                      onColorChange={(color) =>
-                        setExternalCalendarColor(calendar.id, color)
-                      }
-                      onVisibilityChange={(visible) =>
-                        setCalendarVisibility(calendar.id, visible)
-                      }
-                    />
-                  ))
-                : null}
+                }
+              >
+                <SettingsGroup>
+                  {nativeCalendars.map((calendar) => {
+                    const count = nativeEvents.filter(
+                      (event) => event.calendarId === calendar.id,
+                    ).length;
+                    return (
+                      <SettingsCollectionRow
+                        key={calendar.id}
+                        name={calendar.name}
+                        color={calendar.color}
+                        presets={calendarColorPresets}
+                        detail={`${count} ${count === 1 ? "event" : "events"}`}
+                        maxLength={60}
+                        canDelete={nativeCalendars.length > 1}
+                        disabled={!calendar.writable}
+                        autoFocus={newCalendarId === calendar.id}
+                        onNameChange={(name) => {
+                          updateCalendar(calendar.id, { name });
+                          setNewCalendarId(null);
+                        }}
+                        onColorChange={(color) =>
+                          updateCalendar(calendar.id, { color })
+                        }
+                        onDelete={() => {
+                          if (!removeCalendar(calendar.id)) return;
+                          if (categoryCalendarId === calendar.id)
+                            setCategoryCalendarId(
+                              nativeCalendars.find(
+                                (item) => item.id !== calendar.id,
+                              )?.id ?? null,
+                            );
+                          toast("Calendar deleted", {
+                            description:
+                              "Its events were moved to another Lifever calendar.",
+                          });
+                        }}
+                      >
+                        <Switch
+                          checked={calendar.visible}
+                          onCheckedChange={(visible) =>
+                            setCalendarVisibility(calendar.id, visible)
+                          }
+                          aria-label={`Show ${calendar.name}`}
+                        />
+                      </SettingsCollectionRow>
+                    );
+                  })}
+                </SettingsGroup>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Keep at least one calendar. Deleting a calendar moves its
+                  events to another one.
+                </p>
+              </SettingsSection>
               {appCalendars.length > 0 ? (
-                <>
-                  <h3 className="mt-5 text-[11px] font-semibold text-muted-foreground">
-                    APPS
-                  </h3>
-                  {appCalendars.map((calendar) => (
-                    <SourceRow
-                      key={calendar.id}
-                      calendar={calendar}
-                      onColorChange={(color) =>
-                        setExternalCalendarColor(calendar.id, color)
-                      }
-                      onVisibilityChange={(visible) =>
-                        setCalendarVisibility(calendar.id, visible)
-                      }
-                    />
-                  ))}
-                </>
+                <SettingsSection
+                  title="From your apps"
+                  description="Show events from other Lifever apps alongside your schedule."
+                >
+                  <SettingsGroup>{appCalendars.map(sourceRow)}</SettingsGroup>
+                </SettingsSection>
               ) : null}
             </>
-          ) : (
-            <div>
-              <div className="flex items-end gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-[13px] font-semibold">Categories</h3>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Categories belong to one Lifever calendar.
-                  </p>
-                </div>
-                {categoryCalendar ? (
+          ),
+        },
+        {
+          id: "categories",
+          label: "Categories",
+          icon: Tags,
+          description: "Organize the events within each Lifever calendar.",
+          content: (
+            <>
+              <SettingsGroup>
+                <SettingsRow
+                  title="Calendar"
+                  description="Choose which calendar’s categories to edit."
+                  controlId="category-calendar"
+                >
                   <Select
-                    value={categoryCalendar.id}
+                    value={categoryCalendar?.id}
                     onValueChange={setCategoryCalendarId}
+                    disabled={!categoryCalendar}
                   >
-                    <SelectTrigger
-                      aria-label="Categories for calendar"
-                      className="h-8 w-40 text-[11px]"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-[3px]"
-                          style={{ backgroundColor: categoryCalendar.color }}
-                        />
-                        <span className="truncate">
-                          {categoryCalendar.name}
-                        </span>
-                      </span>
+                    <SelectTrigger id="category-calendar">
+                      <SelectValue placeholder="Choose a calendar" />
                     </SelectTrigger>
-                    <SelectContent align="end">
+                    <SelectContent>
                       {nativeCalendars.map((calendar) => (
                         <SelectItem key={calendar.id} value={calendar.id}>
-                          <span className="flex items-center gap-2">
-                            <span
-                              className="size-2.5 rounded-[3px]"
-                              style={{ backgroundColor: calendar.color }}
-                            />
-                            {calendar.name}
-                          </span>
+                          {calendar.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                ) : null}
-              </div>
-              <div className="mt-2">
-                {calendarCategories.map((category) => (
-                  <EditableRow
-                    key={category.id}
-                    item={category}
-                    countLabel={`${nativeEvents.filter((event) => event.categoryId === category.id).length}`}
-                    canDelete={calendarCategories.length > 1}
-                    editable={categoryCalendar?.writable !== false}
-                    autoFocus={newCategoryId === category.id}
-                    onCommitName={(name) => {
-                      updateCategory(category.id, { name });
-                      setNewCategoryId(null);
-                    }}
-                    onColorChange={(color) =>
-                      updateCategory(category.id, { color })
-                    }
-                    onDelete={() => {
-                      if (!removeCategory(category.id)) return;
-                      toast("Category deleted", {
-                        description:
-                          "Its events were moved to another category.",
-                      });
-                    }}
-                  />
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="mt-1 h-8 px-1 text-[12px] text-muted-foreground"
-                onClick={addNewCategory}
-                disabled={!categoryCalendar || !categoryCalendar.writable}
+                </SettingsRow>
+              </SettingsGroup>
+              <SettingsSection
+                title="Event categories"
+                description="Choose a name and color for each kind of event."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={addNewCategory}
+                    disabled={!categoryCalendar?.writable}
+                  >
+                    <Plus className="size-4" />
+                    Add category
+                  </Button>
+                }
               >
-                <Plus className="size-3.5" />
-                Add category
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end rounded-b-2xl border-t border-border/65 bg-popover px-5 py-3">
-          <Button type="button" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </div>
-        </DialogContent>
-      </Dialog>
-      {sharingCalendarId ? (
-        <ShareDialog
-          open
-          onOpenChange={(nextOpen) => {
-            if (!nextOpen) setSharingCalendarId(null);
-          }}
-          resourceType="calendar"
-          resourceId={sharingCalendarId}
-          resourceName={
-            nativeCalendars.find(
-              (calendar) => calendar.id === sharingCalendarId,
-            )?.name ?? "Calendar"
-          }
-          onLeft={() => setSharingCalendarId(null)}
-        />
-      ) : null}
-    </>
+                <SettingsGroup>
+                  {calendarCategories.map((category) => {
+                    const count = nativeEvents.filter(
+                      (event) => event.categoryId === category.id,
+                    ).length;
+                    return (
+                      <SettingsCollectionRow
+                        key={category.id}
+                        name={category.name}
+                        color={category.color}
+                        presets={calendarColorPresets}
+                        detail={`${count} ${count === 1 ? "event" : "events"}`}
+                        canDelete={calendarCategories.length > 1}
+                        autoFocus={newCategoryId === category.id}
+                        onNameChange={(name) => {
+                          updateCategory(category.id, { name });
+                          setNewCategoryId(null);
+                        }}
+                        onColorChange={(color) =>
+                          updateCategory(category.id, { color })
+                        }
+                        onDelete={() => {
+                          if (removeCategory(category.id))
+                            toast("Category deleted", {
+                              description:
+                                "Its events were moved to another category.",
+                            });
+                        }}
+                      />
+                    );
+                  })}
+                </SettingsGroup>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Keep at least one category per calendar. Deleting one moves
+                  its events to another category.
+                </p>
+              </SettingsSection>
+            </>
+          ),
+        },
+        {
+          id: "connections",
+          label: "Connections",
+          icon: Cloud,
+          description: "Bring your Google calendars into Lifever.",
+          content: (
+            <SettingsSection
+              title="Google Calendar"
+              description="Connected calendars appear alongside your Lifever calendars."
+            >
+              <SettingsGroup>
+                <SettingsRow
+                  title={
+                    google.connected
+                      ? "Google Calendar is connected"
+                      : "Connect Google Calendar"
+                  }
+                  description={
+                    google.connected
+                      ? `${googleCalendars.length} ${googleCalendars.length === 1 ? "calendar" : "calendars"} connected`
+                      : !session
+                        ? "Sign in to your Lifever account to connect."
+                        : google.configured
+                          ? "View and manage your Google events in Lifever."
+                          : "Google Calendar is not available on this server yet."
+                  }
+                >
+                  {google.connected ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => void refresh()}
+                        disabled={google.syncing}
+                        aria-label="Refresh Google calendars"
+                      >
+                        <RefreshCw
+                          className={cn(
+                            "size-4",
+                            google.syncing &&
+                              "animate-spin motion-reduce:animate-none",
+                          )}
+                        />
+                        {google.syncing ? "Syncing…" : "Refresh"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => void disconnect()}
+                        disabled={google.syncing}
+                        aria-label="Disconnect Google Calendar"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Unplug className="size-4" />
+                        Disconnect
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      onClick={() => void connect()}
+                      disabled={!session || !google.configured}
+                    >
+                      Connect Google
+                    </Button>
+                  )}
+                </SettingsRow>
+                {google.connected ? googleCalendars.map(sourceRow) : null}
+              </SettingsGroup>
+            </SettingsSection>
+          ),
+        },
+      ]}
+    />
   );
 }

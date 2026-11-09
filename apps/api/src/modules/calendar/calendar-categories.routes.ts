@@ -1,12 +1,7 @@
 import { Hono } from "hono";
 
 import type { AuthenticatedEnv } from "../auth/session.js";
-import { publishCollaborationChange } from "../collaboration/collaboration.publish.js";
 import type { RouteDependencies } from "../route-dependencies.js";
-import {
-  canWriteResource,
-  getResourceAccess,
-} from "../sharing/sharing.service.js";
 import {
   createCalendarCategorySchema,
   updateCalendarCategorySchema,
@@ -59,22 +54,10 @@ export const createCalendarCategoriesRoutes = ({
       });
       calendars = [calendar];
     }
-    const sharedCalendarIds = (
-      await prisma.resourceShare.findMany({
-        where: {
-          userId: session.user.id,
-          resourceType: "calendar",
-        },
-        select: { resourceId: true },
-      })
-    ).map((share) => share.resourceId);
-    const accessibleCalendarIds = [
-      ...calendars.map((calendar) => calendar.id),
-      ...sharedCalendarIds,
-    ];
+    const calendarIds = calendars.map((calendar) => calendar.id);
     let categories = await prisma.calendarCategory.findMany({
       where: {
-        calendarId: { in: accessibleCalendarIds },
+        calendarId: { in: calendarIds },
       },
       select: calendarCategorySelect,
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -110,7 +93,7 @@ export const createCalendarCategoriesRoutes = ({
       });
       categories = await prisma.calendarCategory.findMany({
         where: {
-          calendarId: { in: accessibleCalendarIds },
+          calendarId: { in: calendarIds },
         },
         select: calendarCategorySelect,
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -132,32 +115,15 @@ export const createCalendarCategoriesRoutes = ({
       );
     }
 
-    const access = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      parsed.data.calendarId,
-    );
-    if (!access) {
-      return context.json({ error: "Calendar not found" }, 400);
-    }
-    if (!canWriteResource(access)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
+    const calendar = await prisma.lifeverCalendar.findFirst({
+      where: { id: parsed.data.calendarId, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!calendar) return context.json({ error: "Calendar not found" }, 400);
 
     const category = await prisma.calendarCategory.create({
-      data: { ...parsed.data, userId: access.resource.ownerId },
+      data: { ...parsed.data, userId: session.user.id },
       select: calendarCategorySelect,
-    });
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: category.calendarId,
-      shared: access.shared,
-      change: {
-        action: "upsert",
-        entity: "calendar-category",
-        data: { category },
-      },
     });
     return context.json({ category }, 201);
   });
@@ -174,57 +140,30 @@ export const createCalendarCategoriesRoutes = ({
       );
     }
 
-    const existing = await prisma.calendarCategory.findUnique({
-      where: { id: context.req.param("id") },
+    const existing = await prisma.calendarCategory.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
       select: { id: true, calendarId: true },
     });
     if (!existing)
       return context.json({ error: "Calendar category not found" }, 404);
-    const access = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      existing.calendarId,
-    );
-    if (!canWriteResource(access)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
 
     const category = await prisma.calendarCategory.update({
-      where: { id: existing.id },
+      where: { id: existing.id, userId: session.user.id },
       data: parsed.data,
       select: calendarCategorySelect,
-    });
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: category.calendarId,
-      shared: access!.shared,
-      change: {
-        action: "upsert",
-        entity: "calendar-category",
-        data: { category },
-      },
     });
     return context.json({ category });
   });
 
   calendarCategoriesRoutes.delete("/:id", async (context) => {
     const session = context.get("session");
-    const target = await prisma.calendarCategory.findUnique({
-      where: { id: context.req.param("id") },
+    const target = await prisma.calendarCategory.findFirst({
+      where: { id: context.req.param("id"), userId: session.user.id },
       select: { id: true, calendarId: true },
     });
     if (!target)
       return context.json({ error: "Calendar category not found" }, 404);
-    const access = await getResourceAccess(
-      prisma,
-      session.user.id,
-      "calendar",
-      target.calendarId,
-    );
-    if (!canWriteResource(access)) {
-      return context.json({ error: "You only have read access." }, 403);
-    }
+
     const categories = await prisma.calendarCategory.findMany({
       where: { calendarId: target.calendarId },
       select: { id: true, calendarId: true },
@@ -248,21 +187,8 @@ export const createCalendarCategoriesRoutes = ({
         where: { categoryId: target.id },
         data: { categoryId: replacement.id },
       }),
-      prisma.calendarCategory.delete({ where: { id: target.id } }),
+      prisma.calendarCategory.delete({ where: { id: target.id, userId: session.user.id } }),
     ]);
-    publishCollaborationChange(context, {
-      resourceType: "calendar",
-      resourceId: target.calendarId,
-      shared: access!.shared,
-      change: {
-        action: "delete",
-        entity: "calendar-category",
-        data: {
-          categoryId: target.id,
-          replacementCategoryId: replacement.id,
-        },
-      },
-    });
 
     return context.json({ replacementCategoryId: replacement.id });
   });

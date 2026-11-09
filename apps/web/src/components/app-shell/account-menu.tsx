@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, LogOut, Settings2 } from "lucide-react";
+import { ChevronDown, LogOut, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,8 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings/components/settings-dialog";
-import { InvitationsDialog } from "@/features/sharing/components/invitations-dialog";
-import { useSharing } from "@/features/sharing/model/sharing-provider";
 import { authClient } from "@/lib/auth-client";
 import { clearDesktopAuthToken } from "@/lib/auth-token";
 import { isDemoMode } from "@/lib/demo-mode";
@@ -21,8 +19,6 @@ import { isDemoMode } from "@/lib/demo-mode";
 export function AccountMenu() {
   const { data: session, isPending } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [invitationsOpen, setInvitationsOpen] = useState(false);
-  const { invites } = useSharing();
   const name = session?.user.name ?? (isDemoMode ? "Showcase" : "Lifever");
   const initial = name.charAt(0).toUpperCase();
 
@@ -42,13 +38,7 @@ export function AccountMenu() {
         <DropdownMenuTrigger asChild>
           <button
             className="group flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors duration-150 ease-[cubic-bezier(.23,1,.32,1)] hover:bg-sidebar-accent/75 active:bg-sidebar-accent data-[state=open]:bg-sidebar-accent/75 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
-            aria-label={
-              invites.length > 0
-                ? `Open account menu, ${invites.length} pending ${
-                    invites.length === 1 ? "invitation" : "invitations"
-                  }`
-                : "Open account menu"
-            }
+            aria-label="Open account menu"
           >
             <span className="relative shrink-0">
               <Avatar className="size-6 ring-1 ring-border/70">
@@ -59,14 +49,6 @@ export function AccountMenu() {
                   {initial}
                 </AvatarFallback>
               </Avatar>
-              {invites.length > 0 ? (
-                <span
-                  className="absolute -top-1.5 -right-1.5 flex min-w-3.5 items-center justify-center rounded-full bg-destructive px-1 text-[8px] leading-3.5 font-bold text-destructive-foreground ring-2 ring-sidebar"
-                  aria-hidden="true"
-                >
-                  {invites.length > 9 ? "9+" : invites.length}
-                </span>
-              ) : null}
             </span>
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
               {name}
@@ -85,17 +67,6 @@ export function AccountMenu() {
             Settings
           </DropdownMenuItem>
           {session ? (
-            <DropdownMenuItem onSelect={() => setInvitationsOpen(true)}>
-              <Bell className="size-4" />
-              <span className="flex-1">Invitations</span>
-              {invites.length > 0 ? (
-                <span className="flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">
-                  {invites.length}
-                </span>
-              ) : null}
-            </DropdownMenuItem>
-          ) : null}
-          {session ? (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -109,10 +80,6 @@ export function AccountMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <InvitationsDialog
-        open={invitationsOpen}
-        onOpenChange={setInvitationsOpen}
-      />
     </>
   );
 }
