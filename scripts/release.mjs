@@ -148,11 +148,22 @@ async function assertSigningReady(signingStatus) {
     ["find-identity", "-v", "-p", "codesigning"],
     { capture: true },
   );
-  if (!identities.stdout.includes(`\"${identity}\"`)) {
+  const installedIdentity = identities.stdout
+    .split("\n")
+    .map((line) => line.match(/^\s*\d+\)\s+([0-9a-f]{40})\s+"([^"]+)"\s*$/i))
+    .find((match) => match && (
+      match[1].toUpperCase() === identity.toUpperCase() ||
+      match[2] === identity
+    ));
+  if (!installedIdentity) {
     throw new Error(
       `APPLE_SIGNING_IDENTITY is not installed in the current Keychain: ${identity}`,
     );
   }
+
+  // codesign can misread accented certificate names. The verified certificate's
+  // fingerprint identifies the same signing identity without locale ambiguity.
+  process.env.APPLE_SIGNING_IDENTITY = installedIdentity[1];
 
   if (signingStatus.method !== "api-key") return;
 
